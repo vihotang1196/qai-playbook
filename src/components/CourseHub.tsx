@@ -1,10 +1,15 @@
 import { Button } from "@/components/ui/button";
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogTrigger,
+} from "@/components/ui/dialog";
 import { useLang } from "@/i18n/LanguageContext";
 import { t } from "@/i18n/translations";
-import AdsDesignPopout from "@/components/AdsDesignPopout";
-import AdsSettingsPopout from "@/components/AdsSettingsPopout";
-import ClosingStrategyPopout from "@/components/ClosingStrategyPopout";
-import CopywritingPopout from "@/components/CopywritingPopout";
+import { courses } from "@/lib/courses";
+import CoursePlayer from "@/components/CoursePlayer";
 
 const CourseHub = () => {
   const { lang, hideSubtitles } = useLang();
@@ -19,42 +24,46 @@ const CourseHub = () => {
         {!hideSubtitles && <p className="mt-3 text-muted-foreground">{t.courseHub.subtitle[lang]}</p>}
 
         <div className="mt-12 grid grid-cols-1 md:grid-cols-2 gap-8">
-          {t.courseHub.courses.map((course, i) => (
-            <div
-              key={i}
-              className="vision-panel p-6"
-            >
-              <div className="w-full aspect-video rounded-xl bg-secondary mb-5 overflow-hidden">
-                {i === 0 ? (
-                  <img src="https://assets.cdn.filesafe.space/zUvmZ5aUG77DfLnXLzKo/media/69bb6ab3dac58434d5e1ff3d.png" alt="广告设计" className="w-full h-full object-cover" />
-                ) : i === 1 ? (
-                  <img src="https://assets.cdn.filesafe.space/zUvmZ5aUG77DfLnXLzKo/media/69bb6abc3147fdd3fd4ebdef.png" alt="广告设置" className="w-full h-full object-cover" />
-                ) : i === 2 ? (
-                  <img src="https://assets.cdn.filesafe.space/zUvmZ5aUG77DfLnXLzKo/media/69bb6ac23147fd285c4ebe99.png" alt="成交策略" className="w-full h-full object-cover" />
-                ) : i === 3 ? (
-                  <img src="https://assets.cdn.filesafe.space/zUvmZ5aUG77DfLnXLzKo/media/69bb99cd7e33ef7b076adef6.png" alt="文案攻略" className="w-full h-full object-cover" />
+          {t.courseHub.courses.map((course, i) => {
+            const data = courses[i];
+            return (
+              <div key={i} className="vision-panel p-6">
+                <div className="w-full aspect-video rounded-xl bg-secondary mb-5 overflow-hidden">
+                  {data ? (
+                    <img src={data.cover} alt={course.title[lang]} className="w-full h-full object-cover" />
+                  ) : (
+                    <span className="text-3xl font-bold text-muted-foreground/20">{String(i + 1).padStart(2, "0")}</span>
+                  )}
+                </div>
+                <h3 className="text-lg font-semibold tracking-tight">{course.title[lang]}</h3>
+                {!hideSubtitles && <p className="mt-1 text-sm text-muted-foreground">{course.desc[lang]}</p>}
+
+                {data ? (
+                  <Dialog>
+                    <DialogTrigger asChild>
+                      <Button variant="default" size="sm" className="mt-5 w-full">
+                        {t.courseHub.start[lang]}
+                      </Button>
+                    </DialogTrigger>
+                    <DialogContent className="max-w-6xl w-[95vw] p-0 gap-0 overflow-hidden">
+                      <DialogHeader className="px-5 pt-5 pb-3 text-left">
+                        <DialogTitle className="text-lg font-semibold tracking-tight">
+                          {course.title[lang]}
+                        </DialogTitle>
+                      </DialogHeader>
+                      <div className="px-4 pb-5 md:px-5">
+                        <CoursePlayer course={data} />
+                      </div>
+                    </DialogContent>
+                  </Dialog>
                 ) : (
-                  <span className="text-3xl font-bold text-muted-foreground/20">{String(i + 1).padStart(2, "0")}</span>
+                  <Button variant="default" size="sm" className="mt-5 w-full">
+                    {t.courseHub.start[lang]}
+                  </Button>
                 )}
               </div>
-              <h3 className="text-lg font-semibold tracking-tight">{course.title[lang]}</h3>
-              {!hideSubtitles && <p className="mt-1 text-sm text-muted-foreground">{course.desc[lang]}</p>}
-
-              {i === 0 ? (
-                <AdsDesignPopout triggerLabel={t.courseHub.start[lang]} />
-              ) : i === 1 ? (
-                <AdsSettingsPopout triggerLabel={t.courseHub.start[lang]} />
-              ) : i === 2 ? (
-                <ClosingStrategyPopout triggerLabel={t.courseHub.start[lang]} />
-              ) : i === 3 ? (
-                <CopywritingPopout triggerLabel={t.courseHub.start[lang]} />
-              ) : (
-                <Button variant="default" size="sm" className="mt-5 w-full">
-                  {t.courseHub.start[lang]}
-                </Button>
-              )}
-            </div>
-          ))}
+            );
+          })}
         </div>
       </div>
     </section>
