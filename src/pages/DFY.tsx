@@ -269,7 +269,7 @@ const DFY = () => {
       </Section>
 
       {/* ─── SECTION 3: PRICING ─── */}
-      <Section className="py-24 sm:py-32 bg-gradient-to-b from-background to-muted/30">
+      <Section className="py-24 sm:py-32">
         <div id="choose-path" className="max-w-7xl mx-auto px-6">
           <div className="text-center mb-16">
             <p className="text-xs uppercase tracking-[0.2em] text-accent-foreground font-semibold mb-4">
@@ -462,7 +462,7 @@ const DFY = () => {
       </Section>
 
       {/* ─── SECTION 5: HOW IT WORKS ─── */}
-      <Section className="py-24 sm:py-32 bg-gradient-to-b from-background to-muted/30">
+      <Section className="py-24 sm:py-32">
         <div id="how-it-works" className="max-w-5xl mx-auto px-6">
           <div className="text-center mb-16">
             <p className="text-xs uppercase tracking-[0.2em] text-accent-foreground font-semibold mb-4">
@@ -559,7 +559,7 @@ const DFY = () => {
       </Section>
 
       {/* ─── SECTION 7: RISK REVERSAL ─── */}
-      <Section className="py-24 sm:py-32 bg-gradient-to-b from-background to-muted/30">
+      <Section className="py-24 sm:py-32">
         <div className="max-w-3xl mx-auto px-6 text-center">
           <div className="w-20 h-20 rounded-2xl bg-accent/10 border border-accent/20 flex items-center justify-center mx-auto mb-8">
             <Shield size={32} className="text-accent-foreground" />
