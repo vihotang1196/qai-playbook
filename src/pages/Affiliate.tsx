@@ -1,6 +1,4 @@
 import { useState, useEffect } from "react";
-import Navbar from "@/components/Navbar";
-import Footer from "@/components/Footer";
 import AffiliateHero from "@/components/affiliate/AffiliateHero";
 import AffiliateProblem from "@/components/affiliate/AffiliateProblem";
 import AffiliateHowItWorks from "@/components/affiliate/AffiliateHowItWorks";
@@ -24,8 +22,7 @@ const Affiliate = () => {
   }, []);
 
   return (
-    <div className="min-h-screen text-foreground">
-      <Navbar />
+    <>
       <main>
         <AffiliateHero />
         <AffiliateProblem />
@@ -37,7 +34,6 @@ const Affiliate = () => {
         <AffiliateFinalCTA />
         <AffiliateFAQ />
       </main>
-      <Footer />
 
       {showSticky && (
         <a
@@ -50,7 +46,7 @@ const Affiliate = () => {
           <span className="text-sm font-semibold">{lang === "cn" ? "立即申请" : "Apply Now"}</span>
         </a>
       )}
-    </div>
+    </>
   );
 };
 

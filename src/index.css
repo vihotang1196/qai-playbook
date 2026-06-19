@@ -127,8 +127,8 @@
 
   body {
     @apply text-foreground font-sans antialiased;
-    background: var(--gradient-bg);
-    background-attachment: fixed;
+    /* Ambient background now lives in the shared <Layout> as one fixed
+       full-viewport layer; body only sets the near-white base colour. */
     background-color: #FCFDFF;
     min-height: 100vh;
   }

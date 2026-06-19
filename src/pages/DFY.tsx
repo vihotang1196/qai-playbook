@@ -2,8 +2,6 @@ import { useState, useEffect, useRef } from "react";
 import { Button } from "@/components/ui/button";
 import { ArrowRight, Check, Zap, Users, BookOpen, Shield, MessageCircle, BarChart3, Bot, Star, Clock, DollarSign, Sparkles } from "lucide-react";
 import { useLang } from "@/i18n/LanguageContext";
-import Navbar from "@/components/Navbar";
-import Footer from "@/components/Footer";
 
 /* ─── Animate on scroll hook ─── */
 const useInView = (threshold = 0.15) => {
@@ -97,9 +95,7 @@ const DFY = () => {
   const resetQuiz = () => { setQuizStep(-1); setQuizAnswers([]); setQuizResult(null); };
 
   return (
-    <div className="min-h-screen text-foreground overflow-x-hidden">
-      <Navbar />
-
+    <>
       {/* ─── SECTION 1: HERO ─── */}
       <section className="relative min-h-screen flex items-center justify-center pt-16 overflow-hidden">
 
@@ -621,15 +617,13 @@ const DFY = () => {
         </div>
       </section>
 
-      <Footer />
-
       <style>{`
         @keyframes float {
           0%, 100% { transform: translateY(0px); }
           50% { transform: translateY(-20px); }
         }
       `}</style>
-    </div>
+    </>
   );
 };
 
