@@ -2,8 +2,6 @@ import { useState, useEffect, useRef } from "react";
 import { Button } from "@/components/ui/button";
 import { ArrowRight, Check, Zap, Users, BookOpen, Shield, MessageCircle, BarChart3, Bot, Star, Clock, DollarSign, Sparkles } from "lucide-react";
 import { useLang } from "@/i18n/LanguageContext";
-import Navbar from "@/components/Navbar";
-import Footer from "@/components/Footer";
 
 /* ─── Animate on scroll hook ─── */
 const useInView = (threshold = 0.15) => {
@@ -97,14 +95,9 @@ const DFY = () => {
   const resetQuiz = () => { setQuizStep(-1); setQuizAnswers([]); setQuizResult(null); };
 
   return (
-    <div className="min-h-screen text-foreground overflow-x-hidden">
-      <Navbar />
-
+    <>
       {/* ─── SECTION 1: HERO ─── */}
       <section className="relative min-h-screen flex items-center justify-center pt-16 overflow-hidden">
-        <div className="absolute inset-0 bg-gradient-to-br from-background via-background to-accent/5" />
-        <div className="absolute top-1/4 right-1/4 w-96 h-96 bg-accent/10 rounded-full blur-3xl" />
-        <div className="absolute bottom-1/4 left-1/3 w-64 h-64 bg-accent/5 rounded-full blur-3xl" />
 
         <FloatingCard className="hidden lg:block top-32 left-[8%] w-48">
           <div className="flex items-center gap-2 mb-2">
@@ -598,34 +591,31 @@ const DFY = () => {
 
       {/* ─── SECTION 8: FINAL CTA ─── */}
       <section className="py-24 sm:py-32 relative overflow-hidden">
-        <div className="absolute inset-0 bg-gradient-to-br from-foreground to-foreground/90" />
-        <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[500px] h-[500px] bg-accent/20 rounded-full blur-3xl" />
-
-        <div className="relative z-10 max-w-3xl mx-auto px-6 text-center">
-          <h2 className="text-3xl sm:text-4xl lg:text-5xl font-extrabold text-background mb-6">
-            {lang === "cn" ? "今天就启动你的 AI 销售系统" : "Start Your AI Sales System Today"}
-          </h2>
-          {!hideSubtitles && (
-            <p className="text-lg text-background/60 mb-10 max-w-xl mx-auto">
-              {lang === "cn" ? "无论你想全包服务还是自己搭建 — 我们都能帮你" : "Whether you want it done for you or build it yourself — we've got you"}
-            </p>
-          )}
-          <div className="flex flex-col sm:flex-row items-center justify-center gap-4">
-            <a href="https://wa.me/601154050265" target="_blank" rel="noopener noreferrer">
-              <Button size="lg" className="bg-accent text-accent-foreground hover:bg-accent/90 font-bold text-base px-10 py-6 shadow-[0_0_40px_rgba(254,213,10,0.4)]">
-                {lang === "cn" ? "立即开始" : "Get Started Now"} <ArrowRight size={18} className="ml-2" />
-              </Button>
-            </a>
-            <a href="https://wa.me/601154050265" target="_blank" rel="noopener noreferrer">
-              <Button variant="outline" size="lg" className="border-white/40 !text-white !bg-transparent hover:!bg-white/10 font-semibold text-base px-10 py-6">
-                {lang === "cn" ? "联系我们" : "Talk To Us"}
-              </Button>
-            </a>
+        <div className="relative z-10 max-w-3xl mx-auto px-6">
+          <div className="glass-panel p-10 md:p-14 text-center">
+            <h2 className="text-3xl sm:text-4xl lg:text-5xl font-extrabold text-foreground mb-6">
+              {lang === "cn" ? "今天就启动你的 AI 销售系统" : "Start Your AI Sales System Today"}
+            </h2>
+            {!hideSubtitles && (
+              <p className="text-lg text-muted-foreground mb-10 max-w-xl mx-auto">
+                {lang === "cn" ? "无论你想全包服务还是自己搭建 — 我们都能帮你" : "Whether you want it done for you or build it yourself — we've got you"}
+              </p>
+            )}
+            <div className="flex flex-col sm:flex-row items-center justify-center gap-4">
+              <a href="https://wa.me/601154050265" target="_blank" rel="noopener noreferrer">
+                <Button size="lg" className="font-bold text-base px-10 py-6">
+                  {lang === "cn" ? "立即开始" : "Get Started Now"} <ArrowRight size={18} className="ml-2" />
+                </Button>
+              </a>
+              <a href="https://wa.me/601154050265" target="_blank" rel="noopener noreferrer">
+                <Button variant="outline" size="lg" className="font-semibold text-base px-10 py-6">
+                  {lang === "cn" ? "联系我们" : "Talk To Us"}
+                </Button>
+              </a>
+            </div>
           </div>
         </div>
       </section>
-
-      <Footer />
 
       <style>{`
         @keyframes float {
@@ -633,7 +623,7 @@ const DFY = () => {
           50% { transform: translateY(-20px); }
         }
       `}</style>
-    </div>
+    </>
   );
 };
 

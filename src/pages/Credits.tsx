@@ -5,8 +5,6 @@ import {
 } from "lucide-react";
 import ServicePricingGrid from "@/components/credits/ServicePricingGrid";
 import { useLang } from "@/i18n/LanguageContext";
-import Navbar from "@/components/Navbar";
-import Footer from "@/components/Footer";
 
 type Bi = { en: string; cn: string };
 const bi = (en: string, cn: string): Bi => ({ en, cn });
@@ -17,9 +15,7 @@ const Credits = () => {
   const l = (b: Bi) => b[lang];
 
   return (
-    <div className="min-h-screen text-foreground">
-      <Navbar />
-      <main className="pt-24 pb-20">
+    <main className="pt-24 pb-20">
 
         {/* ═══ SECTION 1: HERO ═══ */}
         <section className="max-w-4xl mx-auto px-6 text-center mb-24">
@@ -86,9 +82,7 @@ const Credits = () => {
 
 
 
-      </main>
-      <Footer />
-    </div>
+    </main>
   );
 };
 

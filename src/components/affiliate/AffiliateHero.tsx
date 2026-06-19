@@ -16,10 +16,6 @@ const AffiliateHero = () => {
 
   return (
     <section className="relative pt-32 pb-20 overflow-hidden">
-      <div className="absolute inset-0 bg-gradient-to-br from-accent/10 via-background to-accent/5 dark:from-accent/5 dark:via-background dark:to-accent/5" />
-      <div className="absolute top-20 right-[10%] w-72 h-72 bg-accent/10 rounded-full blur-3xl" />
-      <div className="absolute bottom-10 left-[5%] w-56 h-56 bg-accent/10 rounded-full blur-3xl" />
-
       <div className="relative max-w-6xl mx-auto px-6">
         <div className="grid lg:grid-cols-2 gap-16 items-center">
           <div className="space-y-8">

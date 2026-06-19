@@ -13,7 +13,7 @@ const AffiliateCalculator = () => {
   const yearly = people * commission;
 
   return (
-    <section className="py-20 bg-secondary/30">
+    <section className="py-20">
       <div className="max-w-2xl mx-auto px-6">
         <div className="text-center mb-12">
           <div className="inline-flex items-center gap-2 mb-4">

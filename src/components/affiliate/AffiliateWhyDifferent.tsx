@@ -15,7 +15,7 @@ const AffiliateWhyDifferent = () => {
   const l = (t: { en: string; cn: string }) => t[lang];
 
   return (
-    <section className="py-20 bg-secondary/30">
+    <section className="py-20">
       <div className="max-w-4xl mx-auto px-6">
         <div className="text-center mb-14">
           <h2 className="text-3xl md:text-4xl font-bold mb-3">{l(bi("Not Just Another Affiliate Program", "不只是另一个联盟计划"))}</h2>
