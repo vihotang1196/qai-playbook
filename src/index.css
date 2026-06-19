@@ -184,6 +184,25 @@
     border-radius: 1rem;
   }
 
+  /* Frosted-glass form control — inputs / textareas / select triggers.
+     Replaces the old solid grey-bordered field. 16px radius, faint border,
+     coral focus ring (#FF3D6E). */
+  .glass-input {
+    background: rgba(255,255,255,0.6);
+    backdrop-filter: blur(20px) saturate(160%);
+    -webkit-backdrop-filter: blur(20px) saturate(160%);
+    border: 1px solid rgba(255,255,255,0.6);
+    border-radius: 16px;
+    transition: border-color 0.18s ease-out, box-shadow 0.18s ease-out, background 0.18s ease-out;
+  }
+  .glass-input:focus,
+  .glass-input:focus-visible,
+  .glass-input:focus-within {
+    outline: none;
+    border-color: hsl(346 100% 62% / 0.6);
+    box-shadow: 0 0 0 3px hsl(346 100% 62% / 0.15);
+  }
+
   .gradient-text {
     background: var(--gradient-warm);
     -webkit-background-clip: text;
