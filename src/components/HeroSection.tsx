@@ -215,11 +215,6 @@ const HeroSection = () => {
   return (
     <>
     <section id="hero" className="relative flex flex-col items-center justify-start overflow-hidden pt-16 pb-8">
-      <div className="absolute inset-0 pointer-events-none">
-        <div className="hero-blur-blob absolute top-1/4 left-1/4 w-96 h-96 bg-secondary rounded-full blur-3xl opacity-60" />
-        <div className="hero-blur-blob absolute bottom-1/4 right-1/4 w-80 h-80 bg-accent/10 rounded-full blur-3xl opacity-40" style={{ animationDelay: "-7s" }} />
-      </div>
-
       {/* Quick links bar */}
       <div className="absolute top-20 left-0 right-0 z-20">
         <div className="flex flex-wrap items-center justify-center gap-2 px-4 py-3">

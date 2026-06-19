@@ -29,7 +29,7 @@ const AffiliateSocialProof = () => {
   const l = (t: { en: string; cn: string }) => t[lang];
 
   return (
-    <section className="py-20 bg-secondary/30">
+    <section className="py-20">
       <div className="max-w-5xl mx-auto px-6">
         <div className="text-center mb-12">
           <h2 className="text-3xl md:text-4xl font-bold mb-3">{l(bi("Real Results From Users", "用户的真实成果"))}</h2>

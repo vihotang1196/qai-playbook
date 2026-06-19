@@ -20,13 +20,6 @@ const StartHere = () => {
       id="start-here"
       className="relative py-28 md:py-36 overflow-hidden"
     >
-      {/* Ambient gradient blobs — VisionOS background depth */}
-      <div aria-hidden className="pointer-events-none absolute inset-0 -z-10">
-        <div className="absolute -top-32 left-1/4 w-[520px] h-[520px] rounded-full bg-[#FCE4F1]/70 blur-[120px] hero-blur-blob" />
-        <div className="absolute top-1/3 -right-24 w-[480px] h-[480px] rounded-full bg-[#FFB199]/30 blur-[120px] hero-blur-blob" style={{ animationDelay: "-7s" }} />
-        <div className="absolute -bottom-24 left-1/3 w-[460px] h-[460px] rounded-full bg-[#FF3D6E]/15 blur-[120px] hero-blur-blob" style={{ animationDelay: "-14s" }} />
-      </div>
-
       <div className="max-w-6xl mx-auto px-6 text-center">
         <span className="inline-flex items-center gap-2 px-4 py-1.5 rounded-full text-[11px] font-medium tracking-wider uppercase text-foreground/70"
           style={{

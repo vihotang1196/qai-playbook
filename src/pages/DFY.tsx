@@ -102,9 +102,6 @@ const DFY = () => {
 
       {/* ─── SECTION 1: HERO ─── */}
       <section className="relative min-h-screen flex items-center justify-center pt-16 overflow-hidden">
-        <div className="absolute inset-0 bg-gradient-to-br from-background via-background to-accent/5" />
-        <div className="absolute top-1/4 right-1/4 w-96 h-96 bg-accent/10 rounded-full blur-3xl" />
-        <div className="absolute bottom-1/4 left-1/3 w-64 h-64 bg-accent/5 rounded-full blur-3xl" />
 
         <FloatingCard className="hidden lg:block top-32 left-[8%] w-48">
           <div className="flex items-center gap-2 mb-2">
