@@ -402,14 +402,14 @@ const HeroSection = () => {
                 const topic = topicForMonday(d);
                 const active = isSameDay(d, myt) && minutes >= 19 * 60 && minutes <= 21 * 60 + 30;
                 return (
-                  <div key={i} className="glass-card p-6 flex flex-col justify-between border-[#A78BFA]/30">
+                  <div key={i} className="glass-card p-6 flex flex-col justify-between border-[#FF7E5F]/30">
                     <div>
                       <div className="flex items-center gap-2 mb-3">
-                        <span className="text-[10px] font-bold uppercase px-2 py-0.5 rounded bg-[#C4B5FD] text-[#5B21B6]">
+                        <span className="text-[10px] font-bold uppercase px-2 py-0.5 rounded bg-[#FF7E5F]/15 text-[#DB2777]">
                           Coaching Night
                         </span>
                         {active && (
-                          <span className="text-[10px] font-bold uppercase px-2 py-0.5 rounded bg-[#8B5CF6] text-white animate-pulse">
+                          <span className="text-[10px] font-bold uppercase px-2 py-0.5 rounded bg-[#FF3D6E] text-white animate-pulse">
                             LIVE
                           </span>
                         )}
@@ -422,7 +422,7 @@ const HeroSection = () => {
                       </div>
                       <div className="mt-2 inline-flex items-center gap-1.5 text-xs">
                         <span className="text-muted-foreground">{lang === "cn" ? "主题：" : "Topic: "}</span>
-                        <span className="px-2 py-0.5 rounded-full bg-[#C4B5FD]/30 text-[#6D28D9] font-semibold">
+                        <span className="px-2 py-0.5 rounded-full bg-[#FF7E5F]/15 text-[#DB2777] font-semibold">
                           {topic}
                         </span>
                       </div>
@@ -430,7 +430,7 @@ const HeroSection = () => {
                     <Button
                       size="sm"
                       disabled={!active}
-                      className="w-full mt-4 bg-gradient-to-r from-[#A78BFA] to-[#8B5CF6] hover:brightness-110 text-white disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:brightness-100"
+                      className="w-full mt-4 bg-gradient-to-r from-[#FF7E5F] to-[#FF3D6E] hover:brightness-110 text-white disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:brightness-100"
                       onClick={() => active && window.open(COACHING_NIGHT_LINK, "_blank")}
                     >
                       <Video size={14} />
@@ -456,7 +456,7 @@ const HeroSection = () => {
             <ul className="space-y-1.5 text-sm">
               {coachingRecordings.map((r, i) => (
                 <li key={i}>
-                  <a href={r.url} target="_blank" rel="noopener noreferrer" className="text-[#7C3AED] hover:underline">
+                  <a href={r.url} target="_blank" rel="noopener noreferrer" className="text-[#DB2777] hover:underline">
                     {r.date} — {r.topic}
                   </a>
                 </li>
