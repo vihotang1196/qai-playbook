@@ -414,6 +414,11 @@ const HeroSection = () => {
                       </h3>
                       <div className="mt-2 text-xs text-muted-foreground space-y-0.5">
                         <div>8:00PM – 9:30PM</div>
+                        <div className="text-[11px] text-muted-foreground/80">
+                          {lang === "cn"
+                            ? "7:00PM 起可进入等候室，8:00PM 正式开始"
+                            : "Waiting room opens 7:00PM · Starts 8:00PM"}
+                        </div>
                       </div>
                       <div className="mt-2 inline-flex items-center gap-1.5 text-xs">
                         <span className="text-muted-foreground">{lang === "cn" ? "主题：" : "Topic: "}</span>
@@ -424,8 +429,9 @@ const HeroSection = () => {
                     </div>
                     <Button
                       size="sm"
+                      variant={active ? "default" : "outline"}
                       disabled={!active}
-                      className="w-full mt-4 bg-gradient-to-r from-[#FF7E5F] to-[#FF3D6E] hover:brightness-110 text-white disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:brightness-100"
+                      className={`w-full mt-4 ${active ? "" : "border-border text-muted-foreground/70"}`}
                       onClick={() => active && window.open(COACHING_NIGHT_LINK, "_blank")}
                     >
                       <Video size={14} />
