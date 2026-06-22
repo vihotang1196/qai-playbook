@@ -214,10 +214,54 @@ const HeroSection = () => {
 
   return (
     <>
-    <section id="hero" className="relative flex flex-col items-center justify-start overflow-hidden pt-16 pb-8">
-      {/* Quick links bar */}
-      <div className="absolute top-20 left-0 right-0 z-20">
-        <div className="flex flex-wrap items-center justify-center gap-2 px-4 py-3">
+    <section id="hero" className="relative flex flex-col items-center justify-start overflow-hidden pt-28 md:pt-36 pb-8">
+      {/* Hero text — the headline is the focal point */}
+      <div className="relative z-10 max-w-4xl mx-auto px-6 text-center">
+        <h1 className="fade-up font-display text-4xl sm:text-5xl md:text-6xl font-bold tracking-tight text-foreground leading-[1.12]">
+          {t.hero.headline[lang]}
+        </h1>
+        {!hideSubtitles && (
+          <p className="fade-up fade-up-delay-1 mt-5 text-base md:text-lg text-muted-foreground max-w-xl mx-auto leading-relaxed">
+            {t.hero.subtitle[lang]}
+          </p>
+        )}
+
+        {/* Primary CTA + quieter secondary actions */}
+        <div className="fade-up fade-up-delay-2 mt-10 flex flex-col items-center gap-4">
+          <Button
+            size="xl"
+            className="px-12"
+            onClick={() => window.open("https://qiai.notion.site/qaighlonboarding?v=27528b270a6d813285ac000caaded827&source=copy_link", "_blank")}
+          >
+            <Rocket size={18} />
+            {lang === "cn" ? "系统快速启动" : "Quick Start"}
+            <ArrowRight size={18} />
+          </Button>
+
+          <div className="flex flex-wrap items-center justify-center gap-x-6 gap-y-2 text-sm">
+            <button
+              type="button"
+              onClick={() => setTourOpen(true)}
+              className="inline-flex items-center gap-1.5 text-muted-foreground hover:text-foreground transition-colors"
+            >
+              <Play size={14} />
+              {t.hero.watch[lang]}
+            </button>
+            <a
+              href="https://invoice.qiai.tech/submit"
+              target="_blank"
+              rel="noopener noreferrer"
+              className="inline-flex items-center gap-1.5 text-muted-foreground hover:text-foreground transition-colors"
+            >
+              <FileText size={14} />
+              {lang === "cn" ? "申请 Invoice" : "Invoice"}
+              <ArrowRight size={14} />
+            </a>
+          </div>
+        </div>
+
+        {/* Quick-link pills — moved below the CTA, de-emphasized */}
+        <div className="fade-up fade-up-delay-3 mt-12 flex flex-wrap items-center justify-center gap-2">
           {quickLinks.map((link) => {
             if (link.popout) {
               return (
@@ -257,32 +301,8 @@ const HeroSection = () => {
         </div>
       </div>
 
-      {/* Hero text */}
-      <div className="relative z-10 max-w-4xl mx-auto px-6 text-center mt-12">
-        {!hideSubtitles && (
-          <p className="fade-up fade-up-delay-1 mt-16 text-lg md:text-xl text-muted-foreground max-w-2xl mx-auto leading-relaxed">
-            {t.hero.subtitle[lang]}
-          </p>
-        )}
-
-        <div className="fade-up fade-up-delay-2 mt-10 flex flex-wrap items-center justify-center gap-3">
-          <Button size="xl" className="px-16 bg-gradient-to-r from-[#FF7E5F] to-[#FF3D6E] hover:brightness-110 text-white" onClick={() => setTourOpen(true)}>
-            <Play size={16} />
-            {t.hero.watch[lang]}
-          </Button>
-          <Button variant="outline" size="xl" className="px-16" onClick={() => window.open("https://qiai.notion.site/qaighlonboarding?v=27528b270a6d813285ac000caaded827&source=copy_link", "_blank")}>
-            <Rocket size={16} />
-            {lang === "cn" ? "系统快速启动" : "Quick Start"}
-          </Button>
-          <Button variant="outline" size="xl" className="px-16" onClick={() => window.open("https://invoice.qiai.tech/submit", "_blank", "noopener,noreferrer")}>
-            <FileText size={16} />
-            {lang === "cn" ? "申请INVOICE" : "Invoice"}
-          </Button>
-        </div>
-      </div>
-
       {/* Two-column: WhatsApp Support + Virtual Walk-In */}
-      <div className="relative z-10 w-full max-w-5xl mx-auto px-6 mt-10 mb-4">
+      <div className="relative z-10 w-full max-w-5xl mx-auto px-6 mt-20 md:mt-28 mb-4">
         {(isHolidayToday || upcomingHoliday) && (
           <div className="mb-4 flex items-center justify-center gap-2 text-xs md:text-sm font-semibold text-red-600 dark:text-red-400">
             <span className="inline-block w-2 h-2 rounded-full bg-red-500 animate-pulse" />
@@ -303,7 +323,7 @@ const HeroSection = () => {
         )}
         <div className="grid grid-cols-1 md:grid-cols-2 gap-6 items-start">
           {/* Left: WhatsApp Technical Support */}
-          <div className="glass-card p-6 flex flex-col justify-between border-green-500/30">
+          <div className="glass-card glass-card-green p-6 flex flex-col justify-between">
             <div>
               <div className="flex items-center gap-2 mb-3">
                 <span className="text-[10px] font-bold uppercase px-2 py-0.5 rounded bg-green-500 text-white">
@@ -322,7 +342,7 @@ const HeroSection = () => {
             <Button
               size="sm"
               disabled={buttonsDisabled}
-              className="w-full mt-4 bg-green-500 hover:bg-green-600 text-white disabled:opacity-60 disabled:cursor-not-allowed"
+              className="w-full mt-4 bg-gradient-to-r from-[#34D399] to-[#22C55E] hover:brightness-110 text-white disabled:opacity-60 disabled:cursor-not-allowed"
               onClick={() => !buttonsDisabled && window.open(WHATSAPP_LINK, "_blank")}
             >
               {buttonsDisabled
@@ -332,18 +352,18 @@ const HeroSection = () => {
           </div>
 
           {/* Right: Virtual Walk-In */}
-          <div className="glass-card p-6 flex flex-col justify-between border-[#FF3D6E]/30">
+          <div className="glass-card glass-card-blue p-6 flex flex-col justify-between">
             <div>
               <div className="flex items-center gap-2 mb-3">
-                <span className="text-[10px] font-bold uppercase px-2 py-0.5 rounded bg-gradient-to-r from-[#FF7E5F] to-[#FF3D6E] text-white">
+                <span className="text-[10px] font-bold uppercase px-2 py-0.5 rounded bg-gradient-to-r from-[#60A5FA] to-[#3B82F6] text-white">
                   Virtual Walk-In
                 </span>
                 {isWalkInTime ? (
-                  <span className="text-[10px] font-bold uppercase px-2 py-0.5 rounded bg-[#FF3D6E] text-white animate-pulse">
+                  <span className="text-[10px] font-bold uppercase px-2 py-0.5 rounded bg-blue-500 text-white animate-pulse">
                     LIVE
                   </span>
                 ) : (
-                  <span className="text-[10px] font-bold uppercase px-2 py-0.5 rounded bg-[#FF3D6E]/15 text-[#DB2777]">
+                  <span className="text-[10px] font-bold uppercase px-2 py-0.5 rounded bg-blue-500/15 text-blue-600">
                     {lang === "cn" ? "一至五 3–5PM" : "Mon–Fri 3–5PM"}
                   </span>
                 )}
@@ -364,7 +384,7 @@ const HeroSection = () => {
             <Button
               size="sm"
               disabled={buttonsDisabled || !isWalkInTime}
-              className="w-full mt-4 bg-gradient-to-r from-[#FF7E5F] to-[#FF3D6E] hover:brightness-110 text-white disabled:opacity-60 disabled:cursor-not-allowed"
+              className="w-full mt-4 bg-gradient-to-r from-[#60A5FA] to-[#3B82F6] hover:brightness-110 text-white disabled:opacity-60 disabled:cursor-not-allowed"
               onClick={() => !buttonsDisabled && isWalkInTime && window.open(VIRTUAL_WALKIN_LINK, "_blank")}
             >
               {buttonsDisabled ? (
@@ -397,14 +417,14 @@ const HeroSection = () => {
                 const topic = topicForMonday(d);
                 const active = isSameDay(d, myt) && minutes >= 19 * 60 && minutes <= 21 * 60 + 30;
                 return (
-                  <div key={i} className="glass-card p-6 flex flex-col justify-between border-[#FF7E5F]/30">
+                  <div key={i} className="glass-card glass-card-red p-6 flex flex-col justify-between">
                     <div>
                       <div className="flex items-center gap-2 mb-3">
-                        <span className="text-[10px] font-bold uppercase px-2 py-0.5 rounded bg-[#FF7E5F]/15 text-[#DB2777]">
+                        <span className="text-[10px] font-bold uppercase px-2 py-0.5 rounded bg-red-500/15 text-red-600">
                           Coaching Night
                         </span>
                         {active && (
-                          <span className="text-[10px] font-bold uppercase px-2 py-0.5 rounded bg-[#FF3D6E] text-white animate-pulse">
+                          <span className="text-[10px] font-bold uppercase px-2 py-0.5 rounded bg-red-500 text-white animate-pulse">
                             LIVE
                           </span>
                         )}
@@ -422,7 +442,7 @@ const HeroSection = () => {
                       </div>
                       <div className="mt-2 inline-flex items-center gap-1.5 text-xs">
                         <span className="text-muted-foreground">{lang === "cn" ? "主题：" : "Topic: "}</span>
-                        <span className="px-2 py-0.5 rounded-full bg-[#FF7E5F]/15 text-[#DB2777] font-semibold">
+                        <span className="px-2 py-0.5 rounded-full bg-red-500/15 text-red-600 font-semibold">
                           {topic}
                         </span>
                       </div>
@@ -431,7 +451,7 @@ const HeroSection = () => {
                       size="sm"
                       variant={active ? "default" : "outline"}
                       disabled={!active}
-                      className={`w-full mt-4 ${active ? "" : "border-border text-muted-foreground/70"}`}
+                      className={`w-full mt-4 ${active ? "bg-gradient-to-r from-[#F87171] to-[#EF4444] hover:brightness-110 text-white shadow-lg shadow-red-500/25" : "border-border text-muted-foreground/70"}`}
                       onClick={() => active && window.open(COACHING_NIGHT_LINK, "_blank")}
                     >
                       <Video size={14} />

@@ -13,9 +13,13 @@ export const t = {
     title1: { cn: "掌握营销", en: "Master Marketing" },
     title2: { cn: "构建杠杆", en: "Build Leverage" },
     title3: { cn: "升级人生", en: "Scale Your Life" },
+    headline: {
+      cn: "掌握营销 · 构建杠杆 · 升级人生",
+      en: "Master Marketing. Build Leverage. Scale Your Life.",
+    },
     subtitle: {
-      cn: "一个为认真做事的人打造的私域成长社区，让你学习、执行、成长。",
-      en: "A private growth community built for serious doers — learn, execute, grow.",
+      cn: "为认真做事的人打造的私域成长社区",
+      en: "A private growth community for serious doers.",
     },
     cta: { cn: "进入社区", en: "Join Community" },
     watch: { cn: "观看介绍", en: "Watch Intro" },
