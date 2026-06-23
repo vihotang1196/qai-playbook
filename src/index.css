@@ -194,6 +194,18 @@
     border-color: rgba(239,68,68,0.30);
   }
 
+  /* Large grouping panel (Coaching Night). Lighter tint (~8%) than the
+     single cards since it covers a big area; bigger 2rem radius, soft
+     shadow, NO hover lift (it's a static container, not a tappable card). */
+  .glass-panel-red {
+    background: linear-gradient(0deg, rgba(239,68,68,0.08), rgba(239,68,68,0.08)), rgba(255,255,255,0.55);
+    backdrop-filter: blur(30px) saturate(180%);
+    -webkit-backdrop-filter: blur(30px) saturate(180%);
+    border: 1px solid rgba(239,68,68,0.22);
+    box-shadow: 0 10px 40px rgba(40,40,90,0.06);
+    border-radius: 2rem;
+  }
+
   .glass-soft {
     background: rgba(255,255,255,0.45);
     backdrop-filter: blur(22px) saturate(170%);

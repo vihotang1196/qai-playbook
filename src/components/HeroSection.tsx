@@ -401,7 +401,21 @@ const HeroSection = () => {
           </div>
         </div>
 
-        {/* Row 2: Three Coaching Night date cards */}
+        {/* ── Coaching Night group: ONE panel — upcoming + past replays ── */}
+        <div className="mt-16 md:mt-20">
+          <div className="glass-panel-red p-6 md:p-10">
+            {/* Group header */}
+            <div className="flex items-center justify-center gap-2.5 mb-8">
+              <span className="w-2 h-2 rounded-full bg-red-500" />
+              <h2 className="font-display text-xl md:text-2xl font-bold tracking-tight text-foreground">
+                Coaching Night{lang === "cn" && <span className="text-muted-foreground font-medium"> · 教练之夜</span>}
+              </h2>
+            </div>
+
+            {/* Upcoming sessions */}
+            <p className="text-[11px] font-semibold tracking-widest uppercase text-red-600/80 mb-4 text-center">
+              {lang === "cn" ? "即将到来" : "Upcoming"}
+            </p>
         {(() => {
           const myt = getMytNow();
           const nextMondays = getNextMondays(3);
@@ -411,79 +425,82 @@ const HeroSection = () => {
           const minutes = myt.getHours() * 60 + myt.getMinutes();
           const isSameDay = (a: Date, b: Date) =>
             a.getFullYear() === b.getFullYear() && a.getMonth() === b.getMonth() && a.getDate() === b.getDate();
+          // All sessions share one room link, so a single Join button gated on
+          // "is any of these dates live right now" (today + 19:00–21:30 MYT).
+          const liveIndex = nextMondays.findIndex(
+            (d) => isSameDay(d, myt) && minutes >= 19 * 60 && minutes <= 21 * 60 + 30,
+          );
+          const anyLive = liveIndex >= 0;
           return (
-            <div className="mt-6 grid grid-cols-1 md:grid-cols-3 gap-6 items-start">
-              {nextMondays.map((d, i) => {
-                const topic = topicForMonday(d);
-                const active = isSameDay(d, myt) && minutes >= 19 * 60 && minutes <= 21 * 60 + 30;
-                return (
-                  <div key={i} className="glass-card glass-card-red p-6 flex flex-col justify-between">
-                    <div>
-                      <div className="flex items-center gap-2 mb-3">
-                        <span className="text-[10px] font-bold uppercase px-2 py-0.5 rounded bg-red-500/15 text-red-600">
-                          Coaching Night
-                        </span>
-                        {active && (
-                          <span className="text-[10px] font-bold uppercase px-2 py-0.5 rounded bg-red-500 text-white animate-pulse">
-                            LIVE
-                          </span>
-                        )}
-                      </div>
-                      <h3 className="text-lg font-bold tracking-tight mb-1">
-                        {lang === "cn" ? `${fmtMd(d)} (星期一)` : `${fmtMdEn(d)} (Mon)`}
-                      </h3>
-                      <div className="mt-2 text-xs text-muted-foreground space-y-0.5">
-                        <div>8:00PM – 9:30PM</div>
-                        <div className="text-[11px] text-muted-foreground/80">
-                          {lang === "cn"
-                            ? "7:00PM 起可进入等候室，8:00PM 正式开始"
-                            : "Waiting room opens 7:00PM · Starts 8:00PM"}
-                        </div>
-                      </div>
-                      <div className="mt-2 inline-flex items-center gap-1.5 text-xs">
-                        <span className="text-muted-foreground">{lang === "cn" ? "主题：" : "Topic: "}</span>
-                        <span className="px-2 py-0.5 rounded-full bg-red-500/15 text-red-600 font-semibold">
-                          {topic}
-                        </span>
-                      </div>
-                    </div>
-                    <Button
-                      size="sm"
-                      variant={active ? "default" : "outline"}
-                      disabled={!active}
-                      className={`w-full mt-4 ${active ? "bg-gradient-to-r from-[#F87171] to-[#EF4444] hover:brightness-110 text-white shadow-lg shadow-red-500/25" : "border-border text-muted-foreground/70"}`}
-                      onClick={() => active && window.open(COACHING_NIGHT_LINK, "_blank")}
-                    >
-                      <Video size={14} />
-                      {lang === "cn" ? "📹 进入教室" : "📹 Join Room"}
-                    </Button>
+            <>
+              {/* Shared session-time note — written once for all three */}
+              <p className="text-xs text-muted-foreground text-center mb-5">
+                8:00PM – 9:30PM · {lang === "cn"
+                  ? "7:00PM 起可进入等候室，8:00PM 正式开始"
+                  : "Waiting room opens 7:00PM · Starts 8:00PM"}
+              </p>
+
+              {/* Three dates side by side */}
+              <div className="grid grid-cols-3 divide-x divide-red-500/15">
+                {nextMondays.map((d, i) => (
+                  <div key={i} className="flex flex-col items-center gap-1.5 px-2 text-center">
+                    {i === liveIndex && (
+                      <span className="text-[10px] font-bold uppercase px-2 py-0.5 rounded bg-red-500 text-white animate-pulse">
+                        LIVE
+                      </span>
+                    )}
+                    <span className="text-base md:text-lg font-bold tracking-tight text-foreground leading-tight">
+                      {lang === "cn" ? fmtMd(d) : fmtMdEn(d)}
+                    </span>
+                    <span className="text-[10px] text-muted-foreground">
+                      {lang === "cn" ? "星期一" : "Mon"}
+                    </span>
+                    <span className="px-2 py-0.5 rounded-full bg-red-500/15 text-red-600 text-xs font-semibold">
+                      {topicForMonday(d)}
+                    </span>
                   </div>
-                );
-              })}
-            </div>
+                ))}
+              </div>
+
+              {/* One shared Join button (active only when a session is live now) */}
+              <div className="mt-6 flex justify-center">
+                <Button
+                  size="sm"
+                  variant={anyLive ? "default" : "outline"}
+                  disabled={!anyLive}
+                  className={`px-8 min-w-[260px] ${anyLive ? "bg-gradient-to-r from-[#F87171] to-[#EF4444] hover:brightness-110 text-white shadow-lg shadow-red-500/25" : "border-border text-muted-foreground/70"}`}
+                  onClick={() => anyLive && window.open(COACHING_NIGHT_LINK, "_blank")}
+                >
+                  <Video size={14} />
+                  {lang === "cn" ? "📹 进入教室" : "📹 Join Room"}
+                </Button>
+              </div>
+            </>
           );
         })()}
 
-        {/* Recording History */}
-        <div className="mt-6 glass-card p-6">
-          <h3 className="text-base font-bold tracking-tight mb-3">
-            📼 {lang === "cn" ? "过往录像" : "Past Recordings"}
-          </h3>
-          {coachingRecordings.length === 0 ? (
-            <p className="text-sm text-muted-foreground">
-              {lang === "cn" ? "暂无录像，敬请期待。" : "No recordings yet. Stay tuned."}
-            </p>
-          ) : (
-            <ul className="space-y-1.5 text-sm">
-              {coachingRecordings.map((r, i) => (
-                <li key={i}>
-                  <a href={r.url} target="_blank" rel="noopener noreferrer" className="text-[#DB2777] hover:underline">
-                    {r.date} — {r.topic}
-                  </a>
-                </li>
-              ))}
-            </ul>
-          )}
+            {/* Past replays — same panel, separated by a faint divider */}
+            <div className="mt-8 pt-8 border-t border-red-500/15">
+              <p className="text-[11px] font-semibold tracking-widest uppercase text-red-600/80 mb-3">
+                {lang === "cn" ? "过往录像" : "Past Replays"}
+              </p>
+              {coachingRecordings.length === 0 ? (
+                <p className="text-sm text-muted-foreground">
+                  {lang === "cn" ? "暂无录像，敬请期待。" : "No recordings yet. Stay tuned."}
+                </p>
+              ) : (
+                <ul className="space-y-1.5 text-sm">
+                  {coachingRecordings.map((r, i) => (
+                    <li key={i}>
+                      <a href={r.url} target="_blank" rel="noopener noreferrer" className="text-red-600 hover:underline">
+                        {r.date} — {r.topic}
+                      </a>
+                    </li>
+                  ))}
+                </ul>
+              )}
+            </div>
+          </div>
         </div>
       </div>
 
