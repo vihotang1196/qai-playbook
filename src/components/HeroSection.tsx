@@ -277,7 +277,7 @@ const HeroSection = () => {
                     side="bottom"
                     align="center"
                     sideOffset={8}
-                    className="popout-center w-auto p-0 border-0 bg-transparent shadow-none"
+                    className="w-auto p-0 border-0 bg-transparent shadow-none"
                   >
                     <QuickLinkPopout type={link.popout} lang={lang} />
                   </HoverCardContent>

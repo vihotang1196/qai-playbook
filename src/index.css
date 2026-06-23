@@ -309,13 +309,6 @@
   animation: blur-shift 22s ease-in-out infinite;
 }
 
-[data-radix-popper-content-wrapper]:has(.popout-center) {
-  position: fixed !important;
-  top: 140px !important;
-  left: 50% !important;
-  transform: translateX(-50%) !important;
-}
-
 /* === VisionOS section system === */
 @layer utilities {
   /* Layout helper only. The ambient glow is a single continuous layer on
