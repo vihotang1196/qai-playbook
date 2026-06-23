@@ -3,6 +3,7 @@ import { Button } from "@/components/ui/button";
 import { ArrowRight, Play, Video, Calendar, Clock, MapPin, CalendarPlus, Rocket, FileText, X, ChevronDown } from "lucide-react";
 import { useLang } from "@/i18n/LanguageContext";
 import { t } from "@/i18n/translations";
+import { coachingRecordings, type CoachingRecording } from "@/lib/coaching";
 import GuidedTour from "./GuidedTour";
 import {
   Dialog,
@@ -22,11 +23,6 @@ const ZOOM_LINK = "https://zoom.us/j/6186465988?omn=95854837323";
 const WHATSAPP_LINK = "https://wa.me/601112436811";
 const VIRTUAL_WALKIN_LINK = "https://meet.goto.com/qaivirtual-walkin";
 const COACHING_NIGHT_LINK = "https://meet.goto.com/127055221";
-
-// Recordings — populate with past Coaching Night sessions
-const coachingRecordings: { date: string; topic: string; url: string }[] = [
-  { date: "15 JUN 2026", topic: "转化", url: "https://assets.cdn.filesafe.space/UQhNDa03bFrytsA8NXtD/media/6a30fc59998928ce1fdb43b7.mp4" },
-];
 
 // Get current Malaysia time (UTC+8) as a Date in local TZ representing MYT wall time
 const getMytNow = (): Date => {
@@ -144,6 +140,7 @@ const HeroSection = () => {
   const { lang, hideSubtitles } = useLang();
   const [tourOpen, setTourOpen] = useState(false);
   const [invoiceOpen, setInvoiceOpen] = useState(false);
+  const [activeRecording, setActiveRecording] = useState<CoachingRecording | null>(null);
   const [mayEvents, setMayEvents] = useState(mayInitialEvents);
   const [hiddenUpcoming, setHiddenUpcoming] = useState<number[]>([]);
   const [, setTick] = useState(0);
@@ -489,15 +486,24 @@ const HeroSection = () => {
                   {lang === "cn" ? "暂无录像，敬请期待。" : "No recordings yet. Stay tuned."}
                 </p>
               ) : (
-                <ul className="space-y-1.5 text-sm">
+                <div className="flex flex-wrap gap-3">
                   {coachingRecordings.map((r, i) => (
-                    <li key={i}>
-                      <a href={r.url} target="_blank" rel="noopener noreferrer" className="text-red-600 hover:underline">
-                        {r.date} — {r.topic}
-                      </a>
-                    </li>
+                    <button
+                      key={i}
+                      type="button"
+                      onClick={() => setActiveRecording(r)}
+                      className="group inline-flex items-center gap-3 rounded-2xl border border-red-500/20 bg-red-500/[0.06] px-4 py-3 transition-all duration-300 hover:bg-red-500/[0.10] hover:-translate-y-0.5"
+                    >
+                      <span className="flex h-9 w-9 items-center justify-center rounded-full bg-red-500/15 text-red-600 transition-colors group-hover:bg-red-500 group-hover:text-white">
+                        <Play size={15} className="fill-current ml-0.5" />
+                      </span>
+                      <span className="flex flex-col items-start leading-tight">
+                        <span className="text-sm font-semibold text-foreground">{r.date}</span>
+                        <span className="text-[11px] font-medium text-red-600">{r.topic}</span>
+                      </span>
+                    </button>
                   ))}
-                </ul>
+                </div>
               )}
             </div>
           </div>
@@ -541,6 +547,31 @@ const HeroSection = () => {
               data-form-id="zp4gSkpcmPKeY3jIxp2L"
               title="Request Invoice"
             />
+          </div>
+        </DialogContent>
+      </Dialog>
+
+      {/* Coaching Night replay player */}
+      <Dialog open={!!activeRecording} onOpenChange={(open) => !open && setActiveRecording(null)}>
+        <DialogContent className="max-w-3xl w-[92vw] p-0 overflow-hidden">
+          <DialogHeader className="px-5 pt-5 pb-3 text-left">
+            <DialogTitle className="text-base font-semibold tracking-tight">
+              {lang === "cn" ? "Coaching Night 回放" : "Coaching Night Replay"}
+              {activeRecording && <span className="text-muted-foreground font-medium"> — {activeRecording.date} · {activeRecording.topic}</span>}
+            </DialogTitle>
+          </DialogHeader>
+          <div className="px-4 pb-5 md:px-5">
+            {activeRecording && (
+              <video
+                key={activeRecording.url}
+                src={activeRecording.url}
+                poster={activeRecording.cover}
+                controls
+                autoPlay
+                playsInline
+                className="w-full aspect-video rounded-xl bg-black"
+              />
+            )}
           </div>
         </DialogContent>
       </Dialog>
