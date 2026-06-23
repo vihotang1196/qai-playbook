@@ -3,6 +3,7 @@ import { Button } from "@/components/ui/button";
 import { ArrowRight, Play, Video, Calendar, Clock, MapPin, CalendarPlus, Rocket, FileText, X, ChevronDown } from "lucide-react";
 import { useLang } from "@/i18n/LanguageContext";
 import { t } from "@/i18n/translations";
+import { coachingRecordings, type CoachingRecording } from "@/lib/coaching";
 import GuidedTour from "./GuidedTour";
 import {
   Dialog,
@@ -22,11 +23,6 @@ const ZOOM_LINK = "https://zoom.us/j/6186465988?omn=95854837323";
 const WHATSAPP_LINK = "https://wa.me/601112436811";
 const VIRTUAL_WALKIN_LINK = "https://meet.goto.com/qaivirtual-walkin";
 const COACHING_NIGHT_LINK = "https://meet.goto.com/127055221";
-
-// Recordings — populate with past Coaching Night sessions
-const coachingRecordings: { date: string; topic: string; url: string }[] = [
-  { date: "15 JUN 2026", topic: "转化", url: "https://assets.cdn.filesafe.space/UQhNDa03bFrytsA8NXtD/media/6a30fc59998928ce1fdb43b7.mp4" },
-];
 
 // Get current Malaysia time (UTC+8) as a Date in local TZ representing MYT wall time
 const getMytNow = (): Date => {
@@ -144,6 +140,7 @@ const HeroSection = () => {
   const { lang, hideSubtitles } = useLang();
   const [tourOpen, setTourOpen] = useState(false);
   const [invoiceOpen, setInvoiceOpen] = useState(false);
+  const [activeRecording, setActiveRecording] = useState<CoachingRecording | null>(null);
   const [mayEvents, setMayEvents] = useState(mayInitialEvents);
   const [hiddenUpcoming, setHiddenUpcoming] = useState<number[]>([]);
   const [, setTick] = useState(0);
@@ -214,10 +211,54 @@ const HeroSection = () => {
 
   return (
     <>
-    <section id="hero" className="relative flex flex-col items-center justify-start overflow-hidden pt-16 pb-8">
-      {/* Quick links bar */}
-      <div className="absolute top-20 left-0 right-0 z-20">
-        <div className="flex flex-wrap items-center justify-center gap-2 px-4 py-3">
+    <section id="hero" className="relative flex flex-col items-center justify-start overflow-hidden pt-28 md:pt-36 pb-8">
+      {/* Hero text — the headline is the focal point */}
+      <div className="relative z-10 max-w-4xl mx-auto px-6 text-center">
+        <h1 className="fade-up font-display text-4xl sm:text-5xl md:text-6xl font-bold tracking-tight text-foreground leading-[1.12]">
+          {t.hero.headline[lang]}
+        </h1>
+        {!hideSubtitles && (
+          <p className="fade-up fade-up-delay-1 mt-5 text-base md:text-lg text-muted-foreground max-w-xl mx-auto leading-relaxed">
+            {t.hero.subtitle[lang]}
+          </p>
+        )}
+
+        {/* Primary CTA + quieter secondary actions */}
+        <div className="fade-up fade-up-delay-2 mt-10 flex flex-col items-center gap-4">
+          <Button
+            size="xl"
+            className="px-12"
+            onClick={() => window.open("https://qiai.notion.site/qaighlonboarding?v=27528b270a6d813285ac000caaded827&source=copy_link", "_blank")}
+          >
+            <Rocket size={18} />
+            {lang === "cn" ? "系统快速启动" : "Quick Start"}
+            <ArrowRight size={18} />
+          </Button>
+
+          <div className="flex flex-wrap items-center justify-center gap-x-6 gap-y-2 text-sm">
+            <button
+              type="button"
+              onClick={() => setTourOpen(true)}
+              className="inline-flex items-center gap-1.5 text-muted-foreground hover:text-foreground transition-colors"
+            >
+              <Play size={14} />
+              {t.hero.watch[lang]}
+            </button>
+            <a
+              href="https://invoice.qiai.tech/submit"
+              target="_blank"
+              rel="noopener noreferrer"
+              className="inline-flex items-center gap-1.5 text-muted-foreground hover:text-foreground transition-colors"
+            >
+              <FileText size={14} />
+              {lang === "cn" ? "申请 Invoice" : "Invoice"}
+              <ArrowRight size={14} />
+            </a>
+          </div>
+        </div>
+
+        {/* Quick-link pills — moved below the CTA, de-emphasized */}
+        <div className="fade-up fade-up-delay-3 mt-12 flex flex-wrap items-center justify-center gap-2">
           {quickLinks.map((link) => {
             if (link.popout) {
               return (
@@ -257,32 +298,8 @@ const HeroSection = () => {
         </div>
       </div>
 
-      {/* Hero text */}
-      <div className="relative z-10 max-w-4xl mx-auto px-6 text-center mt-12">
-        {!hideSubtitles && (
-          <p className="fade-up fade-up-delay-1 mt-16 text-lg md:text-xl text-muted-foreground max-w-2xl mx-auto leading-relaxed">
-            {t.hero.subtitle[lang]}
-          </p>
-        )}
-
-        <div className="fade-up fade-up-delay-2 mt-10 flex flex-wrap items-center justify-center gap-3">
-          <Button size="xl" className="px-16 bg-gradient-to-r from-[#FF7E5F] to-[#FF3D6E] hover:brightness-110 text-white" onClick={() => setTourOpen(true)}>
-            <Play size={16} />
-            {t.hero.watch[lang]}
-          </Button>
-          <Button variant="outline" size="xl" className="px-16" onClick={() => window.open("https://qiai.notion.site/qaighlonboarding?v=27528b270a6d813285ac000caaded827&source=copy_link", "_blank")}>
-            <Rocket size={16} />
-            {lang === "cn" ? "系统快速启动" : "Quick Start"}
-          </Button>
-          <Button variant="outline" size="xl" className="px-16" onClick={() => window.open("https://invoice.qiai.tech/submit", "_blank", "noopener,noreferrer")}>
-            <FileText size={16} />
-            {lang === "cn" ? "申请INVOICE" : "Invoice"}
-          </Button>
-        </div>
-      </div>
-
       {/* Two-column: WhatsApp Support + Virtual Walk-In */}
-      <div className="relative z-10 w-full max-w-5xl mx-auto px-6 mt-10 mb-4">
+      <div className="relative z-10 w-full max-w-5xl mx-auto px-6 mt-20 md:mt-28 mb-4">
         {(isHolidayToday || upcomingHoliday) && (
           <div className="mb-4 flex items-center justify-center gap-2 text-xs md:text-sm font-semibold text-red-600 dark:text-red-400">
             <span className="inline-block w-2 h-2 rounded-full bg-red-500 animate-pulse" />
@@ -303,7 +320,7 @@ const HeroSection = () => {
         )}
         <div className="grid grid-cols-1 md:grid-cols-2 gap-6 items-start">
           {/* Left: WhatsApp Technical Support */}
-          <div className="glass-card p-6 flex flex-col justify-between border-green-500/30">
+          <div className="glass-card glass-card-green p-6 flex flex-col justify-between">
             <div>
               <div className="flex items-center gap-2 mb-3">
                 <span className="text-[10px] font-bold uppercase px-2 py-0.5 rounded bg-green-500 text-white">
@@ -322,7 +339,7 @@ const HeroSection = () => {
             <Button
               size="sm"
               disabled={buttonsDisabled}
-              className="w-full mt-4 bg-green-500 hover:bg-green-600 text-white disabled:opacity-60 disabled:cursor-not-allowed"
+              className="w-full mt-4 bg-gradient-to-r from-[#34D399] to-[#22C55E] hover:brightness-110 text-white disabled:opacity-60 disabled:cursor-not-allowed"
               onClick={() => !buttonsDisabled && window.open(WHATSAPP_LINK, "_blank")}
             >
               {buttonsDisabled
@@ -332,18 +349,18 @@ const HeroSection = () => {
           </div>
 
           {/* Right: Virtual Walk-In */}
-          <div className="glass-card p-6 flex flex-col justify-between border-[#FF3D6E]/30">
+          <div className="glass-card glass-card-blue p-6 flex flex-col justify-between">
             <div>
               <div className="flex items-center gap-2 mb-3">
-                <span className="text-[10px] font-bold uppercase px-2 py-0.5 rounded bg-gradient-to-r from-[#FF7E5F] to-[#FF3D6E] text-white">
+                <span className="text-[10px] font-bold uppercase px-2 py-0.5 rounded bg-gradient-to-r from-[#60A5FA] to-[#3B82F6] text-white">
                   Virtual Walk-In
                 </span>
                 {isWalkInTime ? (
-                  <span className="text-[10px] font-bold uppercase px-2 py-0.5 rounded bg-[#FF3D6E] text-white animate-pulse">
+                  <span className="text-[10px] font-bold uppercase px-2 py-0.5 rounded bg-blue-500 text-white animate-pulse">
                     LIVE
                   </span>
                 ) : (
-                  <span className="text-[10px] font-bold uppercase px-2 py-0.5 rounded bg-[#FF3D6E]/15 text-[#DB2777]">
+                  <span className="text-[10px] font-bold uppercase px-2 py-0.5 rounded bg-blue-500/15 text-blue-600">
                     {lang === "cn" ? "一至五 3–5PM" : "Mon–Fri 3–5PM"}
                   </span>
                 )}
@@ -364,7 +381,7 @@ const HeroSection = () => {
             <Button
               size="sm"
               disabled={buttonsDisabled || !isWalkInTime}
-              className="w-full mt-4 bg-gradient-to-r from-[#FF7E5F] to-[#FF3D6E] hover:brightness-110 text-white disabled:opacity-60 disabled:cursor-not-allowed"
+              className="w-full mt-4 bg-gradient-to-r from-[#60A5FA] to-[#3B82F6] hover:brightness-110 text-white disabled:opacity-60 disabled:cursor-not-allowed"
               onClick={() => !buttonsDisabled && isWalkInTime && window.open(VIRTUAL_WALKIN_LINK, "_blank")}
             >
               {buttonsDisabled ? (
@@ -381,7 +398,21 @@ const HeroSection = () => {
           </div>
         </div>
 
-        {/* Row 2: Three Coaching Night date cards */}
+        {/* ── Coaching Night group: ONE panel — upcoming + past replays ── */}
+        <div className="mt-16 md:mt-20">
+          <div className="glass-panel-red p-6 md:p-10">
+            {/* Group header */}
+            <div className="flex items-center justify-center gap-2.5 mb-8">
+              <span className="w-2 h-2 rounded-full bg-red-500" />
+              <h2 className="font-display text-xl md:text-2xl font-bold tracking-tight text-foreground">
+                Coaching Night{lang === "cn" && <span className="text-muted-foreground font-medium"> · 教练之夜</span>}
+              </h2>
+            </div>
+
+            {/* Upcoming sessions */}
+            <p className="text-[11px] font-semibold tracking-widest uppercase text-red-600/80 mb-4 text-center">
+              {lang === "cn" ? "即将到来" : "Upcoming"}
+            </p>
         {(() => {
           const myt = getMytNow();
           const nextMondays = getNextMondays(3);
@@ -391,79 +422,91 @@ const HeroSection = () => {
           const minutes = myt.getHours() * 60 + myt.getMinutes();
           const isSameDay = (a: Date, b: Date) =>
             a.getFullYear() === b.getFullYear() && a.getMonth() === b.getMonth() && a.getDate() === b.getDate();
+          // All sessions share one room link, so a single Join button gated on
+          // "is any of these dates live right now" (today + 19:00–21:30 MYT).
+          const liveIndex = nextMondays.findIndex(
+            (d) => isSameDay(d, myt) && minutes >= 19 * 60 && minutes <= 21 * 60 + 30,
+          );
+          const anyLive = liveIndex >= 0;
           return (
-            <div className="mt-6 grid grid-cols-1 md:grid-cols-3 gap-6 items-start">
-              {nextMondays.map((d, i) => {
-                const topic = topicForMonday(d);
-                const active = isSameDay(d, myt) && minutes >= 19 * 60 && minutes <= 21 * 60 + 30;
-                return (
-                  <div key={i} className="glass-card p-6 flex flex-col justify-between border-[#FF7E5F]/30">
-                    <div>
-                      <div className="flex items-center gap-2 mb-3">
-                        <span className="text-[10px] font-bold uppercase px-2 py-0.5 rounded bg-[#FF7E5F]/15 text-[#DB2777]">
-                          Coaching Night
-                        </span>
-                        {active && (
-                          <span className="text-[10px] font-bold uppercase px-2 py-0.5 rounded bg-[#FF3D6E] text-white animate-pulse">
-                            LIVE
-                          </span>
-                        )}
-                      </div>
-                      <h3 className="text-lg font-bold tracking-tight mb-1">
-                        {lang === "cn" ? `${fmtMd(d)} (星期一)` : `${fmtMdEn(d)} (Mon)`}
-                      </h3>
-                      <div className="mt-2 text-xs text-muted-foreground space-y-0.5">
-                        <div>8:00PM – 9:30PM</div>
-                        <div className="text-[11px] text-muted-foreground/80">
-                          {lang === "cn"
-                            ? "7:00PM 起可进入等候室，8:00PM 正式开始"
-                            : "Waiting room opens 7:00PM · Starts 8:00PM"}
-                        </div>
-                      </div>
-                      <div className="mt-2 inline-flex items-center gap-1.5 text-xs">
-                        <span className="text-muted-foreground">{lang === "cn" ? "主题：" : "Topic: "}</span>
-                        <span className="px-2 py-0.5 rounded-full bg-[#FF7E5F]/15 text-[#DB2777] font-semibold">
-                          {topic}
-                        </span>
-                      </div>
-                    </div>
-                    <Button
-                      size="sm"
-                      variant={active ? "default" : "outline"}
-                      disabled={!active}
-                      className={`w-full mt-4 ${active ? "" : "border-border text-muted-foreground/70"}`}
-                      onClick={() => active && window.open(COACHING_NIGHT_LINK, "_blank")}
-                    >
-                      <Video size={14} />
-                      {lang === "cn" ? "📹 进入教室" : "📹 Join Room"}
-                    </Button>
+            <>
+              {/* Shared session-time note — written once for all three */}
+              <p className="text-xs text-muted-foreground text-center mb-5">
+                8:00PM – 9:30PM · {lang === "cn"
+                  ? "7:00PM 起可进入等候室，8:00PM 正式开始"
+                  : "Waiting room opens 7:00PM · Starts 8:00PM"}
+              </p>
+
+              {/* Three dates side by side */}
+              <div className="grid grid-cols-3 divide-x divide-red-500/15">
+                {nextMondays.map((d, i) => (
+                  <div key={i} className="flex flex-col items-center gap-1.5 px-2 text-center">
+                    {i === liveIndex && (
+                      <span className="text-[10px] font-bold uppercase px-2 py-0.5 rounded bg-red-500 text-white animate-pulse">
+                        LIVE
+                      </span>
+                    )}
+                    <span className="text-base md:text-lg font-bold tracking-tight text-foreground leading-tight">
+                      {lang === "cn" ? fmtMd(d) : fmtMdEn(d)}
+                    </span>
+                    <span className="text-[10px] text-muted-foreground">
+                      {lang === "cn" ? "星期一" : "Mon"}
+                    </span>
+                    <span className="px-2 py-0.5 rounded-full bg-red-500/15 text-red-600 text-xs font-semibold">
+                      {topicForMonday(d)}
+                    </span>
                   </div>
-                );
-              })}
-            </div>
+                ))}
+              </div>
+
+              {/* One shared Join button (active only when a session is live now) */}
+              <div className="mt-6 flex justify-center">
+                <Button
+                  size="sm"
+                  variant={anyLive ? "default" : "outline"}
+                  disabled={!anyLive}
+                  className={`px-8 min-w-[260px] ${anyLive ? "bg-gradient-to-r from-[#F87171] to-[#EF4444] hover:brightness-110 text-white shadow-lg shadow-red-500/25" : "border-border text-muted-foreground/70"}`}
+                  onClick={() => anyLive && window.open(COACHING_NIGHT_LINK, "_blank")}
+                >
+                  <Video size={14} />
+                  {lang === "cn" ? "📹 进入教室" : "📹 Join Room"}
+                </Button>
+              </div>
+            </>
           );
         })()}
 
-        {/* Recording History */}
-        <div className="mt-6 glass-card p-6">
-          <h3 className="text-base font-bold tracking-tight mb-3">
-            📼 {lang === "cn" ? "过往录像" : "Past Recordings"}
-          </h3>
-          {coachingRecordings.length === 0 ? (
-            <p className="text-sm text-muted-foreground">
-              {lang === "cn" ? "暂无录像，敬请期待。" : "No recordings yet. Stay tuned."}
-            </p>
-          ) : (
-            <ul className="space-y-1.5 text-sm">
-              {coachingRecordings.map((r, i) => (
-                <li key={i}>
-                  <a href={r.url} target="_blank" rel="noopener noreferrer" className="text-[#DB2777] hover:underline">
-                    {r.date} — {r.topic}
-                  </a>
-                </li>
-              ))}
-            </ul>
-          )}
+            {/* Past replays — same panel, separated by a faint divider */}
+            <div className="mt-8 pt-8 border-t border-red-500/15">
+              <p className="text-[11px] font-semibold tracking-widest uppercase text-red-600/80 mb-3">
+                {lang === "cn" ? "过往录像" : "Past Replays"}
+              </p>
+              {coachingRecordings.length === 0 ? (
+                <p className="text-sm text-muted-foreground">
+                  {lang === "cn" ? "暂无录像，敬请期待。" : "No recordings yet. Stay tuned."}
+                </p>
+              ) : (
+                <div className="flex flex-wrap gap-3">
+                  {coachingRecordings.map((r, i) => (
+                    <button
+                      key={i}
+                      type="button"
+                      onClick={() => setActiveRecording(r)}
+                      className="group inline-flex items-center gap-3 rounded-2xl border border-red-500/20 bg-red-500/[0.06] px-4 py-3 transition-all duration-300 hover:bg-red-500/[0.10] hover:-translate-y-0.5"
+                    >
+                      <span className="flex h-9 w-9 items-center justify-center rounded-full bg-red-500/15 text-red-600 transition-colors group-hover:bg-red-500 group-hover:text-white">
+                        <Play size={15} className="fill-current ml-0.5" />
+                      </span>
+                      <span className="flex flex-col items-start leading-tight">
+                        <span className="text-sm font-semibold text-foreground">{r.date}</span>
+                        <span className="text-[11px] font-medium text-red-600">{r.topic}</span>
+                      </span>
+                    </button>
+                  ))}
+                </div>
+              )}
+            </div>
+          </div>
         </div>
       </div>
 
@@ -504,6 +547,31 @@ const HeroSection = () => {
               data-form-id="zp4gSkpcmPKeY3jIxp2L"
               title="Request Invoice"
             />
+          </div>
+        </DialogContent>
+      </Dialog>
+
+      {/* Coaching Night replay player */}
+      <Dialog open={!!activeRecording} onOpenChange={(open) => !open && setActiveRecording(null)}>
+        <DialogContent className="max-w-3xl w-[92vw] p-0 overflow-hidden">
+          <DialogHeader className="px-5 pt-5 pb-3 text-left">
+            <DialogTitle className="text-base font-semibold tracking-tight">
+              {lang === "cn" ? "Coaching Night 回放" : "Coaching Night Replay"}
+              {activeRecording && <span className="text-muted-foreground font-medium"> — {activeRecording.date} · {activeRecording.topic}</span>}
+            </DialogTitle>
+          </DialogHeader>
+          <div className="px-4 pb-5 md:px-5">
+            {activeRecording && (
+              <video
+                key={activeRecording.url}
+                src={activeRecording.url}
+                poster={activeRecording.cover}
+                controls
+                autoPlay
+                playsInline
+                className="w-full aspect-video rounded-xl bg-black"
+              />
+            )}
           </div>
         </DialogContent>
       </Dialog>
