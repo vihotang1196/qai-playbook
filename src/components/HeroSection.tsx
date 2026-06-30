@@ -1,6 +1,6 @@
 import { useState, useMemo, useEffect } from "react";
 import { Button } from "@/components/ui/button";
-import { ArrowRight, Play, Video, Calendar, Clock, MapPin, CalendarPlus, Rocket, FileText, X, ChevronDown } from "lucide-react";
+import { ArrowRight, Play, Video, Calendar, Clock, MapPin, CalendarPlus, Rocket, FileText, X } from "lucide-react";
 import { useLang } from "@/i18n/LanguageContext";
 import { t } from "@/i18n/translations";
 import { coachingRecordings, type CoachingRecording } from "@/lib/coaching";
@@ -199,20 +199,20 @@ const HeroSection = () => {
 
   return (
     <>
-    <section id="hero" className="relative flex flex-col items-center justify-start overflow-hidden pt-28 md:pt-36 pb-8">
-      {/* Hero text — the headline is the focal point */}
+    <section id="hero" className="relative flex flex-col items-center overflow-hidden pt-20 md:pt-24 pb-8">
+      {/* Hero title — compact */}
       <div className="relative z-10 max-w-4xl mx-auto px-6 text-center">
         <h1 className="fade-up font-display text-4xl sm:text-5xl md:text-6xl font-bold tracking-tight text-foreground leading-[1.12]">
           {t.hero.headline[lang]}
         </h1>
         {!hideSubtitles && (
-          <p className="fade-up fade-up-delay-1 mt-5 text-base md:text-lg text-muted-foreground max-w-xl mx-auto leading-relaxed">
+          <p className="fade-up fade-up-delay-1 mt-4 text-base md:text-lg text-muted-foreground max-w-xl mx-auto leading-relaxed">
             {t.hero.subtitle[lang]}
           </p>
         )}
 
         {/* Primary CTA + quieter secondary actions */}
-        <div className="fade-up fade-up-delay-2 mt-10 flex flex-col items-center gap-4">
+        <div className="fade-up fade-up-delay-2 mt-6 flex flex-col items-center gap-4">
           <Button
             size="xl"
             className="px-12"
@@ -244,11 +244,10 @@ const HeroSection = () => {
             </a>
           </div>
         </div>
-
       </div>
 
       {/* Two-column: WhatsApp Support + Virtual Walk-In */}
-      <div className="relative z-10 w-full max-w-5xl mx-auto px-6 mt-20 md:mt-28 mb-4">
+      <div id="hero-cards" className="relative z-10 w-full max-w-5xl mx-auto px-6 mt-6 md:mt-8 mb-4">
         {(isHolidayToday || upcomingHoliday) && (
           <div className="mb-4 flex items-center justify-center gap-2 text-xs md:text-sm font-semibold text-red-600 dark:text-red-400">
             <span className="inline-block w-2 h-2 rounded-full bg-red-500 animate-pulse" />
@@ -348,7 +347,7 @@ const HeroSection = () => {
         </div>
 
         {/* ── Coaching Night group: ONE panel — upcoming + past replays ── */}
-        <div className="mt-16 md:mt-20">
+        <div className="mt-6 md:mt-8">
           <div className="glass-panel-red p-6 md:p-10">
             {/* Group header */}
             <div className="flex items-center justify-center gap-2.5 mb-8">
@@ -458,17 +457,6 @@ const HeroSection = () => {
           </div>
         </div>
       </div>
-
-      {/* Scroll hint */}
-      <button
-        type="button"
-        onClick={() => document.getElementById("featured")?.scrollIntoView({ behavior: "smooth" })}
-        className="relative z-10 mt-8 mb-2 flex flex-col items-center gap-1 text-xs text-muted-foreground hover:text-foreground transition-colors group"
-        aria-label={lang === "cn" ? "向下探索" : "Scroll down"}
-      >
-        <span className="tracking-wide">{lang === "cn" ? "向下探索" : "Explore"}</span>
-        <ChevronDown size={18} className="animate-bounce group-hover:translate-y-0.5 transition-transform" />
-      </button>
 
       <GuidedTour isOpen={tourOpen} onClose={() => setTourOpen(false)} />
 
