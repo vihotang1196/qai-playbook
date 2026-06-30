@@ -11,12 +11,6 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
-import QuickLinkPopout from "./QuickLinkPopout";
-import {
-  HoverCard,
-  HoverCardContent,
-  HoverCardTrigger,
-} from "@/components/ui/hover-card";
 
 const COMMUNITY_LINK = "https://chat.whatsapp.com/GrVKU7wl9LuDpYeg3ycTFt";
 const ZOOM_LINK = "https://zoom.us/j/6186465988?omn=95854837323";
@@ -53,12 +47,6 @@ const getNextMondays = (count: number): Date[] => {
   }
   return result;
 };
-
-const quickLinks = [
-  { en: "WhatsApp SMS Guideline", cn: "WhatsApp SMS Guideline", color: "bg-white text-foreground border border-border", glow: "rgba(0,0,0,0.1)", href: "https://support.qiai.tech/whatsapp-onboarding", popout: "sms-guideline" as const },
-  { en: "WhatsApp vs WABA", cn: "WhatsApp vs WABA", color: "bg-white text-foreground border border-border", glow: "rgba(0,0,0,0.1)", href: "https://support.qiai.tech/whatsapp-waba", popout: "wa-vs-waba" as const },
-  { en: "Payex/Senangpay Guideline", cn: "Payex/Senangpay Guideline", color: "bg-white text-foreground border border-border", glow: "rgba(0,0,0,0.1)", href: "https://support.qiai.tech/payex/senangpay", popout: "payex-senangpay" as const },
-];
 
 // May 2026 calendar data
 const OFFLINE_SIGNUP_LINK = "https://wa.me/601154050265";
@@ -257,45 +245,6 @@ const HeroSection = () => {
           </div>
         </div>
 
-        {/* Quick-link pills — moved below the CTA, de-emphasized */}
-        <div className="fade-up fade-up-delay-3 mt-12 flex flex-wrap items-center justify-center gap-2">
-          {quickLinks.map((link) => {
-            if (link.popout) {
-              return (
-                <HoverCard key={link.en} openDelay={100} closeDelay={200}>
-                  <HoverCardTrigger asChild>
-                    <a
-                      href={link.href}
-                      className={`glow-btn ${link.color}`}
-                      style={{ '--glow-color': link.glow } as React.CSSProperties}
-                      onClick={(e) => e.preventDefault()}
-                    >
-                      {lang === "cn" ? link.cn : link.en}
-                    </a>
-                  </HoverCardTrigger>
-                  <HoverCardContent
-                    side="bottom"
-                    align="center"
-                    sideOffset={8}
-                    className="w-auto p-0 border-0 bg-transparent shadow-none"
-                  >
-                    <QuickLinkPopout type={link.popout} lang={lang} />
-                  </HoverCardContent>
-                </HoverCard>
-              );
-            }
-            return (
-              <a
-                key={link.en}
-                href={link.href}
-                className={`glow-btn ${link.color}`}
-                style={{ '--glow-color': link.glow } as React.CSSProperties}
-              >
-                {lang === "cn" ? link.cn : link.en}
-              </a>
-            );
-          })}
-        </div>
       </div>
 
       {/* Two-column: WhatsApp Support + Virtual Walk-In */}

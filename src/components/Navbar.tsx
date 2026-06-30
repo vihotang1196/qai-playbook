@@ -1,10 +1,24 @@
 import { useState } from "react";
 import { useLocation, useNavigate } from "react-router-dom";
 import { Button } from "@/components/ui/button";
-import { Menu, X } from "lucide-react";
+import { Menu, X, ChevronDown, ChevronRight } from "lucide-react";
 import { useLang } from "@/i18n/LanguageContext";
 import { t } from "@/i18n/translations";
 import logo from "@/assets/logo.png";
+import QuickLinkPopout from "./QuickLinkPopout";
+import {
+  HoverCard,
+  HoverCardContent,
+  HoverCardTrigger,
+} from "@/components/ui/hover-card";
+
+// Help/guide links — shown under the navbar "Guides" dropdown; each opens
+// its QuickLinkPopout on hover (moved here from the homepage hero).
+const guideLinks = [
+  { en: "WhatsApp SMS Guideline", cn: "WhatsApp SMS Guideline", href: "https://support.qiai.tech/whatsapp-onboarding", popout: "sms-guideline" as const },
+  { en: "WhatsApp vs WABA", cn: "WhatsApp vs WABA", href: "https://support.qiai.tech/whatsapp-waba", popout: "wa-vs-waba" as const },
+  { en: "Payex/Senangpay Guideline", cn: "Payex/Senangpay Guideline", href: "https://support.qiai.tech/payex/senangpay", popout: "payex-senangpay" as const },
+];
 
 const navLinks = [
   { label: t.nav.home, href: "#hero" },
@@ -65,7 +79,37 @@ const Navbar = () => {
           ))}
         </nav>
 
-        <div className="hidden md:flex items-center gap-1.5">
+        <div className="hidden md:flex items-center gap-2">
+          {/* Guides dropdown — groups the help links; each opens its popout on hover */}
+          <HoverCard openDelay={80} closeDelay={150}>
+            <HoverCardTrigger asChild>
+              <button className="flex items-center gap-1 text-sm text-muted-foreground hover:text-foreground transition-colors duration-300 px-1">
+                {lang === "cn" ? "指南" : "Guides"}
+                <ChevronDown size={14} />
+              </button>
+            </HoverCardTrigger>
+            <HoverCardContent align="end" sideOffset={12} className="w-60 p-2">
+              <div className="flex flex-col">
+                {guideLinks.map((link) => (
+                  <HoverCard key={link.en} openDelay={80} closeDelay={150}>
+                    <HoverCardTrigger asChild>
+                      <a
+                        href={link.href}
+                        onClick={(e) => e.preventDefault()}
+                        className="flex items-center justify-between gap-2 rounded-lg px-3 py-2 text-sm text-foreground hover:bg-accent/10 cursor-pointer transition-colors"
+                      >
+                        <span>{lang === "cn" ? link.cn : link.en}</span>
+                        <ChevronRight size={14} className="text-muted-foreground shrink-0" />
+                      </a>
+                    </HoverCardTrigger>
+                    <HoverCardContent side="left" align="start" sideOffset={12} className="w-auto p-0 border-0 bg-transparent shadow-none">
+                      <QuickLinkPopout type={link.popout} lang={lang} />
+                    </HoverCardContent>
+                  </HoverCard>
+                ))}
+              </div>
+            </HoverCardContent>
+          </HoverCard>
           <Button
             variant="outline"
             size="sm"
@@ -98,6 +142,26 @@ const Navbar = () => {
               {link.label[lang]}
             </a>
           ))}
+
+          {/* Guides group */}
+          <div className="pt-3 border-t border-border">
+            <p className="text-[11px] font-semibold uppercase tracking-widest text-muted-foreground mb-2">
+              {lang === "cn" ? "指南" : "Guides"}
+            </p>
+            {guideLinks.map((link) => (
+              <a
+                key={link.en}
+                href={link.href}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="block text-sm text-muted-foreground hover:text-foreground py-1.5 transition-colors"
+                onClick={() => setMobileOpen(false)}
+              >
+                {lang === "cn" ? link.cn : link.en}
+              </a>
+            ))}
+          </div>
+
           <div className="flex items-center gap-2 pt-2">
             <Button
               variant="outline"
