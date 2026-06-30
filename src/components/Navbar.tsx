@@ -22,10 +22,6 @@ const guideLinks = [
 
 const navLinks = [
   { label: t.nav.home, href: "#hero" },
-  { label: t.nav.courses, href: "#courses" },
-  
-  { label: t.nav.milestone, href: "#milestone" },
-  { label: t.nav.solutions, href: "#solutions" },
   { label: { en: "DFY", cn: "DFY" }, href: "/dfy", isRoute: true, noSemibold: true },
   { label: { en: "Credits", cn: "额度" }, href: "/credits", isRoute: true, noSemibold: true },
   { label: { en: "Upgrade", cn: "升级" }, href: "/upgrade", isRoute: true, noSemibold: true },
