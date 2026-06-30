@@ -17,6 +17,15 @@ export default {
         sans: ["Plus Jakarta Sans", "Inter", "system-ui", "-apple-system", "sans-serif"],
         display: ["Sora", "Plus Jakarta Sans", "system-ui", "sans-serif"],
       },
+      // Lift the small end of the type scale so captions/labels/subtitles
+      // are more readable and the gap to the big sizes is smaller. Only
+      // xs/sm/base are overridden; lg/xl/2xl… keep Tailwind defaults
+      // (merged via extend), so the large display sizes stay put.
+      fontSize: {
+        xs: ["0.8125rem", { lineHeight: "1.125rem" }], // 13px (was 12)
+        sm: ["0.9375rem", { lineHeight: "1.375rem" }], // 15px (was 14)
+        base: ["1.0625rem", { lineHeight: "1.6rem" }], // 17px (was 16)
+      },
       colors: {
         border: "hsl(var(--border))",
         input: "hsl(var(--input))",
