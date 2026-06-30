@@ -348,111 +348,110 @@ const HeroSection = () => {
 
         {/* ── Coaching Night group: ONE panel — upcoming + past replays ── */}
         <div className="mt-6 md:mt-8">
-          <div className="glass-panel-red p-6 md:p-10">
-            {/* Group header */}
-            <div className="flex items-center justify-center gap-2.5 mb-8">
-              <span className="w-2 h-2 rounded-full bg-red-500" />
-              <h2 className="font-display text-xl md:text-2xl font-bold tracking-tight text-foreground">
-                Coaching Night{lang === "cn" && <span className="text-muted-foreground font-medium"> · 教练之夜</span>}
-              </h2>
-            </div>
-
-            {/* Upcoming sessions */}
-            <p className="text-[11px] font-semibold tracking-widest uppercase text-red-600/80 mb-4 text-center">
-              {lang === "cn" ? "即将到来" : "Upcoming"}
-            </p>
-        {(() => {
-          const myt = getMytNow();
-          const nextMondays = getNextMondays(3);
-          const fmtMd = (d: Date) => `${d.getMonth() + 1}月 ${d.getDate()}日`;
-          const fmtMdEn = (d: Date) =>
-            `${d.toLocaleString("en-US", { month: "short" })} ${d.getDate()}`;
-          const minutes = myt.getHours() * 60 + myt.getMinutes();
-          const isSameDay = (a: Date, b: Date) =>
-            a.getFullYear() === b.getFullYear() && a.getMonth() === b.getMonth() && a.getDate() === b.getDate();
-          // All sessions share one room link, so a single Join button gated on
-          // "is any of these dates live right now" (today + 19:00–21:30 MYT).
-          const liveIndex = nextMondays.findIndex(
-            (d) => isSameDay(d, myt) && minutes >= 19 * 60 && minutes <= 21 * 60 + 30,
-          );
-          const anyLive = liveIndex >= 0;
-          return (
-            <>
-              {/* Shared session-time note — written once for all three */}
-              <p className="text-xs text-muted-foreground text-center mb-5">
+          <div className="glass-panel-red p-5 md:p-6">
+            {/* Header: title + shared session-time note */}
+            <div className="flex flex-col gap-1.5 sm:flex-row sm:items-center sm:justify-between mb-5">
+              <div className="flex items-center gap-2.5">
+                <span className="w-2 h-2 rounded-full bg-red-500" />
+                <h2 className="font-display text-lg md:text-xl font-bold tracking-tight text-foreground">
+                  Coaching Night{lang === "cn" && <span className="text-muted-foreground font-medium"> · 教练之夜</span>}
+                </h2>
+              </div>
+              <p className="text-xs text-muted-foreground">
                 8:00PM – 9:30PM · {lang === "cn"
                   ? "7:00PM 起可进入等候室，8:00PM 正式开始"
-                  : "Waiting room opens 7:00PM · Starts 8:00PM"}
+                  : "Waiting room opens 7:00PM, starts 8:00PM"}
               </p>
+            </div>
 
-              {/* Three dates side by side */}
-              <div className="grid grid-cols-3 divide-x divide-red-500/15">
-                {nextMondays.map((d, i) => (
-                  <div key={i} className="flex flex-col items-center gap-1.5 px-2 text-center">
-                    {i === liveIndex && (
-                      <span className="text-[10px] font-bold uppercase px-2 py-0.5 rounded bg-red-500 text-white animate-pulse">
-                        LIVE
-                      </span>
-                    )}
-                    <span className="text-base md:text-lg font-bold tracking-tight text-foreground leading-tight">
-                      {lang === "cn" ? fmtMd(d) : fmtMdEn(d)}
-                    </span>
-                    <span className="text-[10px] text-muted-foreground">
-                      {lang === "cn" ? "星期一" : "Mon"}
-                    </span>
-                    <span className="px-2 py-0.5 rounded-full bg-red-500/15 text-red-600 text-xs font-semibold">
-                      {topicForMonday(d)}
-                    </span>
-                  </div>
-                ))}
-              </div>
-
-              {/* One shared Join button (active only when a session is live now) */}
-              <div className="mt-6 flex justify-center">
-                <Button
-                  size="sm"
-                  variant={anyLive ? "default" : "outline"}
-                  disabled={!anyLive}
-                  className={`px-8 min-w-[260px] ${anyLive ? "bg-gradient-to-r from-[#F87171] to-[#EF4444] hover:brightness-110 text-white shadow-lg shadow-red-500/25" : "border-border text-muted-foreground/70"}`}
-                  onClick={() => anyLive && window.open(COACHING_NIGHT_LINK, "_blank")}
-                >
-                  <Video size={14} />
-                  {lang === "cn" ? "📹 进入教室" : "📹 Join Room"}
-                </Button>
-              </div>
-            </>
-          );
-        })()}
-
-            {/* Past replays — same panel, separated by a faint divider */}
-            <div className="mt-8 pt-8 border-t border-red-500/15">
-              <p className="text-[11px] font-semibold tracking-widest uppercase text-red-600/80 mb-3">
-                {lang === "cn" ? "过往录像" : "Past Replays"}
-              </p>
-              {coachingRecordings.length === 0 ? (
-                <p className="text-sm text-muted-foreground">
-                  {lang === "cn" ? "暂无录像，敬请期待。" : "No recordings yet. Stay tuned."}
+            {/* Two zones: upcoming sessions | past replays */}
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-6 md:gap-8 md:divide-x divide-red-500/15">
+              {/* Left — upcoming sessions */}
+              <div className="md:pr-8">
+                <p className="text-[11px] font-semibold tracking-widest uppercase text-red-600/80 mb-3">
+                  {lang === "cn" ? "即将到来" : "Upcoming"}
                 </p>
-              ) : (
-                <div className="flex flex-wrap gap-3">
-                  {coachingRecordings.map((r, i) => (
-                    <button
-                      key={i}
-                      type="button"
-                      onClick={() => setActiveRecording(r)}
-                      className="group inline-flex items-center gap-3 rounded-2xl border border-red-500/20 bg-red-500/[0.06] px-4 py-3 transition-all duration-300 hover:bg-red-500/[0.10] hover:-translate-y-0.5"
-                    >
-                      <span className="flex h-9 w-9 items-center justify-center rounded-full bg-red-500/15 text-red-600 transition-colors group-hover:bg-red-500 group-hover:text-white">
-                        <Play size={15} className="fill-current ml-0.5" />
-                      </span>
-                      <span className="flex flex-col items-start leading-tight">
-                        <span className="text-sm font-semibold text-foreground">{r.date}</span>
-                        <span className="text-[11px] font-medium text-red-600">{r.topic}</span>
-                      </span>
-                    </button>
-                  ))}
-                </div>
-              )}
+                {(() => {
+                  const myt = getMytNow();
+                  const nextMondays = getNextMondays(3);
+                  const fmtMd = (d: Date) => `${d.getMonth() + 1}月 ${d.getDate()}日`;
+                  const fmtMdEn = (d: Date) =>
+                    `${d.toLocaleString("en-US", { month: "short" })} ${d.getDate()}`;
+                  const minutes = myt.getHours() * 60 + myt.getMinutes();
+                  const isSameDay = (a: Date, b: Date) =>
+                    a.getFullYear() === b.getFullYear() && a.getMonth() === b.getMonth() && a.getDate() === b.getDate();
+                  // All sessions share one room link, so a single Join button
+                  // gated on "is any date live now" (today + 19:00–21:30 MYT).
+                  const liveIndex = nextMondays.findIndex(
+                    (d) => isSameDay(d, myt) && minutes >= 19 * 60 && minutes <= 21 * 60 + 30,
+                  );
+                  const anyLive = liveIndex >= 0;
+                  return (
+                    <>
+                      <div className="space-y-2">
+                        {nextMondays.map((d, i) => (
+                          <div key={i} className="flex items-center justify-between gap-3 rounded-xl bg-red-500/[0.05] px-3 py-2">
+                            <div className="flex items-center gap-2 min-w-0">
+                              <span className="text-sm font-bold tracking-tight text-foreground truncate">
+                                {lang === "cn" ? `${fmtMd(d)} · 一` : `${fmtMdEn(d)} · Mon`}
+                              </span>
+                              {i === liveIndex && (
+                                <span className="shrink-0 text-[9px] font-bold uppercase px-1.5 py-0.5 rounded bg-red-500 text-white animate-pulse">
+                                  LIVE
+                                </span>
+                              )}
+                            </div>
+                            <span className="shrink-0 px-2 py-0.5 rounded-full bg-red-500/15 text-red-600 text-[11px] font-semibold">
+                              {topicForMonday(d)}
+                            </span>
+                          </div>
+                        ))}
+                      </div>
+                      <Button
+                        size="sm"
+                        variant={anyLive ? "default" : "outline"}
+                        disabled={!anyLive}
+                        className={`mt-4 w-full ${anyLive ? "bg-gradient-to-r from-[#F87171] to-[#EF4444] hover:brightness-110 text-white shadow-lg shadow-red-500/25" : "border-border text-muted-foreground/70"}`}
+                        onClick={() => anyLive && window.open(COACHING_NIGHT_LINK, "_blank")}
+                      >
+                        <Video size={14} />
+                        {lang === "cn" ? "📹 进入教室" : "📹 Join Room"}
+                      </Button>
+                    </>
+                  );
+                })()}
+              </div>
+
+              {/* Right — past replays */}
+              <div>
+                <p className="text-[11px] font-semibold tracking-widest uppercase text-red-600/80 mb-3">
+                  {lang === "cn" ? "过往录像" : "Past Replays"}
+                </p>
+                {coachingRecordings.length === 0 ? (
+                  <p className="text-sm text-muted-foreground">
+                    {lang === "cn" ? "暂无录像，敬请期待。" : "No recordings yet. Stay tuned."}
+                  </p>
+                ) : (
+                  <div className="space-y-2">
+                    {coachingRecordings.map((r, i) => (
+                      <button
+                        key={i}
+                        type="button"
+                        onClick={() => setActiveRecording(r)}
+                        className="group flex w-full items-center gap-3 rounded-xl border border-red-500/20 bg-red-500/[0.06] px-3 py-2.5 text-left transition-all duration-300 hover:bg-red-500/[0.10]"
+                      >
+                        <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-red-500/15 text-red-600 transition-colors group-hover:bg-red-500 group-hover:text-white">
+                          <Play size={14} className="fill-current ml-0.5" />
+                        </span>
+                        <span className="flex flex-1 items-center justify-between gap-2">
+                          <span className="text-sm font-semibold text-foreground">{r.date}</span>
+                          <span className="text-[11px] font-medium text-red-600">{r.topic}</span>
+                        </span>
+                      </button>
+                    ))}
+                  </div>
+                )}
+              </div>
             </div>
           </div>
         </div>
