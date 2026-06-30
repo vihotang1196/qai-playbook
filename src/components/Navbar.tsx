@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { useLocation, useNavigate } from "react-router-dom";
 import { Button } from "@/components/ui/button";
-import { Menu, X, Type, EyeOff, Eye } from "lucide-react";
+import { Menu, X } from "lucide-react";
 import { useLang } from "@/i18n/LanguageContext";
 import { t } from "@/i18n/translations";
 import logo from "@/assets/logo.png";
@@ -20,7 +20,7 @@ const navLinks = [
 
 const Navbar = () => {
   const [mobileOpen, setMobileOpen] = useState(false);
-  const { lang, toggleLang, largeFont, toggleLargeFont, hideSubtitles, toggleHideSubtitles } = useLang();
+  const { lang, toggleLang } = useLang();
   const location = useLocation();
   const navigate = useNavigate();
   const isHome = location.pathname === "/";
@@ -66,25 +66,6 @@ const Navbar = () => {
         </nav>
 
         <div className="hidden md:flex items-center gap-1.5">
-          {/* dark mode toggle removed */}
-          <Button
-            variant={largeFont ? "secondary" : "ghost"}
-            size="icon"
-            onClick={toggleLargeFont}
-            className="h-8 w-8"
-            title="Toggle Large Font"
-          >
-            <Type size={14} />
-          </Button>
-          <Button
-            variant={hideSubtitles ? "secondary" : "ghost"}
-            size="icon"
-            onClick={toggleHideSubtitles}
-            className="h-8 w-8"
-            title="Toggle Subtitles"
-          >
-            {hideSubtitles ? <EyeOff size={14} /> : <Eye size={14} />}
-          </Button>
           <Button
             variant="outline"
             size="sm"
@@ -118,13 +99,6 @@ const Navbar = () => {
             </a>
           ))}
           <div className="flex items-center gap-2 pt-2">
-            {/* dark mode toggle removed */}
-            <Button variant={largeFont ? "secondary" : "ghost"} size="icon" onClick={toggleLargeFont} className="h-8 w-8">
-              <Type size={14} />
-            </Button>
-            <Button variant={hideSubtitles ? "secondary" : "ghost"} size="icon" onClick={toggleHideSubtitles} className="h-8 w-8">
-              {hideSubtitles ? <EyeOff size={14} /> : <Eye size={14} />}
-            </Button>
             <Button
               variant="outline"
               size="sm"
