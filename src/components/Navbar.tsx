@@ -26,6 +26,7 @@ const navLinks = [
   { label: { en: "Credits", cn: "额度" }, href: "/credits", isRoute: true, noSemibold: true },
   { label: { en: "Upgrade", cn: "升级" }, href: "/upgrade", isRoute: true, noSemibold: true },
   { label: { en: "Affiliate", cn: "伙伴" }, href: "/affiliate", isRoute: true, noSemibold: true },
+  { label: { en: "Tools", cn: "小工具" }, href: "/tools", isRoute: true, noSemibold: true },
 ];
 
 const Navbar = () => {
