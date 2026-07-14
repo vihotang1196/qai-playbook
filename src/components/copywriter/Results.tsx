@@ -6,16 +6,18 @@ import {
   RefreshCw,
   RotateCcw,
   Play,
+  Loader2,
+  Volume2,
   ImageIcon,
   Copy,
   Check,
 } from "lucide-react";
 import { toast } from "sonner";
 import type { GenerateResult } from "@/lib/copywriter/types";
+import { generateVoice } from "@/lib/copywriter/api";
 import { T, type Language } from "@/lib/copywriter/i18n";
 
-// Phase 0 placeholder message for features wired up in later phases
-// (voice → Phase 2, PDF export → Phase 3).
+// Placeholder message for PDF export (wired up in Phase 3).
 const SOON: Record<Language, string> = {
   zh: "此功能将在下一阶段接入 🚧",
   en: "Coming in the next phase 🚧",
@@ -35,9 +37,28 @@ export function Results({
   const t = T[lang];
   const ref = useRef<HTMLDivElement>(null);
 
-  // Phase 2 replaces this with the MiniMax voice call.
-  const playVoice = (_text: string) => {
-    toast(SOON[lang]);
+  // Per-segment voice-over (MiniMax via the generate-voice Edge Function).
+  const [voices, setVoices] = useState<Record<number, string>>({});
+  const [loadingVoice, setLoadingVoice] = useState<Record<number, boolean>>({});
+
+  const playVoice = async (idx: number, text: string) => {
+    if (loadingVoice[idx] || voices[idx]) return;
+    setLoadingVoice((s) => ({ ...s, [idx]: true }));
+    try {
+      const dataUrl = await generateVoice(text, lang);
+      setVoices((s) => ({ ...s, [idx]: dataUrl }));
+      toast.success(t.voiceDone);
+      // Autoplay once the <audio> for this segment has mounted.
+      setTimeout(() => {
+        const el = document.getElementById(`voice-audio-${idx}`) as HTMLAudioElement | null;
+        el?.play().catch(() => {});
+      }, 50);
+    } catch (e) {
+      const msg = e instanceof Error ? e.message : t.voiceFail;
+      toast.error(`${t.voiceFail}: ${msg}`);
+    } finally {
+      setLoadingVoice((s) => ({ ...s, [idx]: false }));
+    }
   };
 
   // Phase 3 replaces this with the html2canvas-pro + jsPDF export.
@@ -95,14 +116,31 @@ export function Results({
                     </div>
                     {!isBanner && (
                       <div data-export-hide className="flex items-center gap-2">
-                        <Button
-                          size="sm"
-                          variant="outline"
-                          onClick={() => playVoice(seg.content)}
-                        >
-                          <Play className="mr-1.5 h-4 w-4" />
-                          {t.playVoice}
-                        </Button>
+                        {voices[i] ? (
+                          <>
+                            <audio
+                              id={`voice-audio-${i}`}
+                              src={voices[i]}
+                              controls
+                              className="h-9"
+                            />
+                            <Volume2 className="h-4 w-4 text-muted-foreground" />
+                          </>
+                        ) : (
+                          <Button
+                            size="sm"
+                            variant="outline"
+                            onClick={() => playVoice(i, seg.content)}
+                            disabled={!!loadingVoice[i]}
+                          >
+                            {loadingVoice[i] ? (
+                              <Loader2 className="mr-1.5 h-4 w-4 animate-spin" />
+                            ) : (
+                              <Play className="mr-1.5 h-4 w-4" />
+                            )}
+                            {loadingVoice[i] ? t.generating : t.playVoice}
+                          </Button>
+                        )}
                       </div>
                     )}
                   </div>
