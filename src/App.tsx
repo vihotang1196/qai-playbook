@@ -11,6 +11,7 @@ import DFY from "./pages/DFY.tsx";
 import Credits from "./pages/Credits.tsx";
 import Upgrade from "./pages/Upgrade.tsx";
 import Affiliate from "./pages/Affiliate.tsx";
+import Copywriter from "./pages/Copywriter.tsx";
 import NotFound from "./pages/NotFound.tsx";
 
 const ScrollToTop = () => {
@@ -37,6 +38,8 @@ const App = () => (
               <Route path="/credits" element={<Credits />} />
               <Route path="/upgrade" element={<Upgrade />} />
               <Route path="/affiliate" element={<Affiliate />} />
+              {/* Copywriter — intentionally NOT in the Navbar (direct-link only). */}
+              <Route path="/copywriter" element={<Copywriter />} />
               {/* ADD ALL CUSTOM ROUTES ABOVE THE CATCH-ALL "*" ROUTE */}
               <Route path="*" element={<NotFound />} />
             </Route>
