@@ -105,7 +105,9 @@ const SYSTEM_PROMPT_ZH = `你是马来西亚市场的资深广告/直效行销�
 - adCopy：一段完整 caption 字串
 - funnel：9 段，每段 { section, content }
 - automationMessages.whatsapp.{greeting,dayBefore,currentDay}：字串
-- automationMessages.email.{greeting,dayBefore,currentDay}：每封 { subject, body }`;
+- automationMessages.email.{greeting,dayBefore,currentDay}：每封 { subject, body }
+
+**极重要：adScript.segments 和 funnel 必须是真正的数组、automationMessages 必须是真正的对象，直接作为工具参数传入。绝对不要把它们变成字符串，也不要在里面塞 JSON 文本。**`;
 
 const SYSTEM_PROMPT_EN = `You are a senior direct-response copywriter for the Malaysian market, fluent in English with deep knowledge of WhatsApp DM selling culture and local idioms.
 
@@ -171,7 +173,9 @@ Task: Based on the provided product Survey, generate the content below and retur
 - adCopy: one full caption string
 - funnel: 9 items, each { section, content }
 - automationMessages.whatsapp.{greeting,dayBefore,currentDay}: strings
-- automationMessages.email.{greeting,dayBefore,currentDay}: each { subject, body }`;
+- automationMessages.email.{greeting,dayBefore,currentDay}: each { subject, body }
+
+**CRITICAL: adScript.segments and funnel MUST be real arrays, and automationMessages MUST be a real object, passed directly as tool arguments. NEVER return them as a string or as JSON text inside a field.**`;
 
 const SYSTEM_PROMPT_MS = SYSTEM_PROMPT_EN.replace(
   "Output language: ENGLISH ONLY. Do not include any Chinese.",
