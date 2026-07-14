@@ -43,7 +43,7 @@ interface SurveyInput {
 
 const SYSTEM_PROMPT_ZH = `你是马来西亚市场的资深广告/直效行销文案师，精通华文、WhatsApp 私讯销售文化与本地用语。
 
-任务：根据用户提供的产品 Survey，生成两大块内容，并以**纯 JSON** 返回（不要 markdown 代码块、不要任何解释、不要前后多余字符）。
+任务：根据用户提供的产品 Survey，生成以下内容，并**通过 emit_copy 工具**返回（工具的每个字段都要填满，不要留空；直接填入自然纯文本，需要换行就用 \n；不要在字段里放 JSON、代码块、HTML 标签或 markdown 语法）。
 
 **输出语言：全部使用「华文（简体中文）」，不要任何英文段落或英文翻译。**
 
@@ -100,47 +100,16 @@ const SYSTEM_PROMPT_ZH = `你是马来西亚市场的资深广告/直效行销�
 - 必须与「广告脚本」「广告文案」「Funnel」互补，不要单纯复制重复。
 - 健康/医疗类不可虚假承诺疗效。
 
-**返回 JSON 结构（严格遵守 key 名称）：**
-{
-  "adScript": {
-    "segments": [
-      {"stage":"1. 注意 Attention","content":""},
-      {"stage":"2. 兴趣 Interest","content":""},
-      {"stage":"3. 欲望 Desire","content":""},
-      {"stage":"4. 行动 Action","content":""},
-      {"stage":"5. 广告上文 Top Banner","content":""},
-      {"stage":"6. 广告下文 Bottom Banner","content":""}
-    ]
-  },
-  "adCopy": "",
-  "funnel": [
-    {"section":"1. 标题 Headline","content":""},
-    {"section":"2. 3大问题 3 Questions","content":""},
-    {"section":"3. 共鸣 Empathy","content":""},
-    {"section":"4. 3大痛点 3 Pain Points","content":""},
-    {"section":"5. 3大好处 3 Benefits","content":""},
-    {"section":"6. 前后对比 Before & After","content":""},
-    {"section":"7. 自我介绍 About","content":""},
-    {"section":"8. 3个见证 3 Testimonials","content":""},
-    {"section":"9. 行动呼吁 Call to Action","content":""}
-  ],
-  "automationMessages": {
-    "whatsapp": {
-      "greeting": "",
-      "dayBefore": "",
-      "currentDay": ""
-    },
-    "email": {
-      "greeting": { "subject": "", "body": "" },
-      "dayBefore": { "subject": "", "body": "" },
-      "currentDay": { "subject": "", "body": "" }
-    }
-  }
-}`;
+**字段对应（用 emit_copy 工具的对应字段，stage / section 名称必须与上面完全一致）：**
+- adScript.segments：6 段，每段 { stage, content }
+- adCopy：一段完整 caption 字串
+- funnel：9 段，每段 { section, content }
+- automationMessages.whatsapp.{greeting,dayBefore,currentDay}：字串
+- automationMessages.email.{greeting,dayBefore,currentDay}：每封 { subject, body }`;
 
 const SYSTEM_PROMPT_EN = `You are a senior direct-response copywriter for the Malaysian market, fluent in English with deep knowledge of WhatsApp DM selling culture and local idioms.
 
-Task: Based on the provided product Survey, generate two blocks of content and return them as **pure JSON** (no markdown code fences, no explanation, no extra characters).
+Task: Based on the provided product Survey, generate the content below and return it by calling the **emit_copy tool** (fill every field, leave nothing blank; put natural plain text straight into each field, using \n for line breaks — do NOT put JSON, code blocks, HTML tags or markdown inside any field).
 
 **Output language: ENGLISH ONLY. Do not include any Chinese.**
 
@@ -197,43 +166,12 @@ Task: Based on the provided product Survey, generate two blocks of content and r
 - Complement (NOT duplicate) ad script, ad copy and funnel content.
 - No false health/medical claims.
 
-**Return JSON shape (strict key names):**
-{
-  "adScript": {
-    "segments": [
-      {"stage":"1. Attention","content":""},
-      {"stage":"2. Interest","content":""},
-      {"stage":"3. Desire","content":""},
-      {"stage":"4. Action","content":""},
-      {"stage":"5. Top Banner","content":""},
-      {"stage":"6. Bottom Banner","content":""}
-    ]
-  },
-  "adCopy": "",
-  "funnel": [
-    {"section":"1. Headline","content":""},
-    {"section":"2. 3 Questions","content":""},
-    {"section":"3. Empathy","content":""},
-    {"section":"4. 3 Pain Points","content":""},
-    {"section":"5. 3 Benefits","content":""},
-    {"section":"6. Before & After","content":""},
-    {"section":"7. About","content":""},
-    {"section":"8. 3 Testimonials","content":""},
-    {"section":"9. Call to Action","content":""}
-  ],
-  "automationMessages": {
-    "whatsapp": {
-      "greeting": "",
-      "dayBefore": "",
-      "currentDay": ""
-    },
-    "email": {
-      "greeting": { "subject": "", "body": "" },
-      "dayBefore": { "subject": "", "body": "" },
-      "currentDay": { "subject": "", "body": "" }
-    }
-  }
-}`;
+**Field mapping (use the emit_copy tool fields; stage / section names must match exactly as listed above):**
+- adScript.segments: 6 items, each { stage, content }
+- adCopy: one full caption string
+- funnel: 9 items, each { section, content }
+- automationMessages.whatsapp.{greeting,dayBefore,currentDay}: strings
+- automationMessages.email.{greeting,dayBefore,currentDay}: each { subject, body }`;
 
 const SYSTEM_PROMPT_MS = SYSTEM_PROMPT_EN.replace(
   "Output language: ENGLISH ONLY. Do not include any Chinese.",
@@ -267,7 +205,7 @@ function buildUserPromptZh(s: SurveyInput): string {
 【风格】
 - 语气：${s.tone}
 
-请严格依照 system prompt 的 JSON 结构返回，且全部文字使用华文。`;
+请通过 emit_copy 工具返回结果，且全部文字使用华文。`;
 }
 
 function buildUserPromptEn(s: SurveyInput): string {
@@ -293,7 +231,7 @@ function buildUserPromptEn(s: SurveyInput): string {
 [Style]
 - Tone: ${s.tone}
 
-Follow the JSON schema strictly. ALL text must be in English.`;
+Return your answer by calling the emit_copy tool. ALL text must be in English.`;
 }
 
 function buildUserPromptMs(s: SurveyInput): string {
@@ -318,22 +256,95 @@ function asString(v: unknown): string {
   return typeof v === "string" ? v : "";
 }
 
-/** Pull the JSON object out of the model's text: strip code fences, then take
- *  the outermost { ... } span. Mirrors the NurtureOS claude-chat approach. */
-function extractJson(text: string): string {
-  let t = text.trim();
-  t = t
-    .replace(/^```json\s*/i, "")
-    .replace(/^```\s*/i, "")
-    .replace(/```\s*$/i, "")
-    .trim();
-  const first = t.indexOf("{");
-  const last = t.lastIndexOf("}");
-  if (first !== -1 && last !== -1 && last > first) {
-    t = t.slice(first, last + 1);
+/** Escape raw control chars (newline/CR/tab) that appear INSIDE string literals,
+ *  so a JSON string that used real line breaks becomes parseable. */
+function sanitizeJsonControlChars(s: string): string {
+  let out = "";
+  let inStr = false;
+  let esc = false;
+  for (let i = 0; i < s.length; i++) {
+    const ch = s[i];
+    if (esc) { out += ch; esc = false; continue; }
+    if (ch === "\\") { out += ch; esc = true; continue; }
+    if (ch === '"') { inStr = !inStr; out += ch; continue; }
+    if (inStr) {
+      if (ch === "\n") { out += "\\n"; continue; }
+      if (ch === "\r") { out += "\\r"; continue; }
+      if (ch === "\t") { out += "\\t"; continue; }
+    }
+    out += ch;
   }
-  return t;
+  return out;
 }
+
+// The tool Claude is forced to call. Using tool use (structured output) rather
+// than parsing free-text JSON guarantees a schema-valid object — no markdown
+// fences, unescaped quotes, newlines or stray HTML can break it.
+const TOOL_NAME = "emit_copy";
+
+const emailItemSchema = {
+  type: "object",
+  properties: { subject: { type: "string" }, body: { type: "string" } },
+  required: ["subject", "body"],
+};
+
+const COPY_TOOL = {
+  name: TOOL_NAME,
+  description: "Return the generated ad script, ad caption, funnel copy and automation messages as structured data.",
+  input_schema: {
+    type: "object",
+    properties: {
+      adScript: {
+        type: "object",
+        properties: {
+          segments: {
+            type: "array",
+            items: {
+              type: "object",
+              properties: { stage: { type: "string" }, content: { type: "string" } },
+              required: ["stage", "content"],
+            },
+          },
+        },
+        required: ["segments"],
+      },
+      adCopy: { type: "string" },
+      funnel: {
+        type: "array",
+        items: {
+          type: "object",
+          properties: { section: { type: "string" }, content: { type: "string" } },
+          required: ["section", "content"],
+        },
+      },
+      automationMessages: {
+        type: "object",
+        properties: {
+          whatsapp: {
+            type: "object",
+            properties: {
+              greeting: { type: "string" },
+              dayBefore: { type: "string" },
+              currentDay: { type: "string" },
+            },
+            required: ["greeting", "dayBefore", "currentDay"],
+          },
+          email: {
+            type: "object",
+            properties: {
+              greeting: emailItemSchema,
+              dayBefore: emailItemSchema,
+              currentDay: emailItemSchema,
+            },
+            required: ["greeting", "dayBefore", "currentDay"],
+          },
+        },
+        required: ["whatsapp", "email"],
+      },
+    },
+    required: ["adScript", "adCopy", "funnel", "automationMessages"],
+  },
+};
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Handler
@@ -395,7 +406,16 @@ Deno.serve(async (req: Request) => {
         ? buildUserPromptEn(s)
         : buildUserPromptZh(s);
 
-  // Call Claude (non-streaming)
+  // Single Claude call (non-streaming). Edge Functions enforce a ~150s idle
+  // limit, so we do NOT retry server-side — two sequential ~60s calls can blow
+  // past it. The UI's "regenerate" button covers the rare transient failure.
+  type Parsed = {
+    adScript?: { segments?: Array<{ stage: string; content: string }> };
+    adCopy?: unknown;
+    funnel?: Array<{ section: string; content: string }>;
+    automationMessages?: unknown;
+  };
+
   let res: Response;
   try {
     res = await fetch(ANTHROPIC_URL, {
@@ -407,9 +427,11 @@ Deno.serve(async (req: Request) => {
       },
       body: JSON.stringify({
         model: MODEL,
-        max_tokens: 12000,
+        max_tokens: 16000,
         system,
         messages: [{ role: "user", content: user }],
+        tools: [COPY_TOOL],
+        tool_choice: { type: "tool", name: TOOL_NAME },
       }),
     });
   } catch (e) {
@@ -419,61 +441,69 @@ Deno.serve(async (req: Request) => {
 
   if (!res.ok) {
     const detail = (await res.text()).slice(0, 300);
+    if (res.status === 401) return json({ error: "Invalid ANTHROPIC_API_KEY" }, 401);
     if (res.status === 429) {
-      return json(
-        { error: lang === "en" ? "AI rate limit, please retry later" : "AI 请求过于频繁，请稍后再试" },
-        429,
-      );
-    }
-    if (res.status === 401) {
-      return json({ error: "Invalid ANTHROPIC_API_KEY" }, 401);
+      return json({ error: lang === "en" ? "AI rate limit, please retry later" : "AI 请求过于频繁，请稍后再试" }, 429);
     }
     if (res.status === 529) {
-      return json(
-        { error: lang === "en" ? "AI temporarily overloaded, please retry" : "AI 暂时繁忙，请稍后再试" },
-        503,
-      );
+      return json({ error: lang === "en" ? "AI temporarily overloaded, please retry" : "AI 暂时繁忙，请稍后再试" }, 503);
     }
     return json({ error: `Claude ${res.status}: ${detail}` }, 502);
   }
 
-  // Extract text from the Claude response
-  let modelText = "";
+  // Read the structured output straight from the forced tool call — no text
+  // parsing, so quotes / newlines / HTML in the copy can't break anything.
+  let parsed: Parsed = {};
+  let stopReason = "";
   try {
     const data = (await res.json()) as {
-      content?: Array<{ type?: string; text?: string }>;
+      content?: Array<{ type?: string; name?: string; input?: unknown }>;
+      stop_reason?: string;
     };
-    modelText = (data.content ?? [])
-      .filter((b) => b.type === "text" && typeof b.text === "string")
-      .map((b) => b.text)
-      .join("");
+    stopReason = data.stop_reason ?? "";
+    const block = (data.content ?? []).find(
+      (b) => b.type === "tool_use" && b.name === TOOL_NAME,
+    );
+    if (block?.input && typeof block.input === "object") {
+      parsed = block.input as Parsed;
+    }
   } catch {
     return json({ error: lang === "en" ? "AI returned an unreadable response" : "AI 返回无法解析" }, 502);
   }
 
-  if (!modelText.trim()) {
-    return json({ error: lang === "en" ? "AI returned empty" : "AI 返回为空" }, 502);
-  }
-
-  // Parse the JSON payload
-  let parsed: {
-    adScript?: { segments?: Array<{ stage: string; content: string }> };
-    adCopy?: unknown;
-    funnel?: Array<{ section: string; content: string }>;
-    automationMessages?: unknown;
+  // Claude's tool use occasionally returns a structured field as a JSON *string*
+  // (e.g. funnel: "[{...}]") instead of a native array/object. Coerce those back.
+  const reparse = (v: unknown): unknown => {
+    if (typeof v !== "string") return v;
+    try {
+      return JSON.parse(v);
+    } catch {
+      try {
+        return JSON.parse(sanitizeJsonControlChars(v));
+      } catch {
+        return v;
+      }
+    }
   };
-  try {
-    parsed = JSON.parse(extractJson(modelText));
-  } catch {
-    return json({ error: lang === "en" ? "AI returned invalid format" : "AI 返回格式不正确" }, 502);
+  parsed.funnel = reparse(parsed.funnel) as Parsed["funnel"];
+  parsed.adScript = reparse(parsed.adScript) as Parsed["adScript"];
+  parsed.automationMessages = reparse(parsed.automationMessages);
+  if (parsed.adScript && typeof parsed.adScript === "object") {
+    parsed.adScript.segments = reparse(parsed.adScript.segments) as Parsed["adScript"]["segments"];
   }
 
   if (!parsed.adScript?.segments || !Array.isArray(parsed.funnel)) {
+    const cutOff = stopReason === "max_tokens";
     return json(
-      { error: lang === "en" ? "AI returned incomplete structure" : "AI 返回结构不完整" },
+      {
+        error: cutOff
+          ? (lang === "en" ? "AI response was cut off — please tap Regenerate" : "AI 输出被截断，请点「重新生成」")
+          : (lang === "en" ? "AI returned incomplete output — please tap Regenerate" : "AI 返回不完整，请点「重新生成」"),
+      },
       502,
     );
   }
+
   if (typeof parsed.adCopy !== "string") {
     parsed.adCopy = "";
   }
