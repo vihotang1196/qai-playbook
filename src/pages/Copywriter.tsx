@@ -3,7 +3,7 @@ import { Loader2, Sparkles } from "lucide-react";
 import { toast } from "sonner";
 import { Survey } from "@/components/copywriter/Survey";
 import { Results } from "@/components/copywriter/Results";
-import { getMockResult } from "@/lib/copywriter/mock";
+import { generateCopy } from "@/lib/copywriter/api";
 import { T, type Language } from "@/lib/copywriter/i18n";
 import type { GenerateResult, SurveyInput } from "@/lib/copywriter/types";
 
@@ -16,8 +16,8 @@ type Stage = "survey" | "loading" | "result";
  * site-wide cn/en toggle. Sits inside the shared <Layout> (background + Navbar +
  * Footer), so this page only renders its own content under a fixed navbar.
  *
- * Phase 0: generation is mocked. Phase 1 swaps `getMockResult` for the
- * `generate-copy` Supabase Edge Function (Claude).
+ * Generation calls the `generate-copy` Supabase Edge Function (Claude).
+ * Voice (Phase 2) and PDF export (Phase 3) are still stubbed in Results.
  */
 const Copywriter = () => {
   const [stage, setStage] = useState<Stage>("survey");
@@ -28,9 +28,7 @@ const Copywriter = () => {
     setLastInput(input);
     setStage("loading");
     try {
-      // Phase 0 placeholder — a short delay so the loading state is visible.
-      await new Promise((r) => setTimeout(r, 1200));
-      const r = getMockResult(input);
+      const r = await generateCopy(input);
       setResult(r);
       setStage("result");
     } catch (e) {
