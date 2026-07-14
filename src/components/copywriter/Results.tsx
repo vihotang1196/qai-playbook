@@ -17,69 +17,6 @@ import type { GenerateResult } from "@/lib/copywriter/types";
 import { generateVoice } from "@/lib/copywriter/api";
 import { T, type Language } from "@/lib/copywriter/i18n";
 
-function esc(s: string): string {
-  return String(s ?? "")
-    .replace(/&/g, "&amp;")
-    .replace(/</g, "&lt;")
-    .replace(/>/g, "&gt;")
-    .replace(/"/g, "&quot;");
-}
-
-/**
- * Build a self-contained, print-ready HTML document from the result.
- *
- * Rendered as real HTML text (NOT an html2canvas image), so the browser's
- * "Save as PDF" produces a PDF with a genuine, selectable/copyable text layer.
- * The font stack lists Windows/macOS/Linux CJK fonts so 华文 renders as real
- * glyphs (no tofu). An on-load script opens the print dialog automatically.
- */
-function buildPrintDoc(result: GenerateResult, t: (typeof T)[Language], lang: Language): string {
-  const item = (label: string, body: string) =>
-    `<div class="item"><div class="label">${esc(label)}</div><div class="body">${esc(body)}</div></div>`;
-
-  const segs = result.adScript.segments.map((s) => item(s.stage, s.content)).join("");
-  const funnel = result.funnel.map((f) => item(f.section, f.content)).join("");
-
-  const wa = result.automationMessages.whatsapp;
-  const em = result.automationMessages.email;
-  const waBlock =
-    item(t.autoMsgGreeting, wa.greeting) +
-    item(t.autoMsgDayBefore, wa.dayBefore) +
-    item(t.autoMsgCurrentDay, wa.currentDay);
-  const emItem = (label: string, m: { subject: string; body: string }) =>
-    `<div class="item"><div class="label">${esc(label)}</div><div class="body"><span class="k">${esc(t.emailSubjectLabel)}:</span> ${esc(m.subject)}\n\n<span class="k">${esc(t.emailBodyLabel)}:</span>\n${esc(m.body)}</div></div>`;
-  const emBlock =
-    emItem(t.autoMsgGreeting, em.greeting) +
-    emItem(t.autoMsgDayBefore, em.dayBefore) +
-    emItem(t.autoMsgCurrentDay, em.currentDay);
-
-  return `<!doctype html><html lang="${lang}"><head><meta charset="utf-8" />
-<title>${esc(t.resultsTitle)}</title>
-<style>
-  *{box-sizing:border-box}
-  body{font-family:"Plus Jakarta Sans","Segoe UI","Microsoft YaHei","PingFang SC","Hiragino Sans GB","Noto Sans CJK SC","Heiti SC",sans-serif;color:#111827;background:#fff;margin:0;padding:24px;-webkit-print-color-adjust:exact;print-color-adjust:exact}
-  h1{font-size:22px;margin:0 0 2px}
-  .sub{color:#6b7280;font-size:12px;margin:0 0 20px}
-  h2{font-size:15px;color:#FF3D6E;border-bottom:2px solid rgba(255,61,110,.25);padding-bottom:5px;margin:24px 0 10px;break-after:avoid}
-  .grp{font-weight:700;font-size:12px;margin:10px 0 6px;color:#374151}
-  .item{break-inside:avoid;margin:0 0 11px}
-  .label{font-weight:700;color:#FF3D6E;font-size:12.5px;margin-bottom:2px}
-  .body{white-space:pre-wrap;font-size:12.5px;line-height:1.6;color:#1f2937}
-  .k{font-weight:700;color:#6b7280}
-  @page{margin:14mm}
-</style></head>
-<body>
-  <h1>${esc(t.resultsTitle)}</h1>
-  <div class="sub">${esc(t.resultsSubtitle)}</div>
-  <h2>A · ${esc(t.adScriptTitle)}</h2>${segs}
-  <h2>B · ${esc(t.adCopyTitle)}</h2>${item("", result.adCopy)}
-  <h2>C · ${esc(t.funnelTitle)}</h2>${funnel}
-  <h2>D · ${esc(t.autoMsgTitle)}</h2>
-  <div class="grp">${esc(t.autoMsgWhatsappLabel)}</div>${waBlock}
-  <div class="grp">${esc(t.autoMsgEmailLabel)}</div>${emBlock}
-</body></html>`;
-}
-
 export function Results({
   result,
   onRegenerate,
@@ -96,6 +33,7 @@ export function Results({
   // Per-segment voice-over (MiniMax via the generate-voice Edge Function).
   const [voices, setVoices] = useState<Record<number, string>>({});
   const [loadingVoice, setLoadingVoice] = useState<Record<number, boolean>>({});
+  const [exporting, setExporting] = useState(false);
 
   const playVoice = async (idx: number, text: string) => {
     if (loadingVoice[idx] || voices[idx]) return;
@@ -117,30 +55,30 @@ export function Results({
     }
   };
 
-  // Print via a hidden iframe → the browser's "Save as PDF" produces a real,
-  // selectable/copyable text PDF (correct CJK glyphs via the doc's font stack).
-  // An iframe avoids pop-up blockers that would break window.open.
-  const exportPdf = () => {
-    const iframe = document.createElement("iframe");
-    iframe.setAttribute("aria-hidden", "true");
-    iframe.style.cssText = "position:fixed;left:-9999px;top:0;width:0;height:0;border:0";
-    iframe.srcdoc = buildPrintDoc(result, t, lang);
-    iframe.onload = () => {
-      const win = iframe.contentWindow;
-      if (!win) {
-        iframe.remove();
-        return;
-      }
-      win.onafterprint = () => setTimeout(() => iframe.remove(), 500);
-      // Small delay so fonts/layout settle before the print dialog opens.
-      setTimeout(() => {
-        win.focus();
-        win.print();
-      }, 350);
-      // Fallback cleanup if onafterprint never fires (some browsers).
-      setTimeout(() => iframe.remove(), 120000);
-    };
-    document.body.appendChild(iframe);
+  // Generate a real text-layer PDF (pdf-lib) and download it. The text is
+  // selectable/copyable (not a rasterized image); 华文 renders via an embedded
+  // CJK font. pdf-lib + the font load lazily so they don't bloat the main app.
+  const exportPdf = async () => {
+    if (exporting) return;
+    setExporting(true);
+    try {
+      const { buildPdfBlob } = await import("@/lib/copywriter/pdf");
+      const blob = await buildPdfBlob(result, lang);
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = `qai-copy-${lang}.pdf`;
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+      setTimeout(() => URL.revokeObjectURL(url), 2000);
+      toast.success(t.pdfDone);
+    } catch (e) {
+      const msg = e instanceof Error ? e.message : t.exportFail;
+      toast.error(`${t.exportFail}: ${msg}`);
+    } finally {
+      setExporting(false);
+    }
   };
 
   return (
@@ -159,8 +97,12 @@ export function Results({
             <RefreshCw className="mr-1.5 h-4 w-4" />
             {t.regenerate}
           </Button>
-          <Button onClick={exportPdf}>
-            <Download className="mr-1.5 h-4 w-4" />
+          <Button onClick={exportPdf} disabled={exporting}>
+            {exporting ? (
+              <Loader2 className="mr-1.5 h-4 w-4 animate-spin" />
+            ) : (
+              <Download className="mr-1.5 h-4 w-4" />
+            )}
             {t.exportPdf}
           </Button>
         </div>
