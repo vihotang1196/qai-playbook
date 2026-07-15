@@ -1,22 +1,27 @@
-import { PDFDocument, StandardFonts, rgb, type PDFFont, type PDFPage } from "pdf-lib";
+import { PDFDocument, StandardFonts, rgb, type PDFFont, type PDFPage, type RGB } from "pdf-lib";
 import fontkit from "@pdf-lib/fontkit";
 import type { GenerateResult, Language } from "./types";
 import { T } from "./i18n";
 
-// Colors
+// Brand / palette
 const CORAL = rgb(1, 0x3d / 255, 0x6e / 255); // #FF3D6E
-const DARK = rgb(0x1f / 255, 0x29 / 255, 0x37 / 255);
-const GREY = rgb(0x6b / 255, 0x72 / 255, 0x80 / 255);
+const DARK = rgb(0x1f / 255, 0x29 / 255, 0x37 / 255); // #1F2937
+const GREY = rgb(0x6b / 255, 0x72 / 255, 0x80 / 255); // #6B7280
+const WHITE = rgb(1, 1, 1);
+const CARD_FILL = rgb(1, 0.965, 0.975); // faint coral tint
+const CARD_BORDER = rgb(0.93, 0.85, 0.88); // light coral-grey
+const RULE = rgb(1, 0x3d / 255, 0x6e / 255);
 
-// Page geometry (A4)
+// A4 geometry
 const PW = 595.28;
 const PH = 841.89;
-const M = 42;
+const M = 44;
 const MAXW = PW - M * 2;
+const USABLE = PH - M * 2;
 
 // The embedded CJK font (subset:false — fontkit's CFF subsetting corrupts
-// glyphs) is only needed for 华文 output. en/ms use built-in Helvetica, so
-// those PDFs stay tiny and this ~2MB font only loads when exporting Chinese.
+// glyphs) is only needed for 华文. en/ms use built-in Helvetica so those PDFs
+// stay tiny and the ~2MB font only loads when exporting Chinese.
 let cjkBytesPromise: Promise<ArrayBuffer> | null = null;
 function loadCjkFont(): Promise<ArrayBuffer> {
   if (!cjkBytesPromise) {
@@ -30,7 +35,7 @@ function loadCjkFont(): Promise<ArrayBuffer> {
   return cjkBytesPromise;
 }
 
-/** Remove characters the embedded fonts can't render (emoji, pictographs,
+/** Strip characters the embedded fonts can't render (emoji, pictographs,
  *  variation selectors, ZWJ, skin tones, private-use) so drawText won't throw. */
 function clean(s: string): string {
   return String(s ?? "")
@@ -39,8 +44,15 @@ function clean(s: string): string {
     .replace(/[\u{2B00}-\u{2BFF}]/gu, "")
     .replace(/[\u{FE00}-\u{FE0F}\u{200D}\u{20E3}]/gu, "")
     .replace(/[\u{E000}-\u{F8FF}]/gu, "")
-    .replace(/ /g, " ")
     .trimEnd();
+}
+
+function safeWidth(font: PDFFont, text: string, size: number): number {
+  try {
+    return font.widthOfTextAtSize(text, size);
+  } catch {
+    return text.length * size * 0.5;
+  }
 }
 
 /** Word-wrap (breaks at spaces for Latin, per-char for CJK which has none). */
@@ -59,7 +71,7 @@ function wrapLines(text: string, font: PDFFont, size: number, maxW: number): str
       try {
         w = font.widthOfTextAtSize(test, size);
       } catch {
-        continue; // unencodable char — skip it
+        continue;
       }
       if (w > maxW && line) {
         if (lastSpace > 0) {
@@ -99,80 +111,149 @@ export async function buildPdfBlob(result: GenerateResult, lang: Language): Prom
   let page: PDFPage = doc.addPage([PW, PH]);
   let y = PH - M;
 
-  const space = (needed: number) => {
-    if (y - needed < M) {
-      page = doc.addPage([PW, PH]);
-      y = PH - M;
+  const newPage = () => {
+    page = doc.addPage([PW, PH]);
+    y = PH - M;
+  };
+  const drawText = (str: string, x: number, baseline: number, size: number, f: PDFFont, color: RGB) => {
+    if (!str) return;
+    try {
+      page.drawText(str, { x, y: baseline, size, font: f, color });
+    } catch {
+      /* skip unencodable line */
     }
   };
-  const drawLine = (line: string, f: PDFFont, size: number, color: ReturnType<typeof rgb>) => {
-    const lh = size * 1.5;
-    space(lh);
-    if (line) {
-      try {
-        page.drawText(line, { x: M, y: y - size, size, font: f, color });
-      } catch {
-        /* skip unencodable line */
-      }
+
+  // Full-width wrapped paragraph (used for the header title/subtitle).
+  const paragraph = (text: string, size: number, f: PDFFont, color: RGB, lineFactor = 1.4) => {
+    const lh = size * lineFactor;
+    for (const line of wrapLines(text, f, size, MAXW)) {
+      if (y - lh < M) newPage();
+      drawText(line, M, y - size, size, f, color);
+      y -= lh;
     }
-    y -= lh;
-  };
-  const block = (text: string, f: PDFFont, size: number, color: ReturnType<typeof rgb>) => {
-    for (const line of wrapLines(text, f, size, MAXW)) drawLine(line, f, size, color);
   };
 
-  // Title
-  block(t.resultsTitle, bold, 19, DARK);
-  y -= 2;
-  block(t.resultsSubtitle, font, 10.5, GREY);
-  y -= 10;
+  // ── Header ────────────────────────────────────────────────────────────────
+  paragraph(t.resultsTitle, 19, bold, DARK, 1.3);
+  y -= 1;
+  paragraph(t.resultsSubtitle, 10.5, font, GREY, 1.4);
+  y -= 16;
 
-  const section = (heading: string) => {
-    space(34);
-    y -= 8;
-    block(heading, bold, 14, CORAL);
-    // underline rule
-    space(2);
-    page.drawLine({ start: { x: M, y: y + 6 }, end: { x: PW - M, y: y + 6 }, thickness: 1, color: rgb(1, 0x3d / 255, 0x6e / 255), opacity: 0.25 });
+  // ── Section header: coral circle marker + brand-color title + subtitle ─────
+  const sectionHeader = (letter: string, title: string, subtitle: string) => {
+    if (y - 58 < M) newPage();
     y -= 6;
+    const r = 11;
+    const cx = M + r;
+    const cy = y - r;
+    page.drawEllipse({ x: cx, y: cy, xScale: r, yScale: r, color: CORAL });
+    const lw = safeWidth(bold, letter, 12);
+    drawText(letter, cx - lw / 2, cy - 4.4, 12, bold, WHITE);
+    const tx = M + r * 2 + 12;
+    drawText(title, tx, cy - 1, 15, bold, CORAL);
+    drawText(subtitle, tx, cy - 15, 9, font, GREY);
+    y = cy - r - 12;
+    page.drawLine({ start: { x: M, y }, end: { x: PW - M, y }, thickness: 1, color: RULE, opacity: 0.22 });
+    y -= 14;
   };
+
+  // Small group label (WhatsApp / Email under section D).
   const groupLabel = (label: string) => {
-    y -= 4;
-    block(label, bold, 11.5, GREY);
-    y -= 1;
-  };
-  const item = (label: string, body: string) => {
-    if (label) block(label, bold, 11, CORAL);
-    block(body, font, 11, DARK);
-    y -= 7;
+    if (y - 24 < M) newPage();
+    y -= 2;
+    drawText(label, M + 2, y - 11, 11, bold, GREY);
+    y -= 20;
   };
 
-  // A — Ad script
-  section(`A · ${t.adScriptTitle}`);
-  for (const s of result.adScript.segments) item(s.stage, s.content);
+  // ── Card: sub-heading (coral) + body, in a tinted bordered box ─────────────
+  const PAD = 12;
+  const TX = M + 14;
+  const INNERW = MAXW - 14 - PAD;
+  const LABEL_SZ = 11;
+  const BODY_SZ = 11;
+  const LH = BODY_SZ * 1.55;
+  const LABEL_LH = LABEL_SZ * 1.5;
 
-  // B — Ad caption
-  section(`B · ${t.adCopyTitle}`);
-  item("", result.adCopy || "");
+  const card = (label: string, body: string) => {
+    const labelLines = label ? wrapLines(label, bold, LABEL_SZ, INNERW) : [];
+    const bodyLines = wrapLines(body, font, BODY_SZ, INNERW);
+    const contentH =
+      labelLines.length * LABEL_LH + (labelLines.length ? 5 : 0) + bodyLines.length * LH;
+    const cardH = contentH + PAD * 2;
 
-  // C — Funnel
-  section(`C · ${t.funnelTitle}`);
-  for (const f of result.funnel) item(f.section, f.content);
+    // Oversized item (taller than a whole page): draw without a box so it can
+    // flow across pages rather than clip.
+    if (cardH > USABLE) {
+      if (labelLines.length) {
+        for (const ln of labelLines) {
+          if (y - LABEL_LH < M) newPage();
+          drawText(ln, TX, y - LABEL_SZ, LABEL_SZ, bold, CORAL);
+          y -= LABEL_LH;
+        }
+        y -= 5;
+      }
+      for (const ln of bodyLines) {
+        if (y - LH < M) newPage();
+        drawText(ln, TX, y - BODY_SZ, BODY_SZ, font, DARK);
+        y -= LH;
+      }
+      y -= 12;
+      return;
+    }
 
-  // D — Automation messages
-  section(`D · ${t.autoMsgTitle}`);
+    if (y - cardH < M) newPage();
+    const top = y;
+    const bottom = top - cardH;
+    page.drawRectangle({
+      x: M,
+      y: bottom,
+      width: MAXW,
+      height: cardH,
+      color: CARD_FILL,
+      borderColor: CARD_BORDER,
+      borderWidth: 0.75,
+    });
+    page.drawRectangle({ x: M, y: bottom, width: 3, height: cardH, color: CORAL }); // left accent
+    let ty = top - PAD;
+    for (const ln of labelLines) {
+      drawText(ln, TX, ty - LABEL_SZ, LABEL_SZ, bold, CORAL);
+      ty -= LABEL_LH;
+    }
+    if (labelLines.length) ty -= 5;
+    for (const ln of bodyLines) {
+      drawText(ln, TX, ty - BODY_SZ, BODY_SZ, font, DARK);
+      ty -= LH;
+    }
+    y = bottom - 9;
+  };
+
+  // ── A · Ad script ──────────────────────────────────────────────────────────
+  sectionHeader("A", t.adScriptTitle, t.adScriptSub);
+  for (const s of result.adScript.segments) card(s.stage, s.content);
+
+  // ── B · Ad caption ──────────────────────────────────────────────────────────
+  sectionHeader("B", t.adCopyTitle, t.adCopySub);
+  card("", result.adCopy || "");
+
+  // ── C · Funnel ──────────────────────────────────────────────────────────────
+  sectionHeader("C", t.funnelTitle, t.funnelSub);
+  for (const f of result.funnel) card(f.section, f.content);
+
+  // ── D · Automation messages ─────────────────────────────────────────────────
+  sectionHeader("D", t.autoMsgTitle, t.autoMsgSub);
   const wa = result.automationMessages.whatsapp;
   const em = result.automationMessages.email;
   groupLabel(t.autoMsgWhatsappLabel);
-  item(t.autoMsgGreeting, wa.greeting);
-  item(t.autoMsgDayBefore, wa.dayBefore);
-  item(t.autoMsgCurrentDay, wa.currentDay);
+  card(t.autoMsgGreeting, wa.greeting);
+  card(t.autoMsgDayBefore, wa.dayBefore);
+  card(t.autoMsgCurrentDay, wa.currentDay);
   groupLabel(t.autoMsgEmailLabel);
-  const emItem = (label: string, m: { subject: string; body: string }) =>
-    item(label, `${t.emailSubjectLabel}: ${m.subject}\n\n${t.emailBodyLabel}:\n${m.body}`);
-  emItem(t.autoMsgGreeting, em.greeting);
-  emItem(t.autoMsgDayBefore, em.dayBefore);
-  emItem(t.autoMsgCurrentDay, em.currentDay);
+  const emCard = (label: string, m: { subject: string; body: string }) =>
+    card(label, `${t.emailSubjectLabel}: ${m.subject}\n\n${t.emailBodyLabel}:\n${m.body}`);
+  emCard(t.autoMsgGreeting, em.greeting);
+  emCard(t.autoMsgDayBefore, em.dayBefore);
+  emCard(t.autoMsgCurrentDay, em.currentDay);
 
   const bytes = await doc.save();
   return new Blob([bytes], { type: "application/pdf" });
