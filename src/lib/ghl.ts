@@ -39,12 +39,39 @@ export function isCustomerView(
   );
 }
 
+const EMBED_KEY = "rb_embed";
+
+function queryIsEmbed(search: string): boolean {
+  const p = new URLSearchParams(search);
+  return p.get("embed") === "true" || p.get("ghl") === "true";
+}
+
+/**
+ * Persist embed mode for the tab session once it's seen in the URL. GHL loads
+ * the iframe with `?embed=true` (or `?ghl=true`) only on the FIRST URL; in-app
+ * navigation then drops the query string. Remembering it keeps the Playbook
+ * chrome hidden for the whole iframe session instead of flashing back.
+ */
+export function rememberEmbed(
+  search: string = typeof window !== "undefined" ? window.location.search : "",
+): void {
+  try {
+    if (queryIsEmbed(search)) sessionStorage.setItem(EMBED_KEY, "1");
+  } catch {
+    /* sessionStorage unavailable (private mode / SSR) — fall back to query only */
+  }
+}
+
 /** Embedded inside the GHL iframe → hide the Playbook site chrome. */
 export function isEmbed(
   search: string = typeof window !== "undefined" ? window.location.search : "",
 ): boolean {
-  const p = new URLSearchParams(search);
-  return p.get("embed") === "true" || p.get("ghl") === "true";
+  if (queryIsEmbed(search)) return true;
+  try {
+    return sessionStorage.getItem(EMBED_KEY) === "1";
+  } catch {
+    return false;
+  }
 }
 
 export type GhlLocation = {

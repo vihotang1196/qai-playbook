@@ -1,7 +1,8 @@
+import { useEffect } from "react";
 import { Outlet, useLocation } from "react-router-dom";
 import Navbar from "@/components/Navbar";
 import Footer from "@/components/Footer";
-import { isEmbed } from "@/lib/ghl";
+import { isEmbed, rememberEmbed } from "@/lib/ghl";
 
 /**
  * App shell shared by every route.
@@ -17,6 +18,9 @@ const Layout = () => {
   // Embed mode (Review Boost inside the GHL iframe, ?embed=true / ?ghl=true):
   // hide the Playbook navbar + footer so only the tool's own shell shows.
   const { search } = useLocation();
+  useEffect(() => {
+    rememberEmbed(search);
+  }, [search]);
   const embed = isEmbed(search);
 
   return (

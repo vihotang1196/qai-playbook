@@ -5,7 +5,7 @@ from a Lovable export into this Vite + react-router app. All work is on branch
 **`feat/review-boost`** (cut from `main`, NOT from `feat/copywriter` — the two
 tools live on separate branches). Commit + push after every phase.
 
-_Last updated: 2026-07-15 — Phase 4 done (Platforms page: per-location review-link config, scoped)._
+_Last updated: 2026-07-15 — Phase 5 done (Campaigns: create/edit/list + auto short_code + detail w/ scan link + history placeholder; embed made sticky)._
 
 ## Scope (locked by owner)
 
@@ -135,7 +135,29 @@ QR / printable poster, tracks scans + generations.
   `src/lib/review-boost/platforms.ts`, `src/pages/review-boost/LocationPlatforms.tsx`.
   Verified in dev: enable + paste + save Google Maps, refresh → persisted; a
   different locationId returns [] (no cross-location leak); no locationId → 400.
-- [ ] **Phase 5 — Campaigns.** Create/edit/list campaigns + short_code + thank-you (rich text).
+- [x] **Phase 5 — Campaigns (2026-07-15).** Sub-account create/edit/list
+  campaigns, each with its OWN business info (business_name/industry/category/
+  signature_features, fed to the AI) + name + logo URL + thank-you page + a
+  chosen platform config (`integration_id`, from the enabled+linked platforms on
+  the Platforms page). Creating a campaign auto-mints a unique 7-char
+  `short_code` in `rb_qr_codes` → the scan URL `/scan/:code` (shown on the detail
+  page w/ copy; QR image/poster is Phase 8). Detail page also lists the campaign's
+  generation history (empty placeholder until Phase 7). Thank-you editor =
+  **plain textarea** (owner chose over tiptap — line breaks + emoji, no rich
+  text; upgradeable later). New `rb` fn actions: listCampaigns / getCampaign /
+  saveCampaign / deleteCampaign / listGenerations — every one REQUIRES locationId
+  and scopes `.eq("location_id")`; saveCampaign also validates `integration_id`
+  belongs to the caller's own location. Files: `supabase/functions/rb` (extended),
+  `src/lib/reviewBoost.ts` (campaign API), `src/pages/review-boost/{LocationCampaigns,
+  LocationCampaignCreate,CampaignDetail}.tsx`, wired in `src/App.tsx`. **Also fixed
+  embed stickiness** (`src/lib/ghl.ts` `rememberEmbed` + `sessionStorage`, called
+  from `Layout.tsx`): `?embed=true`/`?ghl=true` is now remembered for the tab
+  session so in-app navigation (which drops the query string) keeps the Playbook
+  navbar hidden inside the GHL iframe. **Verified live** against two real
+  sub-accounts: full backend cycle create→list→get→delete + isolation (sub-account
+  B can't list/get/delete A's campaign) via the deployed fn; UI create (CJK+emoji
+  ok) → detail (scan link `/scan/5exdsnj`) → B's campaigns empty; embed persists
+  across navigation. DB unchanged (Phase 1/1b schema already had everything).
 - [ ] **Phase 6 — AI generation (Claude).** `generate-review` (preview + scan modes) + result modal.
 - [ ] **Phase 7 — Scan flow.** `/scan/:code` + thank-you + platform tutorial (the core loop). ⭐
 - [ ] **Phase 8 — QR / poster.** Printable poster + centered-logo QR, PNG export.
@@ -209,6 +231,7 @@ it needs REAL auth — never URL secrecy. Planned design:
   `feat/copywriter` (not merged to `main`), so this branch has no `/tools` page.
   Review Boost is reachable directly at `/review-boost` for now; the 3rd `/tools`
   card is reconciled when both branches merge to `main` (Phase 10).
-- Deps to add later: `@supabase/supabase-js` (P1), `qrcode.react` + `html-to-image` (P8),
-  tiptap (P5, or a lighter textarea). recharts + react-query already installed.
+- Deps to add later: `qrcode.react` + `html-to-image` (P8). `@supabase/supabase-js`
+  added (P1). Phase 5 thank-you uses a plain textarea (owner chose over tiptap —
+  NO new dep). recharts + react-query already installed.
 - Original tech notes captured in the `review-boost-rebuild` memory.

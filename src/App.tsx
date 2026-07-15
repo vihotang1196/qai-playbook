@@ -15,10 +15,10 @@ import NotFound from "./pages/NotFound.tsx";
 import ReviewBoostAdminShell from "./components/review-boost/AdminShell";
 import ReviewBoostLanding from "./pages/review-boost/Landing";
 import LocationPlatforms from "./pages/review-boost/LocationPlatforms";
+import RBLocationCampaigns from "./pages/review-boost/LocationCampaigns";
+import RBLocationCampaignCreate from "./pages/review-boost/LocationCampaignCreate";
+import RBCampaignDetail from "./pages/review-boost/CampaignDetail";
 import {
-  CampaignDetail as RBCampaignDetail,
-  LocationCampaigns as RBLocationCampaigns,
-  LocationCampaignCreate as RBLocationCampaignCreate,
   LocationDashboard as RBLocationDashboard,
   LocationSettings as RBLocationSettings,
   ScanPage as RBScanPage,
