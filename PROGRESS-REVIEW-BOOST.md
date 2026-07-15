@@ -5,7 +5,7 @@ from a Lovable export into this Vite + react-router app. All work is on branch
 **`feat/review-boost`** (cut from `main`, NOT from `feat/copywriter` — the two
 tools live on separate branches). Commit + push after every phase.
 
-_Last updated: after Phase 0 (scaffold + routes)._
+_Last updated: 2026-07-15 — Phase 1 DB migration applied + verified on the Playbook project._
 
 ## Scope (locked by owner)
 
@@ -55,9 +55,16 @@ QR / printable poster, tracks scans + generations.
 - [x] **Phase 0 — Scaffold + routes.** All admin + public routes wired with
   coral-glass placeholder stubs. `/review-boost` landing hub links each section.
   Files: `src/pages/review-boost/{RBStub,Landing,pages}.tsx`, routes in `src/App.tsx`.
-- [ ] **Phase 1 — DB + Auth.** Shared `ghl_locations` + tool tables (`rb_campaigns`,
-  `rb_generations`, `rb_qr_codes`) + RLS + `increment_scan_count` RPC + email auth,
-  in the Playbook Supabase project. Supabase client + generated types.
+- [x] **Phase 1 — DB (applied + verified 2026-07-15).** Migration
+  `supabase/migrations/20260715120000_review_boost_phase1.sql` pushed to the
+  Playbook project with `npx supabase db push` (single migration; no history
+  mismatch — first migration in the repo). Created shared `ghl_locations` +
+  `rb_campaigns` / `rb_qr_codes` / `rb_generations` + `increment_scan_count`
+  RPC + RLS (authenticated-manage; public /scan goes via the edge function's
+  service role, which bypasses RLS). Verified: all 4 tables + RPC exist, and
+  copywriter's `generate-copy` / `generate-voice` functions are untouched.
+  **Still to do (fold into Phase 2):** frontend `@supabase/supabase-js` client
+  + generated types; confirm the email auth provider is enabled.
 - [ ] **Phase 2 — Login + admin shell.** Auth page, useAuth guard, dashboard shell + sidebar, profiles.
 - [ ] **Phase 3 — GHL sync.** Shared `sync-ghl-locations` function + `_shared/ghl.ts` + Sub-accounts page.
 - [ ] **Phase 4 — Platforms.** Platform registry + per-location platform/link config.
@@ -67,6 +74,29 @@ QR / printable poster, tracks scans + generations.
 - [ ] **Phase 8 — QR / poster.** Printable poster + centered-logo QR, PNG export.
 - [ ] **Phase 9 — Dashboard.** Scans / generations / posted-rate stats (recharts).
 - [ ] **Phase 10 — Polish + merge.** Reconcile the `/tools` cards, merge to `main`.
+
+## Final customer scan flow (LOCKED — build this in Phase 7)
+
+Confirmed with the owner 2026-07-15. Each `rb_campaigns` row is a **completely
+independent** business/product (Campaign A = Company A selling food, Campaign B =
+Company B selling electronics — each with its own info + review link). The AI
+learns THAT campaign's business info and writes a praising 5-star review for it.
+One sub-account can hold many such unrelated campaigns/QRs.
+
+1. Customer scans the QR → `/scan/:code` (public, mobile, no site navbar).
+2. Page generates + shows the AI 5-star review (first thing they see).
+3. Review is auto-copied to the clipboard — best-effort on load, and reliably
+   again on the "Continue" click (mobile browsers only allow clipboard writes on
+   a user gesture, so the click-copy is the one that counts). **KEPT.**
+4. Button "Copy review & continue to {Platform}" → opens the campaign's
+   configured `review_url` (Google / Facebook / Shopee / custom) in a new tab.
+5. Customer pastes + posts the review there (with their own account).
+6. Button "I've posted it!" → sets `rb_generations.posted = true` (**the data
+   source for the posted-rate stat — KEPT**) → redirects to thank-you / WhatsApp
+   / the campaign's `redirect_url`.
+
+DB already supports this: `rb_qr_codes.scan_count` (scans) + `rb_generations.posted`
+(posted-rate). No schema change needed for Phase 7.
 
 ## Owner to provide (when the phase needs it)
 
