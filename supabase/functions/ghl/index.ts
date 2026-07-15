@@ -13,6 +13,7 @@ import {
   serviceClient,
   getLocation,
   listLocations,
+  setLocationEnabled,
 } from "../_shared/ghl.ts";
 
 serve(async (req) => {
@@ -29,10 +30,12 @@ serve(async (req) => {
         return json({ location });
       }
       case "listLocations": {
-        // Agency picker — wired now, surfaced in the UI from Phase 3 (once the
-        // GHL sync populates ghl_locations).
         const locations = await listLocations(sb);
         return json({ locations });
+      }
+      case "setEnabled": {
+        await setLocationEnabled(sb, String(body?.locationId || ""), !!body?.enabled);
+        return json({ ok: true });
       }
       default:
         return json({ error: `Unknown action: ${action || "(none)"}` }, 400);

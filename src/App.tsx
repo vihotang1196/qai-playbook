@@ -14,10 +14,10 @@ import Affiliate from "./pages/Affiliate.tsx";
 import NotFound from "./pages/NotFound.tsx";
 import ReviewBoostAdminShell from "./components/review-boost/AdminShell";
 import ReviewBoostLanding from "./pages/review-boost/Landing";
+import ReviewBoostSubAccounts from "./pages/review-boost/SubAccounts";
 import {
   Campaigns as RBCampaigns,
   Platforms as RBPlatforms,
-  SubAccounts as RBSubAccounts,
   CampaignDetail as RBCampaignDetail,
   LocationCampaigns as RBLocationCampaigns,
   LocationCampaignCreate as RBLocationCampaignCreate,
@@ -65,7 +65,7 @@ const App = () => (
                 <Route path="/review-boost/campaigns" element={<RBCampaigns />} />
                 <Route path="/review-boost/campaigns/:id" element={<RBCampaignDetail />} />
                 <Route path="/review-boost/platforms" element={<RBPlatforms />} />
-                <Route path="/review-boost/sub-accounts" element={<RBSubAccounts />} />
+                <Route path="/review-boost/sub-accounts" element={<ReviewBoostSubAccounts />} />
                 <Route path="/review-boost/location/:locationId" element={<RBLocationDashboard />} />
                 <Route path="/review-boost/location/:locationId/dashboard" element={<RBLocationDashboard />} />
                 <Route path="/review-boost/location/:locationId/campaigns" element={<RBLocationCampaigns />} />

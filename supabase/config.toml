@@ -5,3 +5,8 @@ project_id = "hkqzzfyigmvisaftdmwh"
 # service role internally and scopes every query by the request's location_id.
 [functions.ghl]
 verify_jwt = false
+
+# GHL sub-account sync — called from the admin (anon key). Reads the PIT from
+# the GHL_AGENCY_API_KEY secret; runs with the service role internally.
+[functions.sync-ghl-locations]
+verify_jwt = false
