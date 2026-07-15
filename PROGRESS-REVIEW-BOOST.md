@@ -142,6 +142,19 @@ QR / printable poster, tracks scans + generations.
 - [ ] **Phase 9 — Dashboard.** Scans / generations / posted-rate stats (recharts).
 - [ ] **Phase 10 — Polish + merge.** Reconcile the `/tools` cards, merge to `main`.
 
+## Launch TODO — embed the whole Playbook in GHL (do at GO-LIVE, NOT now)
+
+Recorded 2026-07-15; **do not build yet.** Cross-cutting (whole Playbook, not
+just Review Boost). When ALL tools are done + merged to `main` + live:
+- Embed the whole Playbook into the **GHL sidebar via a Custom Menu Link** (NOT
+  a Marketplace App): GHL admin → add a Custom Menu Link whose iframe points at
+  `playbook.qiai.tech`. Users click it from the GHL sidebar and land on the
+  Playbook home (the community / product portal); tools are reached from there.
+- **Whether to append `?location_id={{location.id}}`:** decide once all tools
+  are built — pass it only if the tools need to identify the sub-account.
+- **Prerequisite:** all tool features finished + merged to `main` + deployed first.
+- Reference: NurtureOS is embedded the same way (Custom Menu Link, no App).
+
 ## Final customer scan flow (LOCKED — build this in Phase 7)
 
 Confirmed with the owner 2026-07-15. Each `rb_campaigns` row is a **completely
