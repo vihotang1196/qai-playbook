@@ -435,10 +435,10 @@ function FunnelBlock({
   // 9. CTA
   if (idx === 9) {
     return (
-      <Card className="overflow-hidden border-0 bg-gradient-to-br from-primary to-primary/70 p-8 text-primary-foreground shadow-lg">
+      <Card className="p-8">
         <div className="text-center">
-          <p className="mb-6 whitespace-pre-wrap text-xl font-bold leading-relaxed">{content}</p>
-          <div className="inline-block rounded-full bg-background px-8 py-3 text-lg font-bold text-primary shadow-md">
+          <p className="mb-6 whitespace-pre-wrap text-xl font-bold leading-relaxed text-foreground">{content}</p>
+          <div className="inline-block rounded-full bg-primary px-8 py-3 text-lg font-bold text-primary-foreground shadow-md">
             {t.ctaButton}
           </div>
         </div>
