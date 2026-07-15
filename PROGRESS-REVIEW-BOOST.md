@@ -39,6 +39,16 @@ share it:
 sub-account is the **子账号 (sub-account / location)**; under it are **平台
 (platforms)** and **活动 (campaigns)**. Don't reintroduce "store".
 
+**TWO-TIER ACCESS — privacy critical (corrected 2026-07-15, commit ca02982):**
+- **Customer app** (the Review Boost admin, unauthenticated URL identity): a
+  sub-account sees/manages ONLY its own platforms/campaigns/generations/stats.
+  NEVER a sub-account list, another client's data, or any access toggle. Public
+  `ghl` fn exposes only `getLocation` (own, PII-trimmed).
+- **Admin Portal** (future, agency-only, behind REAL login): the god-view —
+  list all sub-accounts, view anyone's data, toggle per-(location,tool) access,
+  trigger sync. See the "Admin Portal (roadmap)" section below.
+- Do NOT put any cross-client/agency capability in the customer app again.
+
 **Data model — Option B (locked 2026-07-15):**
 - `rb_platform_integrations` = the platform-config layer, **links only**: one row
   per (location_id, platform) with `review_url` + `is_enabled`. The sub-account
@@ -146,6 +156,25 @@ One sub-account can hold many such unrelated campaigns/QRs.
 
 DB already supports this: `rb_qr_codes.scan_count` (scans) + `rb_generations.posted`
 (posted-rate). No schema change needed for Phase 7.
+
+## Admin Portal (roadmap — separate dedicated phase, NOT now)
+
+The agency god-view. Highest privilege (all clients' data + access control), so
+it needs REAL auth — never URL secrecy. Planned design:
+- **Auth:** Supabase Auth (email+password / magic link). **Public signup OFF** —
+  admin accounts created by the owner only. Session JWT, server-verified.
+- **Authorization:** an allowlist table (`rb_admins` or shared `platform_admins`)
+  keyed by `auth.uid()`. Every god-op runs in an **authenticated** edge function
+  that verifies the caller is an admin before using the service role. Never trust
+  the frontend; RLS denies anon.
+- **Separation:** a distinct guarded route group (e.g. `/admin`), redirecting to
+  a login page if unauthenticated. Zero god-view code in the customer app.
+- **Per-tool access matrix:** shared `location_tool_access(location_id, tool,
+  enabled)` (cross-tool infra, like ghl_locations) — the portal toggles it; each
+  tool checks its own access. Replaces the single global `ghl_locations.is_enabled`.
+- **Audit log** of access changes.
+- Reuses `_shared/ghl.ts` (listLocations / setLocationEnabled / syncGhlLocations)
+  via the authenticated admin function.
 
 ## Owner to provide (when the phase needs it)
 
