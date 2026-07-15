@@ -70,8 +70,8 @@ export default function ReviewBoostLanding() {
           <Info className="w-5 h-5 text-primary shrink-0 mt-0.5" />
           <p className="text-sm text-muted-foreground leading-relaxed">
             {lang === "cn"
-              ? "从 GoHighLevel 子账号里打开这个工具时，会自动带上该门店的身份（location_id），进入它自己的后台。Agency 门店选择器将在 Phase 3（同步门店后）出现。"
-              : "Opened from a GoHighLevel sub-account, this tool receives that location's identity (location_id) and loads its own admin. The agency location picker arrives in Phase 3, after sync."}
+              ? "从 GoHighLevel 子账号里打开这个工具时，会自动带上该子账号的身份（location_id），进入它自己的后台。Agency 子账号选择器将在 Phase 3（同步子账号后）出现。"
+              : "Opened from a GoHighLevel sub-account, this tool receives that sub-account's identity (location_id) and loads its own admin. The agency sub-account picker arrives in Phase 3, after sync."}
           </p>
         </div>
       )}

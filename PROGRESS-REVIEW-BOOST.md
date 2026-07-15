@@ -5,7 +5,7 @@ from a Lovable export into this Vite + react-router app. All work is on branch
 **`feat/review-boost`** (cut from `main`, NOT from `feat/copywriter` — the two
 tools live on separate branches). Commit + push after every phase.
 
-_Last updated: 2026-07-15 — Phase 2 done (GHL identity via URL + admin shell; email login dropped)._
+_Last updated: 2026-07-15 — Phase 1b applied (Option B: platform-config layer, campaign refs it); "门店/store" renamed to 子账号/平台/活动._
 
 ## Scope (locked by owner)
 
@@ -31,8 +31,25 @@ share it:
 - One shared sync function (`sync-ghl-locations`) — not one per tool.
 - One shared Deno module `supabase/functions/_shared/ghl.ts` (sync + "resolve
   location/user for a request"). Tools `import` it.
-- Tool-specific data lives in tool-owned tables (prefixed, e.g. `rb_campaigns`,
-  `rb_qr_codes`) referencing `location_id`. The shared table stays lean.
+- Tool-specific data lives in tool-owned tables (prefixed: `rb_platform_integrations`,
+  `rb_campaigns`, `rb_qr_codes`, `rb_generations`) referencing `location_id`. The
+  shared table stays lean.
+
+**Terminology (locked 2026-07-15):** there is NO "store/门店" concept. The GHL
+sub-account is the **子账号 (sub-account / location)**; under it are **平台
+(platforms)** and **活动 (campaigns)**. Don't reintroduce "store".
+
+**Data model — Option B (locked 2026-07-15):**
+- `rb_platform_integrations` = the platform-config layer, **links only**: one row
+  per (location_id, platform) with `review_url` + `is_enabled`. The sub-account
+  enables a platform + pastes its link on the Platforms page.
+- `rb_campaigns` carries its **own business info** (business_name / industry /
+  category / signature_features — "which business/product this campaign praises")
+  + name / logo / thank_you_* / platform, and **references a platform config via
+  `integration_id`** (→ which link to send customers to). No `review_url` on the
+  campaign; no snapshot (link is resolved live so link edits propagate).
+- So: 1 子账号 → many 平台配置 (one per platform) + many 活动 (each its own
+  business, each pointing at one platform config for the link).
 
 ## What it is
 
@@ -64,8 +81,16 @@ QR / printable poster, tracks scans + generations.
   RPC + RLS (authenticated-manage; public /scan goes via the edge function's
   service role, which bypasses RLS). Verified: all 4 tables + RPC exist, and
   copywriter's `generate-copy` / `generate-voice` functions are untouched.
-  **Still to do (fold into Phase 2):** frontend `@supabase/supabase-js` client
-  + generated types; confirm the email auth provider is enabled.
+  **Done in Phase 2:** frontend `@supabase/supabase-js` client added. (Email
+  auth NOT needed — identity comes from GHL; see Phase 2.)
+- [x] **Phase 1b — platform layer + campaign fix (Option B, applied 2026-07-15).**
+  Corrective migration `20260715140000_review_boost_phase1b_platforms.sql`: added
+  `rb_platform_integrations` (links only, `unique(location_id, platform)`); on
+  `rb_campaigns` added `integration_id` (→ platform config) and dropped
+  `review_url` (business info STAYS on the campaign — Option B). Verified via REST:
+  new table + `integration_id` present, `review_url` gone, business fields kept;
+  copywriter functions untouched. Also renamed "门店/store" → 子账号/平台/活动
+  across the RB UI + docs.
 - [x] **Phase 2 — GHL identity + admin shell (2026-07-15).** Dropped email
   login/guard (the original's was vestigial). Identity = URL `location_id`
   (path `/location/:id` or query `?location_id=` — matches the Lovable original;

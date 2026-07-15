@@ -1,5 +1,5 @@
 import { NavLink } from "react-router-dom";
-import { LayoutDashboard, Megaphone, Layers, Settings, Store, Star } from "lucide-react";
+import { LayoutDashboard, Megaphone, Layers, Settings, Building2, Star } from "lucide-react";
 import { useLang } from "@/i18n/LanguageContext";
 import { useLocationContext } from "@/hooks/useLocationContext";
 
@@ -23,7 +23,7 @@ export default function AdminSidebar() {
       ]
     : [
         { to: "/review-boost", icon: Star, label: { cn: "概览", en: "Overview" }, end: true },
-        { to: "/review-boost/sub-accounts", icon: Store, label: { cn: "子账号", en: "Sub-accounts" } },
+        { to: "/review-boost/sub-accounts", icon: Building2, label: { cn: "子账号", en: "Sub-accounts" } },
         { to: "/review-boost/platforms", icon: Layers, label: { cn: "平台", en: "Platforms" } },
       ];
 

@@ -31,7 +31,7 @@ export const Platforms = mk(
 );
 export const SubAccounts = mk(
   { cn: "子账号", en: "Sub-accounts" },
-  { cn: "从 GoHighLevel 同步的门店列表。", en: "Locations synced from GoHighLevel." },
+  { cn: "从 GoHighLevel 同步的子账号列表。", en: "Sub-accounts synced from GoHighLevel." },
   "Phase 3",
 );
 export const CampaignDetail = mk(
@@ -40,23 +40,23 @@ export const CampaignDetail = mk(
   "Phase 5",
 );
 export const LocationCampaigns = mk(
-  { cn: "门店活动", en: "Location campaigns" },
-  { cn: "该门店的所有好评活动。", en: "All review campaigns for this location." },
+  { cn: "活动", en: "Campaigns" },
+  { cn: "该子账号的所有好评活动。", en: "All review campaigns for this sub-account." },
   "Phase 5",
 );
 export const LocationCampaignCreate = mk(
   { cn: "建立／编辑活动", en: "Create / edit campaign" },
-  { cn: "设定平台、门店资料、二维码与感谢页。", en: "Set platform, business info, QR and thank-you page." },
+  { cn: "设定平台、商家资料、二维码与感谢页。", en: "Set platform, business info, QR and thank-you page." },
   "Phase 5",
 );
 export const LocationDashboard = mk(
-  { cn: "门店面板", en: "Location dashboard" },
+  { cn: "数据面板", en: "Dashboard" },
   { cn: "扫码次数、生成数与发布率统计。", en: "Scans, generations and posted-rate analytics." },
   "Phase 9",
 );
 export const LocationSettings = mk(
-  { cn: "门店设置", en: "Location settings" },
-  { cn: "门店品牌与偏好设定。", en: "Location branding and preferences." },
+  { cn: "设置", en: "Settings" },
+  { cn: "子账号品牌与偏好设定。", en: "Sub-account branding and preferences." },
   "Phase 5",
 );
 // (Email/password login removed — identity comes from GHL via the URL

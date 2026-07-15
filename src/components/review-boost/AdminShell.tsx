@@ -52,8 +52,8 @@ function LocationHeader() {
           </p>
           <p className="text-xs text-muted-foreground">
             {lang === "cn"
-              ? "门店选择器将在 Phase 3（从 GHL 同步门店后）出现。"
-              : "The location picker arrives in Phase 3, after GHL sync."}
+              ? "子账号选择器将在 Phase 3（从 GHL 同步子账号后）出现。"
+              : "The sub-account picker arrives in Phase 3, after GHL sync."}
           </p>
         </div>
       </div>
@@ -65,7 +65,7 @@ function LocationHeader() {
       <div className="glass-card rounded-2xl px-5 py-4 flex items-center gap-3">
         <Loader2 className="w-5 h-5 text-primary animate-spin" />
         <p className="text-sm text-muted-foreground">
-          {lang === "cn" ? "识别门店中…" : "Identifying location…"}
+          {lang === "cn" ? "识别子账号中…" : "Identifying sub-account…"}
         </p>
       </div>
     );
@@ -79,13 +79,13 @@ function LocationHeader() {
         </div>
         <div>
           <p className="font-display font-semibold text-sm">
-            {lang === "cn" ? "找不到这个门店" : "Location not found"}
+            {lang === "cn" ? "找不到这个子账号" : "Sub-account not found"}
           </p>
           <p className="text-xs text-muted-foreground break-all">
             location_id: <span className="font-mono">{locationId || "(none)"}</span>
             {" — "}
             {lang === "cn"
-              ? "确认从 GHL 打开、或该门店已同步。"
+              ? "确认从 GHL 打开、或该子账号已同步。"
               : "Open it from GHL, or make sure it's synced."}
           </p>
         </div>
@@ -104,7 +104,7 @@ function LocationHeader() {
       </div>
       <div className="min-w-0">
         <p className="font-display font-semibold text-sm truncate">
-          {location.business_name || (lang === "cn" ? "(未命名门店)" : "(unnamed location)")}
+          {location.business_name || (lang === "cn" ? "(未命名子账号)" : "(unnamed sub-account)")}
         </p>
         <p className="text-xs text-muted-foreground truncate">
           {location.niche || (lang === "cn" ? "子账号" : "Sub-account")}
