@@ -5,11 +5,11 @@ branch), ported from the old TanStack Start project into this Vite +
 react-router app. All work is on branch **`feat/copywriter`** (main = live
 production site). Commit + push after every milestone.
 
-_Last updated: after Phase C (voice clone verified)._
+_Last updated: 2026-07-15 — merged to `main` + live on playbook.qiai.tech (Tools navbar entry hidden)._
 
 ## Where things live
 
-- **Branch:** `feat/copywriter` (not yet merged to `main`)
+- **Branch:** `feat/copywriter` — **merged to `main` on 2026-07-15 (fast-forward) and LIVE** on playbook.qiai.tech. Ongoing polish continues on this branch, re-merged when done.
 - **Route:** `/copywriter`, reached from the `/tools` hub page; intentionally **not** in the navbar
 - **Supabase project:** "Playbook", ref `hkqzzfyigmvisaftdmwh` (linked)
 - **Frontend:**
@@ -31,10 +31,20 @@ _Last updated: after Phase C (voice clone verified)._
 - **Phase C — Voice clone verified.** `MINIMAX_VOICE_ID_ZH` set to the owner's cloned voice; confirmed by the owner that it's their voice (machine-verified: valid distinct voice_id honored by MiniMax; owner ear-confirmed).
 - **Phase 3 — PDF export.** `src/lib/copywriter/pdf.ts` (pdf-lib) builds a **real, selectable/copyable text-layer** PDF (NOT a rasterized image), styled to match the results page: title + subtitle, coral A/B/C/D circle markers, brand-color section titles, per-item rounded bordered cards with coral sub-headings. 华文 renders via the embedded CJK font (no tofu). Lazy-loaded so it doesn't bloat the main bundle.
 
+## Deployed 🚀
+
+- **Merged to `main` + live (2026-07-15).** Fast-forward merge, zero conflict — main's 13 Jul coaching replay was already in this branch's history (it was the merge base). Live on **playbook.qiai.tech**; owner confirmed on the live site.
+- **Entry hidden on purpose.** The "小工具/Tools" navbar entry is commented out in `src/components/Navbar.tsx` (one line, shared by desktop + mobile) so the copywriter isn't publicly discoverable/abusable before GHL usage limits exist (each run costs Claude + MiniMax credits). The `/tools` + `/copywriter` routes stay deployed and reachable by **direct URL**. Re-enable that line (then let `main` redeploy) once GHL anti-abuse is in place.
+
 ## Not done yet ⏳
 
-- **Phase 4 — Visual polish** of the copywriter pages (final pass on the VisionOS coral-glass styling).
-- **Merge `feat/copywriter` → `main`** once Phase 4 is done and verified. (Note: `main` already has the 13 Jul 2026 coaching replay; the merge won't conflict.)
+- **Phase 4 — Visual polish** of the copywriter pages (final VisionOS coral-glass pass). Merged un-polished on purpose — safe because the entry is hidden. Continue on `feat/copywriter`, re-merge to `main` when done.
+
+## Branch state (2026-07-15)
+
+- **`main`** = copywriter live + hidden (== `feat/copywriter` at the Navbar-hide merge).
+- **`feat/copywriter`** = active copywriter branch; Phase 4 polish continues here.
+- **`feat/review-boost`** = SEPARATE 2nd tool, branched from `main` (pre-merge). Phase 0 pushed; Phase 1 DB migration written, not yet applied. See `PROGRESS-REVIEW-BOOST.md` on that branch.
 
 ## Backlog / future 🗓️
 
