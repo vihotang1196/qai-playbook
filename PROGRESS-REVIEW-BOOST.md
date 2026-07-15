@@ -5,7 +5,7 @@ from a Lovable export into this Vite + react-router app. All work is on branch
 **`feat/review-boost`** (cut from `main`, NOT from `feat/copywriter` — the two
 tools live on separate branches). Commit + push after every phase.
 
-_Last updated: 2026-07-15 — Phase 1 DB migration applied + verified on the Playbook project._
+_Last updated: 2026-07-15 — Phase 2 done (GHL identity via URL + admin shell; email login dropped)._
 
 ## Scope (locked by owner)
 
@@ -47,8 +47,9 @@ QR / printable poster, tracks scans + generations.
 - **Read-only source (Lovable export):** `C:\Users\chais\Projects\QAI Review Boost`
 - **Admin routes:** `/review-boost/*` (inside shared `<Layout>`)
 - **Public routes:** `/scan/:code`, `/thank-you/:generationId` (OUTSIDE Layout, mobile full-screen)
-- **Frontend:** `src/pages/review-boost/` (pages), `src/components/review-boost/` (components, TBD)
-- **Edge Functions (Deno):** `supabase/functions/*` (TBD from Phase 1)
+- **Frontend:** `src/pages/review-boost/` (pages), `src/components/review-boost/` (AdminShell + AdminSidebar), `src/lib/{supabase,ghl}.ts`, `src/hooks/useLocationContext.tsx`
+- **Edge Functions (Deno):** `supabase/functions/ghl` (shared identity) + `supabase/functions/_shared/ghl.ts` (tool-neutral helpers)
+- **Identity:** GHL passes `location_id` in the URL (path `/location/:id` or `?location_id=`); no email login
 
 ## Phased plan
 
@@ -65,7 +66,20 @@ QR / printable poster, tracks scans + generations.
   copywriter's `generate-copy` / `generate-voice` functions are untouched.
   **Still to do (fold into Phase 2):** frontend `@supabase/supabase-js` client
   + generated types; confirm the email auth provider is enabled.
-- [ ] **Phase 2 — Login + admin shell.** Auth page, useAuth guard, dashboard shell + sidebar, profiles.
+- [x] **Phase 2 — GHL identity + admin shell (2026-07-15).** Dropped email
+  login/guard (the original's was vestigial). Identity = URL `location_id`
+  (path `/location/:id` or query `?location_id=` — matches the Lovable original;
+  GHL custom-menu-link iframe). Frontend: `src/lib/ghl.ts` (URL identity +
+  `callGhl`), `useLocationContext` (resolves current location), `AdminShell` +
+  `AdminSidebar` (coral-glass dashboard + top identity strip). Data access via
+  the shared `ghl` edge function (service role; every query `.eq("location_id")`)
+  — frontend never touches tables. `?embed=true`/`?ghl=true` hides the Playbook
+  navbar (Layout.tsx) so only the RB shell shows inside GHL. Agency picker
+  deferred to Phase 3 (needs synced locations). Verified in dev with a demo row
+  (`demo-loc-001` "Demo Cafe"): sub-account view resolves name/logo, embed hides
+  the navbar, agency root shows the placeholder. Added `@supabase/supabase-js`
+  (Phase 1 leftover). Security: identity is still trust-the-URL (no SSO yet) —
+  hardened later in one place (`_shared/ghl.ts` → `verifyGhlSso`).
 - [ ] **Phase 3 — GHL sync.** Shared `sync-ghl-locations` function + `_shared/ghl.ts` + Sub-accounts page.
 - [ ] **Phase 4 — Platforms.** Platform registry + per-location platform/link config.
 - [ ] **Phase 5 — Campaigns.** Create/edit/list campaigns + short_code + thank-you (rich text).

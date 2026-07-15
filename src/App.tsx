@@ -12,6 +12,7 @@ import Credits from "./pages/Credits.tsx";
 import Upgrade from "./pages/Upgrade.tsx";
 import Affiliate from "./pages/Affiliate.tsx";
 import NotFound from "./pages/NotFound.tsx";
+import ReviewBoostAdminShell from "./components/review-boost/AdminShell";
 import ReviewBoostLanding from "./pages/review-boost/Landing";
 import {
   Campaigns as RBCampaigns,
@@ -22,7 +23,6 @@ import {
   LocationCampaignCreate as RBLocationCampaignCreate,
   LocationDashboard as RBLocationDashboard,
   LocationSettings as RBLocationSettings,
-  RBAuth,
   ScanPage as RBScanPage,
   ThankYouPage as RBThankYouPage,
 } from "./pages/review-boost/pages";
@@ -57,19 +57,24 @@ const App = () => (
               <Route path="/upgrade" element={<Upgrade />} />
               <Route path="/affiliate" element={<Affiliate />} />
 
-              {/* Review Boost admin (Phase 0 scaffold — stubs replaced per phase) */}
-              <Route path="/review-boost" element={<ReviewBoostLanding />} />
-              <Route path="/review-boost/auth" element={<RBAuth />} />
-              <Route path="/review-boost/campaigns" element={<RBCampaigns />} />
-              <Route path="/review-boost/campaigns/:id" element={<RBCampaignDetail />} />
-              <Route path="/review-boost/platforms" element={<RBPlatforms />} />
-              <Route path="/review-boost/sub-accounts" element={<RBSubAccounts />} />
-              <Route path="/review-boost/location/:locationId/campaigns" element={<RBLocationCampaigns />} />
-              <Route path="/review-boost/location/:locationId/campaigns/new" element={<RBLocationCampaignCreate />} />
-              <Route path="/review-boost/location/:locationId/campaigns/:id/edit" element={<RBLocationCampaignCreate />} />
-              <Route path="/review-boost/location/:locationId/campaigns/:id" element={<RBCampaignDetail />} />
-              <Route path="/review-boost/location/:locationId/dashboard" element={<RBLocationDashboard />} />
-              <Route path="/review-boost/location/:locationId/settings" element={<RBLocationSettings />} />
+              {/* Review Boost admin — GHL-embedded, identity via URL location_id.
+                  Wrapped in the AdminShell (sidebar + location context). Stubs
+                  are replaced with real pages per phase. */}
+              <Route element={<ReviewBoostAdminShell />}>
+                <Route path="/review-boost" element={<ReviewBoostLanding />} />
+                <Route path="/review-boost/campaigns" element={<RBCampaigns />} />
+                <Route path="/review-boost/campaigns/:id" element={<RBCampaignDetail />} />
+                <Route path="/review-boost/platforms" element={<RBPlatforms />} />
+                <Route path="/review-boost/sub-accounts" element={<RBSubAccounts />} />
+                <Route path="/review-boost/location/:locationId" element={<RBLocationDashboard />} />
+                <Route path="/review-boost/location/:locationId/dashboard" element={<RBLocationDashboard />} />
+                <Route path="/review-boost/location/:locationId/campaigns" element={<RBLocationCampaigns />} />
+                <Route path="/review-boost/location/:locationId/campaigns/new" element={<RBLocationCampaignCreate />} />
+                <Route path="/review-boost/location/:locationId/campaigns/:id/edit" element={<RBLocationCampaignCreate />} />
+                <Route path="/review-boost/location/:locationId/campaigns/:id" element={<RBCampaignDetail />} />
+                <Route path="/review-boost/location/:locationId/platforms" element={<RBPlatforms />} />
+                <Route path="/review-boost/location/:locationId/settings" element={<RBLocationSettings />} />
+              </Route>
 
               {/* ADD ALL CUSTOM ROUTES ABOVE THE CATCH-ALL "*" ROUTE */}
               <Route path="*" element={<NotFound />} />

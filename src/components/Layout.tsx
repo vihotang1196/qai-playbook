@@ -1,6 +1,7 @@
-import { Outlet } from "react-router-dom";
+import { Outlet, useLocation } from "react-router-dom";
 import Navbar from "@/components/Navbar";
 import Footer from "@/components/Footer";
+import { isEmbed } from "@/lib/ghl";
 
 /**
  * App shell shared by every route.
@@ -13,6 +14,11 @@ import Footer from "@/components/Footer";
  * Pages must NOT render their own background, Navbar or Footer.
  */
 const Layout = () => {
+  // Embed mode (Review Boost inside the GHL iframe, ?embed=true / ?ghl=true):
+  // hide the Playbook navbar + footer so only the tool's own shell shows.
+  const { search } = useLocation();
+  const embed = isEmbed(search);
+
   return (
     <div className="relative min-h-screen overflow-x-hidden">
       {/* Continuous ambient light layer. Near-white base (#FCFDFF) with three
@@ -25,9 +31,9 @@ const Layout = () => {
         <div className="absolute -bottom-[20vh] left-[20vw] w-[70vw] h-[55vh] rounded-full bg-[#DCE6FF] opacity-25 blur-[100px]" />
       </div>
 
-      <Navbar />
+      {!embed && <Navbar />}
       <Outlet />
-      <Footer />
+      {!embed && <Footer />}
     </div>
   );
 };

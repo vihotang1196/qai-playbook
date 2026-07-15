@@ -1,0 +1,7 @@
+project_id = "hkqzzfyigmvisaftdmwh"
+
+# Shared GHL identity function — called by the frontend with the anon key
+# (no user JWT), so verification is off at the gateway. It runs with the
+# service role internally and scopes every query by the request's location_id.
+[functions.ghl]
+verify_jwt = false

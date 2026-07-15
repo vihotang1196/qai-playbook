@@ -1,99 +1,80 @@
 import { Link } from "react-router-dom";
-import { Megaphone, Store, Layers, LayoutDashboard, ArrowRight, Star } from "lucide-react";
+import { Megaphone, LayoutDashboard, ArrowRight, Star, Info } from "lucide-react";
 import { useLang } from "@/i18n/LanguageContext";
+import { useLocationContext } from "@/hooks/useLocationContext";
 
 /**
- * Review Boost admin landing (`/review-boost`).
- *
- * Phase 0: a styled hub that links to each section so the tool is navigable
- * while the individual pages are still stubs. Sits inside the shared <Layout>.
- * (The public customer flow lives at /scan/:code, outside this admin area.)
+ * Review Boost home (`/review-boost`), rendered inside the AdminShell.
+ * Context-aware: a sub-account (customer view) gets quick links into its own
+ * dashboard/campaigns; the agency root gets a short intro + a Phase-3 note.
  */
-const sections = [
-  {
-    to: "/review-boost/campaigns",
-    icon: Megaphone,
-    title: { cn: "活动", en: "Campaigns" },
-    desc: { cn: "建/管理二维码好评活动", en: "Create & manage QR review campaigns" },
-    phase: "Phase 5",
-  },
-  {
-    to: "/review-boost/platforms",
-    icon: Layers,
-    title: { cn: "平台", en: "Platforms" },
-    desc: { cn: "配置各评价平台与链接", en: "Configure review platforms & links" },
-    phase: "Phase 4",
-  },
-  {
-    to: "/review-boost/sub-accounts",
-    icon: Store,
-    title: { cn: "子账号", en: "Sub-accounts" },
-    desc: { cn: "从 GoHighLevel 同步的门店", en: "Locations synced from GoHighLevel" },
-    phase: "Phase 3",
-  },
-  {
-    to: "/review-boost/location/demo/dashboard",
-    icon: LayoutDashboard,
-    title: { cn: "门店面板", en: "Location dashboard" },
-    desc: { cn: "扫码与生成数据统计", en: "Scan & generation analytics" },
-    phase: "Phase 9",
-  },
-];
-
 export default function ReviewBoostLanding() {
   const { lang } = useLang();
+  const { isCustomerView, locationId } = useLocationContext();
+
+  const intro =
+    lang === "cn"
+      ? "顾客扫码 → AI 当场写好五星评价 → 一键跳去 Google／Facebook／Shopee 发布。帮商家快速累积真实好评。"
+      : "Customers scan → AI writes a 5-star review on the spot → one tap to post it on Google / Facebook / Shopee.";
 
   return (
-    <div className="min-h-screen px-6 pt-24 pb-16">
-      <div className="max-w-5xl mx-auto">
-        {/* Header */}
-        <div className="text-center mb-10">
-          <div
-            className="w-16 h-16 rounded-2xl flex items-center justify-center mx-auto mb-5 text-white"
-            style={{ background: "linear-gradient(135deg, #FF7E5F, #FF3D6E)" }}
+    <div className="space-y-5">
+      <div className="glass-card rounded-3xl p-6 sm:p-8">
+        <div
+          className="w-14 h-14 rounded-2xl flex items-center justify-center mb-4 text-white"
+          style={{ background: "linear-gradient(135deg, #FF7E5F, #FF3D6E)" }}
+        >
+          <Star className="w-6 h-6" />
+        </div>
+        <h1 className="text-2xl sm:text-3xl font-display font-bold mb-2">Review Boost</h1>
+        <p className="text-muted-foreground leading-relaxed max-w-2xl">{intro}</p>
+      </div>
+
+      {isCustomerView && locationId ? (
+        <div className="grid sm:grid-cols-2 gap-4">
+          <Link
+            to={`/review-boost/location/${locationId}/dashboard`}
+            className="glass-card rounded-2xl p-5 flex items-center gap-4 group"
           >
-            <Star className="w-7 h-7" />
-          </div>
-          <h1 className="text-3xl sm:text-4xl font-display font-bold mb-3">Review Boost</h1>
-          <p className="text-muted-foreground max-w-xl mx-auto leading-relaxed">
+            <div
+              className="w-11 h-11 rounded-xl flex items-center justify-center text-white shrink-0"
+              style={{ background: "linear-gradient(135deg, #FF7E5F, #FF3D6E)" }}
+            >
+              <LayoutDashboard className="w-5 h-5" />
+            </div>
+            <div className="flex-1 min-w-0">
+              <p className="font-display font-semibold">{lang === "cn" ? "面板" : "Dashboard"}</p>
+              <p className="text-sm text-muted-foreground">{lang === "cn" ? "扫码与评价统计" : "Scan & review stats"}</p>
+            </div>
+            <ArrowRight className="w-4 h-4 text-muted-foreground group-hover:text-primary transition-colors" />
+          </Link>
+          <Link
+            to={`/review-boost/location/${locationId}/campaigns`}
+            className="glass-card rounded-2xl p-5 flex items-center gap-4 group"
+          >
+            <div
+              className="w-11 h-11 rounded-xl flex items-center justify-center text-white shrink-0"
+              style={{ background: "linear-gradient(135deg, #FF7E5F, #FF3D6E)" }}
+            >
+              <Megaphone className="w-5 h-5" />
+            </div>
+            <div className="flex-1 min-w-0">
+              <p className="font-display font-semibold">{lang === "cn" ? "活动" : "Campaigns"}</p>
+              <p className="text-sm text-muted-foreground">{lang === "cn" ? "建立与管理二维码" : "Create & manage QR codes"}</p>
+            </div>
+            <ArrowRight className="w-4 h-4 text-muted-foreground group-hover:text-primary transition-colors" />
+          </Link>
+        </div>
+      ) : (
+        <div className="glass-card rounded-2xl p-5 flex items-start gap-3">
+          <Info className="w-5 h-5 text-primary shrink-0 mt-0.5" />
+          <p className="text-sm text-muted-foreground leading-relaxed">
             {lang === "cn"
-              ? "顾客扫码 → AI 当场写好五星评价 → 一键跳去 Google／Facebook／Shopee 发布。帮商家快速累积真实好评。"
-              : "Customers scan → AI writes a 5-star review on the spot → one tap to post it on Google / Facebook / Shopee. Helps businesses stack up real reviews fast."}
+              ? "从 GoHighLevel 子账号里打开这个工具时，会自动带上该门店的身份（location_id），进入它自己的后台。Agency 门店选择器将在 Phase 3（同步门店后）出现。"
+              : "Opened from a GoHighLevel sub-account, this tool receives that location's identity (location_id) and loads its own admin. The agency location picker arrives in Phase 3, after sync."}
           </p>
         </div>
-
-        {/* Section grid */}
-        <div className="grid sm:grid-cols-2 gap-5">
-          {sections.map((s) => (
-            <Link
-              key={s.to}
-              to={s.to}
-              className="glass-card rounded-3xl p-6 flex items-start gap-4 group"
-            >
-              <div
-                className="w-12 h-12 rounded-xl flex items-center justify-center shrink-0 text-white"
-                style={{ background: "linear-gradient(135deg, #FF7E5F, #FF3D6E)" }}
-              >
-                <s.icon className="w-5 h-5" />
-              </div>
-              <div className="flex-1 min-w-0">
-                <div className="flex items-center gap-2">
-                  <h2 className="font-display font-semibold">{s.title[lang]}</h2>
-                  <span className="text-[10px] uppercase tracking-wider text-muted-foreground/70">{s.phase}</span>
-                </div>
-                <p className="text-sm text-muted-foreground mt-1 leading-relaxed">{s.desc[lang]}</p>
-              </div>
-              <ArrowRight className="w-4 h-4 text-muted-foreground group-hover:text-primary transition-colors mt-1" />
-            </Link>
-          ))}
-        </div>
-
-        <p className="text-center text-xs text-muted-foreground/70 mt-8">
-          {lang === "cn"
-            ? "骨架搭建中 · 各功能将分阶段上线"
-            : "Scaffold in progress · features ship phase by phase"}
-        </p>
-      </div>
+      )}
     </div>
   );
 }

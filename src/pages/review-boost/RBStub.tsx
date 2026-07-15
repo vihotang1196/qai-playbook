@@ -66,5 +66,7 @@ export default function RBStub({ title, subtitle, phase, isPublic = false }: RBS
     );
   }
 
-  return <div className="min-h-screen flex items-center justify-center px-6 pt-24 pb-16">{inner}</div>;
+  // Admin variant renders as content inside the AdminShell (which already
+  // provides the page frame + top offset), so no full-screen / navbar offset.
+  return <div className="flex items-center justify-center py-10 sm:py-16">{inner}</div>;
 }

@@ -59,11 +59,8 @@ export const LocationSettings = mk(
   { cn: "门店品牌与偏好设定。", en: "Location branding and preferences." },
   "Phase 5",
 );
-export const RBAuth = mk(
-  { cn: "登录", en: "Sign in" },
-  { cn: "用 Supabase 邮箱登录进入后台。", en: "Sign in to the admin with Supabase email auth." },
-  "Phase 2",
-);
+// (Email/password login removed — identity comes from GHL via the URL
+//  location_id; see src/lib/ghl.ts + useLocationContext.)
 
 /* ── Public (outside Layout) ─────────────────────────────────────────── */
 export const ScanPage = mk(
