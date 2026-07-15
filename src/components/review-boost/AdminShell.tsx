@@ -39,7 +39,8 @@ function LocationHeader() {
   const { lang } = useLang();
   const { isCustomerView, location, loading, error, locationId } = useLocationContext();
 
-  // Agency view (no location_id) — picker arrives in Phase 3.
+  // No location_id → not opened from a GHL sub-account. Neutral state only —
+  // NO agency/god-view here (that lives in the authenticated Admin Portal).
   if (!isCustomerView) {
     return (
       <div className="glass-card rounded-2xl px-5 py-4 flex items-center gap-3">
@@ -47,13 +48,11 @@ function LocationHeader() {
           <Building2 className="w-5 h-5 text-muted-foreground" />
         </div>
         <div>
-          <p className="font-display font-semibold text-sm">
-            {lang === "cn" ? "Agency 总览" : "Agency overview"}
-          </p>
+          <p className="font-display font-semibold text-sm">Review Boost</p>
           <p className="text-xs text-muted-foreground">
             {lang === "cn"
-              ? "在「子账号」页同步并选择要管理的子账号。"
-              : "Sync and pick a sub-account to manage on the Sub-accounts page."}
+              ? "请从你的 GoHighLevel 后台打开此工具。"
+              : "Open this tool from your GoHighLevel account."}
           </p>
         </div>
       </div>

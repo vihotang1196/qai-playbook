@@ -77,23 +77,8 @@ export async function fetchLocation(locationId: string): Promise<GhlLocation | n
   return location;
 }
 
-/** All sub-account locations (enabled + disabled) for the agency views. */
-export async function listLocations(): Promise<GhlLocation[]> {
-  const { locations } = await callGhl<{ locations: GhlLocation[] }>("listLocations");
-  return locations || [];
-}
-
-/** Toggle whether a sub-account can use the tool. */
-export async function setLocationEnabled(locationId: string, enabled: boolean): Promise<void> {
-  await callGhl("setEnabled", { locationId, enabled });
-}
-
-/** Pull sub-accounts from GoHighLevel into ghl_locations (via the sync edge fn). */
-export async function syncLocations(): Promise<{ total: number }> {
-  const { data, error } = await getSupabase().functions.invoke("sync-ghl-locations", { body: {} });
-  if (error) throw error;
-  if (data && typeof data === "object" && "error" in data && (data as { error?: string }).error) {
-    throw new Error((data as { error: string }).error);
-  }
-  return data as { total: number };
-}
+// Agency-only operations (list ALL sub-accounts, toggle access, trigger sync)
+// are intentionally NOT here — the customer app must not be able to call them.
+// They move to the authenticated Admin Portal (real login + admin check).
+// The underlying logic stays in supabase/functions/_shared/ghl.ts for that
+// authenticated caller.

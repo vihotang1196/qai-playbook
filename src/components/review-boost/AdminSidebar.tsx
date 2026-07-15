@@ -1,31 +1,26 @@
 import { NavLink } from "react-router-dom";
-import { LayoutDashboard, Megaphone, Layers, Settings, Building2, Star } from "lucide-react";
+import { LayoutDashboard, Megaphone, Layers, Settings, Star } from "lucide-react";
 import { useLang } from "@/i18n/LanguageContext";
 import { useLocationContext } from "@/hooks/useLocationContext";
 
-type Item = { to: string; icon: typeof LayoutDashboard; label: { cn: string; en: string }; end?: boolean };
+type Item = { to: string; icon: typeof LayoutDashboard; label: { cn: string; en: string } };
 
 /**
- * Review Boost admin sidebar. Links adapt to the view:
- *  - customer/sub-account view → /review-boost/location/:id/*
- *  - agency view → the agency roots (fully wired in Phase 3).
+ * Sub-account sidebar — ONLY shown when a location_id is present (the customer's
+ * own admin). No agency/god-view nav here; that lives in the Admin Portal.
  */
 export default function AdminSidebar() {
   const { lang } = useLang();
   const { isCustomerView, locationId } = useLocationContext();
 
-  const items: Item[] = isCustomerView && locationId
-    ? [
-        { to: `/review-boost/location/${locationId}/dashboard`, icon: LayoutDashboard, label: { cn: "面板", en: "Dashboard" } },
-        { to: `/review-boost/location/${locationId}/campaigns`, icon: Megaphone, label: { cn: "活动", en: "Campaigns" } },
-        { to: `/review-boost/location/${locationId}/platforms`, icon: Layers, label: { cn: "平台", en: "Platforms" } },
-        { to: `/review-boost/location/${locationId}/settings`, icon: Settings, label: { cn: "设置", en: "Settings" } },
-      ]
-    : [
-        { to: "/review-boost", icon: Star, label: { cn: "概览", en: "Overview" }, end: true },
-        { to: "/review-boost/sub-accounts", icon: Building2, label: { cn: "子账号", en: "Sub-accounts" } },
-        { to: "/review-boost/platforms", icon: Layers, label: { cn: "平台", en: "Platforms" } },
-      ];
+  if (!isCustomerView || !locationId) return null;
+
+  const items: Item[] = [
+    { to: `/review-boost/location/${locationId}/dashboard`, icon: LayoutDashboard, label: { cn: "面板", en: "Dashboard" } },
+    { to: `/review-boost/location/${locationId}/campaigns`, icon: Megaphone, label: { cn: "活动", en: "Campaigns" } },
+    { to: `/review-boost/location/${locationId}/platforms`, icon: Layers, label: { cn: "平台", en: "Platforms" } },
+    { to: `/review-boost/location/${locationId}/settings`, icon: Settings, label: { cn: "设置", en: "Settings" } },
+  ];
 
   return (
     <aside className="shrink-0 md:w-56 w-full">

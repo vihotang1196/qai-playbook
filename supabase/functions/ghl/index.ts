@@ -1,20 +1,17 @@
 // ════════════════════════════════════════════════════════════════════════
-// SHARED `ghl` edge function — the HTTP entry any tool's frontend calls to
-// resolve GHL location context. The frontend passes a location_id (read from
-// the URL) with the anon key; this function runs with the SERVICE ROLE so RLS
-// stays strict and the frontend never touches tables directly.
+// SHARED `ghl` edge function — the HTTP entry the CUSTOMER (sub-account) side
+// calls to resolve ITS OWN location context. Callable with the public anon key
+// (verify_jwt=false), so it exposes ONLY per-location lookup of the location_id
+// the caller already has (from its GHL URL).
 //
-// Every query is scoped by the request's location_id (see _shared/ghl.ts).
+// ⚠️ Agency "god-view" operations (list ALL locations, toggle a location's
+// access) are NOT here — they would leak every client's data to anyone holding
+// the public anon key. They live in the future authenticated Admin Portal
+// (real login + admin check). See _shared/ghl.ts (listLocations /
+// setLocationEnabled stay there for that authenticated caller).
 // ════════════════════════════════════════════════════════════════════════
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
-import {
-  corsHeaders,
-  json,
-  serviceClient,
-  getLocation,
-  listLocations,
-  setLocationEnabled,
-} from "../_shared/ghl.ts";
+import { corsHeaders, json, serviceClient, getLocation } from "../_shared/ghl.ts";
 
 serve(async (req) => {
   if (req.method === "OPTIONS") return new Response(null, { headers: corsHeaders });
@@ -26,17 +23,12 @@ serve(async (req) => {
 
     switch (action) {
       case "getLocation": {
+        // Customer resolves ITS OWN location (the location_id from its URL).
         const location = await getLocation(sb, String(body?.locationId || ""));
         return json({ location });
       }
-      case "listLocations": {
-        const locations = await listLocations(sb);
-        return json({ locations });
-      }
-      case "setEnabled": {
-        await setLocationEnabled(sb, String(body?.locationId || ""), !!body?.enabled);
-        return json({ ok: true });
-      }
+      // NOTE: no listLocations / setEnabled here — those are agency-only and
+      // must go through the authenticated Admin Portal, never this public fn.
       default:
         return json({ error: `Unknown action: ${action || "(none)"}` }, 400);
     }

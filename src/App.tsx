@@ -14,9 +14,7 @@ import Affiliate from "./pages/Affiliate.tsx";
 import NotFound from "./pages/NotFound.tsx";
 import ReviewBoostAdminShell from "./components/review-boost/AdminShell";
 import ReviewBoostLanding from "./pages/review-boost/Landing";
-import ReviewBoostSubAccounts from "./pages/review-boost/SubAccounts";
 import {
-  Campaigns as RBCampaigns,
   Platforms as RBPlatforms,
   CampaignDetail as RBCampaignDetail,
   LocationCampaigns as RBLocationCampaigns,
@@ -57,15 +55,12 @@ const App = () => (
               <Route path="/upgrade" element={<Upgrade />} />
               <Route path="/affiliate" element={<Affiliate />} />
 
-              {/* Review Boost admin — GHL-embedded, identity via URL location_id.
-                  Wrapped in the AdminShell (sidebar + location context). Stubs
-                  are replaced with real pages per phase. */}
+              {/* Review Boost — CUSTOMER (sub-account) app only. Identity = URL
+                  location_id. Agency god-view (all sub-accounts / cross-client
+                  campaigns+platforms / access toggles) is intentionally NOT routed
+                  here — it belongs in the future authenticated Admin Portal. */}
               <Route element={<ReviewBoostAdminShell />}>
                 <Route path="/review-boost" element={<ReviewBoostLanding />} />
-                <Route path="/review-boost/campaigns" element={<RBCampaigns />} />
-                <Route path="/review-boost/campaigns/:id" element={<RBCampaignDetail />} />
-                <Route path="/review-boost/platforms" element={<RBPlatforms />} />
-                <Route path="/review-boost/sub-accounts" element={<ReviewBoostSubAccounts />} />
                 <Route path="/review-boost/location/:locationId" element={<RBLocationDashboard />} />
                 <Route path="/review-boost/location/:locationId/dashboard" element={<RBLocationDashboard />} />
                 <Route path="/review-boost/location/:locationId/campaigns" element={<RBLocationCampaigns />} />

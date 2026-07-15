@@ -49,8 +49,12 @@ export type GhlLocation = {
 };
 
 const LOCATION_COLS = "location_id, business_name, logo_url, niche, email, phone, is_enabled";
+// Customer-facing projection — no PII (email/phone). getLocation is reachable
+// with the public anon key, so it must not expose contact details for a
+// location_id someone merely knows.
+const PUBLIC_LOCATION_COLS = "location_id, business_name, logo_url, niche, is_enabled";
 
-/** Resolve one GHL location (sub-account) by its GHL location_id. */
+/** Resolve one GHL location (sub-account) by its GHL location_id — safe subset. */
 export async function getLocation(
   sb: SupabaseClient,
   locationId: string,
@@ -59,7 +63,7 @@ export async function getLocation(
   if (!id) return null;
   const { data, error } = await sb
     .from("ghl_locations")
-    .select(LOCATION_COLS)
+    .select(PUBLIC_LOCATION_COLS)
     .eq("location_id", id)
     .maybeSingle();
   if (error) throw error;

@@ -1,12 +1,13 @@
 import { Link } from "react-router-dom";
-import { Megaphone, LayoutDashboard, ArrowRight, Star, Building2 } from "lucide-react";
+import { Megaphone, LayoutDashboard, ArrowRight, Star, Info } from "lucide-react";
 import { useLang } from "@/i18n/LanguageContext";
 import { useLocationContext } from "@/hooks/useLocationContext";
 
 /**
  * Review Boost home (`/review-boost`), rendered inside the AdminShell.
- * Context-aware: a sub-account (customer view) gets quick links into its own
- * dashboard/campaigns; the agency root gets a short intro + a Phase-3 note.
+ * CUSTOMER app only: with a location_id (opened from GHL) it links into that
+ * sub-account's own pages; without one it just explains how to open the tool.
+ * NO agency/cross-client view here — that lives in the authenticated Admin Portal.
  */
 export default function ReviewBoostLanding() {
   const { lang } = useLang();
@@ -66,21 +67,14 @@ export default function ReviewBoostLanding() {
           </Link>
         </div>
       ) : (
-        <Link to="/review-boost/sub-accounts" className="glass-card rounded-2xl p-5 flex items-center gap-4 group">
-          <div
-            className="w-11 h-11 rounded-xl flex items-center justify-center text-white shrink-0"
-            style={{ background: "linear-gradient(135deg, #FF7E5F, #FF3D6E)" }}
-          >
-            <Building2 className="w-5 h-5" />
-          </div>
-          <div className="flex-1 min-w-0">
-            <p className="font-display font-semibold">{lang === "cn" ? "子账号" : "Sub-accounts"}</p>
-            <p className="text-sm text-muted-foreground">
-              {lang === "cn" ? "从 GoHighLevel 同步子账号，选一个进入它的后台。" : "Sync sub-accounts from GoHighLevel and open one."}
-            </p>
-          </div>
-          <ArrowRight className="w-4 h-4 text-muted-foreground group-hover:text-primary transition-colors" />
-        </Link>
+        <div className="glass-card rounded-2xl p-5 flex items-start gap-3">
+          <Info className="w-5 h-5 text-primary shrink-0 mt-0.5" />
+          <p className="text-sm text-muted-foreground leading-relaxed">
+            {lang === "cn"
+              ? "请从你的 GoHighLevel 后台打开这个工具——它会自动带上你的身份，进入你自己的后台。"
+              : "Open this tool from your GoHighLevel account — it loads your own admin automatically."}
+          </p>
+        </div>
       )}
     </div>
   );
