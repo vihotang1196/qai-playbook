@@ -55,6 +55,18 @@ function safeWidth(font: PDFFont, text: string, size: number): number {
   }
 }
 
+/** SVG path for a rounded rectangle (origin at its top-left, y-down —
+ *  pdf-lib's drawSvgPath anchors at (x,y) and draws downward). */
+function roundedRectPath(w: number, h: number, r: number): string {
+  const rr = Math.max(0, Math.min(r, w / 2, h / 2));
+  return (
+    `M ${rr} 0 H ${w - rr} A ${rr} ${rr} 0 0 1 ${w} ${rr} ` +
+    `V ${h - rr} A ${rr} ${rr} 0 0 1 ${w - rr} ${h} ` +
+    `H ${rr} A ${rr} ${rr} 0 0 1 0 ${h - rr} ` +
+    `V ${rr} A ${rr} ${rr} 0 0 1 ${rr} 0 Z`
+  );
+}
+
 /** Word-wrap (breaks at spaces for Latin, per-char for CJK which has none). */
 function wrapLines(text: string, font: PDFFont, size: number, maxW: number): string[] {
   const out: string[] = [];
@@ -205,16 +217,14 @@ export async function buildPdfBlob(result: GenerateResult, lang: Language): Prom
     if (y - cardH < M) newPage();
     const top = y;
     const bottom = top - cardH;
-    page.drawRectangle({
+    // Clean rounded card: light fill + thin border (no glass/blur).
+    page.drawSvgPath(roundedRectPath(MAXW, cardH, 10), {
       x: M,
-      y: bottom,
-      width: MAXW,
-      height: cardH,
+      y: top,
       color: CARD_FILL,
       borderColor: CARD_BORDER,
       borderWidth: 0.75,
     });
-    page.drawRectangle({ x: M, y: bottom, width: 3, height: cardH, color: CORAL }); // left accent
     let ty = top - PAD;
     for (const ln of labelLines) {
       drawText(ln, TX, ty - LABEL_SZ, LABEL_SZ, bold, CORAL);
