@@ -14,8 +14,8 @@ import Affiliate from "./pages/Affiliate.tsx";
 import NotFound from "./pages/NotFound.tsx";
 import ReviewBoostAdminShell from "./components/review-boost/AdminShell";
 import ReviewBoostLanding from "./pages/review-boost/Landing";
+import LocationPlatforms from "./pages/review-boost/LocationPlatforms";
 import {
-  Platforms as RBPlatforms,
   CampaignDetail as RBCampaignDetail,
   LocationCampaigns as RBLocationCampaigns,
   LocationCampaignCreate as RBLocationCampaignCreate,
@@ -67,7 +67,7 @@ const App = () => (
                 <Route path="/review-boost/location/:locationId/campaigns/new" element={<RBLocationCampaignCreate />} />
                 <Route path="/review-boost/location/:locationId/campaigns/:id/edit" element={<RBLocationCampaignCreate />} />
                 <Route path="/review-boost/location/:locationId/campaigns/:id" element={<RBCampaignDetail />} />
-                <Route path="/review-boost/location/:locationId/platforms" element={<RBPlatforms />} />
+                <Route path="/review-boost/location/:locationId/platforms" element={<LocationPlatforms />} />
                 <Route path="/review-boost/location/:locationId/settings" element={<RBLocationSettings />} />
               </Route>
 

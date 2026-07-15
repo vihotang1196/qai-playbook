@@ -5,7 +5,7 @@ from a Lovable export into this Vite + react-router app. All work is on branch
 **`feat/review-boost`** (cut from `main`, NOT from `feat/copywriter` — the two
 tools live on separate branches). Commit + push after every phase.
 
-_Last updated: 2026-07-15 — Phase 3 done (GHL sync live: 911 real sub-accounts pulled)._
+_Last updated: 2026-07-15 — Phase 4 done (Platforms page: per-location review-link config, scoped)._
 
 ## Scope (locked by owner)
 
@@ -75,7 +75,7 @@ QR / printable poster, tracks scans + generations.
 - **Admin routes:** `/review-boost/*` (inside shared `<Layout>`)
 - **Public routes:** `/scan/:code`, `/thank-you/:generationId` (OUTSIDE Layout, mobile full-screen)
 - **Frontend:** `src/pages/review-boost/` (pages), `src/components/review-boost/` (AdminShell + AdminSidebar), `src/lib/{supabase,ghl}.ts`, `src/hooks/useLocationContext.tsx`
-- **Edge Functions (Deno):** `supabase/functions/ghl` (identity + setEnabled) + `supabase/functions/sync-ghl-locations` (GHL sync) + `supabase/functions/_shared/ghl.ts` (tool-neutral helpers)
+- **Edge Functions (Deno):** `ghl` (customer identity — getLocation only) + `rb` (customer-scoped RB data, by location_id) + `sync-ghl-locations` (agency GHL sync) + `_shared/ghl.ts` (tool-neutral helpers)
 - **Identity:** GHL passes `location_id` in the URL (path `/location/:id` or `?location_id=`); no email login
 
 ## Phased plan
@@ -126,7 +126,15 @@ QR / printable poster, tracks scans + generations.
   NOTE: PIT is opaque (not a JWT) so companyId can't be auto-derived — owner set
   `GHL_COMPANY_ID` (the ~24-char Agency ID from Settings→Company, found via the
   `companyId=` param in the browser Network tab; NOT the Relationship Number).
-- [ ] **Phase 4 — Platforms.** Platform registry + per-location platform/link config.
+- [x] **Phase 4 — Platforms (2026-07-15).** Sub-account's Platforms page
+  (`/review-boost/location/:locationId/platforms`): 4 platforms (Google Maps /
+  Facebook / Shopee / Custom) each with an enable toggle + review-link input +
+  save → `rb_platform_integrations`. New customer-scoped `rb` edge fn (every
+  action REQUIRES locationId and scopes `.eq("location_id", …)`; can only touch
+  the caller's own location). Files: `supabase/functions/rb`, `src/lib/reviewBoost.ts`,
+  `src/lib/review-boost/platforms.ts`, `src/pages/review-boost/LocationPlatforms.tsx`.
+  Verified in dev: enable + paste + save Google Maps, refresh → persisted; a
+  different locationId returns [] (no cross-location leak); no locationId → 400.
 - [ ] **Phase 5 — Campaigns.** Create/edit/list campaigns + short_code + thank-you (rich text).
 - [ ] **Phase 6 — AI generation (Claude).** `generate-review` (preview + scan modes) + result modal.
 - [ ] **Phase 7 — Scan flow.** `/scan/:code` + thank-you + platform tutorial (the core loop). ⭐

@@ -10,3 +10,8 @@ verify_jwt = false
 # the GHL_AGENCY_API_KEY secret; runs with the service role internally.
 [functions.sync-ghl-locations]
 verify_jwt = false
+
+# Review Boost customer-scoped data (platforms/campaigns for the caller's OWN
+# location_id). Anon-callable; every query is scoped by location_id.
+[functions.rb]
+verify_jwt = false
