@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { RefreshCw, Building2, ArrowRight, Loader2, Store } from "lucide-react";
+import { RefreshCw, Building2, ArrowRight, Loader2, Store, Search } from "lucide-react";
 import { toast } from "sonner";
 import { Switch } from "@/components/ui/switch";
 import { useLang } from "@/i18n/LanguageContext";
@@ -19,6 +19,19 @@ export default function SubAccounts() {
   const [loading, setLoading] = useState(true);
   const [syncing, setSyncing] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [query, setQuery] = useState("");
+
+  // With hundreds of sub-accounts, filter by name/id and cap the no-search view.
+  const CAP = 50;
+  const q = query.trim().toLowerCase();
+  const filtered = q
+    ? locations.filter(
+        (l) =>
+          (l.business_name || "").toLowerCase().includes(q) ||
+          l.location_id.toLowerCase().includes(q),
+      )
+    : locations;
+  const visible = q ? filtered : filtered.slice(0, CAP);
 
   const load = async () => {
     setLoading(true);
@@ -105,8 +118,27 @@ export default function SubAccounts() {
           </p>
         </div>
       ) : (
-        <div className="space-y-2.5">
-          {locations.map((loc) => (
+        <>
+          <div className="relative">
+            <Search className="w-4 h-4 text-muted-foreground absolute left-3 top-1/2 -translate-y-1/2 pointer-events-none" />
+            <input
+              value={query}
+              onChange={(e) => setQuery(e.target.value)}
+              placeholder={lang === "cn" ? "搜索子账号名称或 ID…" : "Search sub-account name or ID…"}
+              className="glass-input w-full pl-9 pr-4 py-2.5 text-sm"
+            />
+          </div>
+          <p className="text-xs text-muted-foreground px-1">
+            {q
+              ? lang === "cn"
+                ? `找到 ${filtered.length} 个（共 ${locations.length}）`
+                : `${filtered.length} of ${locations.length}`
+              : lang === "cn"
+                ? `共 ${locations.length} 个 · 显示前 ${Math.min(CAP, locations.length)}，用搜索缩小范围`
+                : `${locations.length} total · showing first ${Math.min(CAP, locations.length)} — search to narrow`}
+          </p>
+          <div className="space-y-2.5">
+          {visible.map((loc) => (
             <div key={loc.location_id} className="glass-card rounded-2xl px-4 py-3.5 flex items-center gap-3">
               <div className="w-10 h-10 rounded-xl bg-white shadow-sm border border-border/40 flex items-center justify-center overflow-hidden shrink-0">
                 {loc.logo_url ? (
@@ -137,7 +169,8 @@ export default function SubAccounts() {
               </button>
             </div>
           ))}
-        </div>
+          </div>
+        </>
       )}
     </div>
   );

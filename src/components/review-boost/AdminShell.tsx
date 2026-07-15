@@ -52,8 +52,8 @@ function LocationHeader() {
           </p>
           <p className="text-xs text-muted-foreground">
             {lang === "cn"
-              ? "子账号选择器将在 Phase 3（从 GHL 同步子账号后）出现。"
-              : "The sub-account picker arrives in Phase 3, after GHL sync."}
+              ? "在「子账号」页同步并选择要管理的子账号。"
+              : "Sync and pick a sub-account to manage on the Sub-accounts page."}
           </p>
         </div>
       </div>

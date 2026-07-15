@@ -5,7 +5,7 @@ from a Lovable export into this Vite + react-router app. All work is on branch
 **`feat/review-boost`** (cut from `main`, NOT from `feat/copywriter` — the two
 tools live on separate branches). Commit + push after every phase.
 
-_Last updated: 2026-07-15 — Phase 1b applied (Option B: platform-config layer, campaign refs it); "门店/store" renamed to 子账号/平台/活动._
+_Last updated: 2026-07-15 — Phase 3 done (GHL sync live: 911 real sub-accounts pulled)._
 
 ## Scope (locked by owner)
 
@@ -65,7 +65,7 @@ QR / printable poster, tracks scans + generations.
 - **Admin routes:** `/review-boost/*` (inside shared `<Layout>`)
 - **Public routes:** `/scan/:code`, `/thank-you/:generationId` (OUTSIDE Layout, mobile full-screen)
 - **Frontend:** `src/pages/review-boost/` (pages), `src/components/review-boost/` (AdminShell + AdminSidebar), `src/lib/{supabase,ghl}.ts`, `src/hooks/useLocationContext.tsx`
-- **Edge Functions (Deno):** `supabase/functions/ghl` (shared identity) + `supabase/functions/_shared/ghl.ts` (tool-neutral helpers)
+- **Edge Functions (Deno):** `supabase/functions/ghl` (identity + setEnabled) + `supabase/functions/sync-ghl-locations` (GHL sync) + `supabase/functions/_shared/ghl.ts` (tool-neutral helpers)
 - **Identity:** GHL passes `location_id` in the URL (path `/location/:id` or `?location_id=`); no email login
 
 ## Phased plan
@@ -105,7 +105,17 @@ QR / printable poster, tracks scans + generations.
   the navbar, agency root shows the placeholder. Added `@supabase/supabase-js`
   (Phase 1 leftover). Security: identity is still trust-the-URL (no SSO yet) —
   hardened later in one place (`_shared/ghl.ts` → `verifyGhlSso`).
-- [ ] **Phase 3 — GHL sync.** Shared `sync-ghl-locations` function + `_shared/ghl.ts` + Sub-accounts page.
+- [x] **Phase 3 — GHL sync (2026-07-15).** Shared `sync-ghl-locations` edge fn
+  (paginated `GET /locations/search` on services.leadconnectorhq.com, Bearer PIT
+  from `GHL_AGENCY_API_KEY`, Version 2021-07-28) upserts into `ghl_locations`
+  (preserves is_enabled). `ghl` fn gained `setEnabled`; `listLocations` returns
+  all. SubAccounts page = the agency view: "Sync from GHL" button + list with
+  enable/disable Switch + search (911 accounts, caps at 50 w/o a query) + "Open"
+  → that sub-account's admin. Landing agency card links here. **Verified live:
+  pulled 911 real sub-accounts, demo-loc-001 auto-deleted, picker → admin works.**
+  NOTE: PIT is opaque (not a JWT) so companyId can't be auto-derived — owner set
+  `GHL_COMPANY_ID` (the ~24-char Agency ID from Settings→Company, found via the
+  `companyId=` param in the browser Network tab; NOT the Relationship Number).
 - [ ] **Phase 4 — Platforms.** Platform registry + per-location platform/link config.
 - [ ] **Phase 5 — Campaigns.** Create/edit/list campaigns + short_code + thank-you (rich text).
 - [ ] **Phase 6 — AI generation (Claude).** `generate-review` (preview + scan modes) + result modal.
@@ -139,7 +149,7 @@ DB already supports this: `rb_qr_codes.scan_count` (scans) + `rb_generations.pos
 
 ## Owner to provide (when the phase needs it)
 
-- **Phase 3:** GoHighLevel `GHL_AGENCY_API_KEY` + `GHL_COMPANY_ID` (Playbook Edge secrets).
+- **Phase 3:** ✅ done — `GHL_AGENCY_API_KEY` (PIT) + `GHL_COMPANY_ID` (Agency ID) set as Playbook Edge secrets.
 - **Phase 6:** `ANTHROPIC_API_KEY` — already set for the copywriter; same project reuses it.
 - **Phase 7 test:** a real business name/industry + a real Google/FB review link + a logo.
 
