@@ -22,6 +22,7 @@ import {
   DialogTitle,
   DialogDescription,
 } from "@/components/ui/dialog";
+import PosterDialog from "@/components/review-boost/PosterDialog";
 import { RB_PLATFORMS } from "@/lib/review-boost/platforms";
 import {
   getCampaign,
@@ -55,6 +56,7 @@ export default function CampaignDetail() {
   const [copied, setCopied] = useState(false);
   const [deleting, setDeleting] = useState(false);
 
+  const [posterOpen, setPosterOpen] = useState(false);
   // AI review preview (admin test — nothing is saved to the DB).
   const [previewOpen, setPreviewOpen] = useState(false);
   const [previewLang, setPreviewLang] = useState<RBReviewLanguage>("cn");
@@ -269,8 +271,16 @@ export default function CampaignDetail() {
                 <ExternalLink className="w-4 h-4" />
               </a>
             </div>
+            <button
+              onClick={() => setPosterOpen(true)}
+              className="inline-flex items-center gap-1.5 rounded-xl px-4 py-2.5 text-sm font-semibold text-white"
+              style={{ background: "linear-gradient(135deg, #FF7E5F, #FF3D6E)" }}
+            >
+              <QrCode className="w-4 h-4" />
+              {label("生成二维码海报", "Make a QR poster")}
+            </button>
             <p className="text-xs text-muted-foreground">
-              {label("二维码 / 可打印海报在 Phase 8 做，先用这个链接测试扫码流程。", "The QR image / printable poster comes in Phase 8 — use this link to test the scan flow for now.")}
+              {label("生成可打印海报贴店里；请在正式网址上生成，二维码才指向线上。", "Make a printable poster for your shop — generate it on the live site so the QR points to production.")}
             </p>
           </>
         ) : (
@@ -434,6 +444,19 @@ export default function CampaignDetail() {
           </button>
         </DialogContent>
       </Dialog>
+
+      {/* ── QR poster dialog ─────────────────────────────────────────── */}
+      {scanUrl && (
+        <PosterDialog
+          open={posterOpen}
+          onOpenChange={setPosterOpen}
+          scanUrl={scanUrl}
+          businessName={campaign.business_name}
+          campaignName={campaign.name}
+          logoUrl={campaign.logo_url}
+          platform={campaign.platform}
+        />
+      )}
     </div>
   );
 }

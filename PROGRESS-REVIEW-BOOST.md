@@ -5,7 +5,7 @@ from a Lovable export into this Vite + react-router app. All work is on branch
 **`feat/review-boost`** (cut from `main`, NOT from `feat/copywriter` — the two
 tools live on separate branches). Commit + push after every phase.
 
-_Last updated: 2026-07-17 — Phase 7 done (scan flow ⭐: public /scan/:code generates+saves 1 review, copy→platform→"I posted it"→thank-you; per-QR rate limit; scan_count + posted-rate)._
+_Last updated: 2026-07-17 — Phase 8 done (QR poster: campaign-detail dialog, bilingual printable poster A4/table-tent/square + bare-QR, PNG export via html-to-image)._
 
 ## Scope (locked by owner)
 
@@ -234,7 +234,24 @@ QR / printable poster, tracks scans + generations.
   window + the shared hourly cap, but a scripted attacker could still regenerate a
   recent row repeatedly — a 1-column `regen_count` on rb_generations would fully
   lock it server-side (deferred; per-review cost is tiny + kill-switch exists).
-- [ ] **Phase 8 — QR / poster.** Printable poster + centered-logo QR, PNG export.
+- [x] **Phase 8 — QR / poster (2026-07-17).** Pure frontend (no backend/DB/edge
+  change); added deps `qrcode.react` + `html-to-image`. Campaign-detail page has a
+  "生成二维码海报" button → `PosterDialog`. Owner chose: **full poster** (business
+  name + ★★★★★ + centered-logo QR + platform badge + optional free-text promo
+  pill) · **bilingual 华文+English** · **3 sizes** (A4 / table-tent 4×6 / social
+  square). Plus a "download bare QR PNG" button always. QR encodes
+  `${window.location.origin}/scan/{short_code}` — **must be generated on the live
+  site** so it points at production, not localhost (noted in the dialog).
+  Export = `html-to-image` `toPng` at per-size pixelRatio (A4 4×) → downloaded via
+  an anchor; `fontEmbedCSS: ""` + `skipFonts` so it never reads the app's
+  cross-origin Google Fonts sheet (poster uses a system font stack; CJK renders
+  fine). Files: `src/components/review-boost/QrWithLogo.tsx` (QRCodeSVG level H +
+  centered logo), `src/lib/review-boost/poster.ts` (per-platform specs + sizes),
+  `src/components/review-boost/PosterDialog.tsx`, wired in `CampaignDetail.tsx`.
+  **Verified live**: dialog renders the bilingual poster w/ business name +
+  scannable QR, size switch + promo work, `toPng` returns a valid PNG (data:image/
+  png; ~250KB@1×) with zero console errors. iOS note added (may open image →
+  long-press to save).
 - [ ] **Phase 9 — Dashboard.** Scans / generations / posted-rate stats (recharts).
 - [ ] **Phase 10 — Polish + merge.** Reconcile the `/tools` cards, merge to `main`.
 
@@ -318,7 +335,7 @@ it needs REAL auth — never URL secrecy. Planned design:
   `feat/copywriter` (not merged to `main`), so this branch has no `/tools` page.
   Review Boost is reachable directly at `/review-boost` for now; the 3rd `/tools`
   card is reconciled when both branches merge to `main` (Phase 10).
-- Deps to add later: `qrcode.react` + `html-to-image` (P8). `@supabase/supabase-js`
-  added (P1). Phase 5 thank-you uses a plain textarea (owner chose over tiptap —
-  NO new dep). recharts + react-query already installed.
+- Deps: `@supabase/supabase-js` added (P1); `qrcode.react` + `html-to-image` added
+  (P8). Phase 5 thank-you uses a plain textarea (owner chose over tiptap — NO new
+  dep). recharts + react-query already installed (recharts for the P9 dashboard).
 - Original tech notes captured in the `review-boost-rebuild` memory.
