@@ -20,10 +20,8 @@ import RBLocationCampaignCreate from "./pages/review-boost/LocationCampaignCreat
 import RBCampaignDetail from "./pages/review-boost/CampaignDetail";
 import RBScanPage from "./pages/review-boost/ScanPage";
 import RBThankYouPage from "./pages/review-boost/ThankYouPage";
-import {
-  LocationDashboard as RBLocationDashboard,
-  LocationSettings as RBLocationSettings,
-} from "./pages/review-boost/pages";
+import RBLocationDashboard from "./pages/review-boost/LocationDashboard";
+import { LocationSettings as RBLocationSettings } from "./pages/review-boost/pages";
 
 const ScrollToTop = () => {
   const { pathname } = useLocation();

@@ -138,6 +138,20 @@ export async function listGenerations(locationId: string, campaignId: string): P
   return generations || [];
 }
 
+// ── Dashboard stats (this location only) ──────────────────────────────────
+
+export type RBStats = {
+  totals: { scans: number; posted: number; generations: number };
+  perCampaign: { id: string; name: string; platform: string; scans: number; posted: number }[];
+  daily: { date: string; scans: number }[];
+};
+
+/** Aggregated dashboard stats for this location (scoped server-side). */
+export async function getStats(locationId: string): Promise<RBStats> {
+  const { stats } = await callRb<{ stats: RBStats }>("getStats", { locationId });
+  return stats;
+}
+
 // ── AI review generation (Claude, via the `generate-review` edge function) ──
 
 export type RBReviewSample = { review_text: string; persona: string | null };

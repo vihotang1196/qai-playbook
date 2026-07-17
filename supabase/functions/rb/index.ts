@@ -251,6 +251,83 @@ serve(async (req) => {
         return json({ generations: data ?? [] });
       }
 
+      // ── Dashboard stats (this location only) ──────────────────────────
+      // Headline totals use COUNT queries (never truncated by row caps).
+      // The 30-day trend fetches recent rb_generations timestamps and buckets
+      // them by day — accurate up to ~1000 scans/30d (see PROGRESS pre-scale
+      // TODO: move to a SQL group-by RPC before high volume).
+      case "getStats": {
+        const [campsRes, qrsRes, genCountRes, postedCountRes] = await Promise.all([
+          sb.from("rb_campaigns").select("id, name, platform").eq("location_id", locationId).order("created_at", { ascending: true }),
+          sb.from("rb_qr_codes").select("campaign_id, scan_count").eq("location_id", locationId),
+          sb.from("rb_generations").select("id", { count: "exact", head: true }).eq("location_id", locationId),
+          sb.from("rb_generations").select("id", { count: "exact", head: true }).eq("location_id", locationId).eq("posted", true),
+        ]);
+        if (campsRes.error) throw campsRes.error;
+        if (qrsRes.error) throw qrsRes.error;
+        const campaigns = campsRes.data ?? [];
+        const qrs = qrsRes.data ?? [];
+
+        const scansByCampaign: Record<string, number> = {};
+        let totalScans = 0;
+        for (const q of qrs) {
+          const n = (q.scan_count as number) || 0;
+          scansByCampaign[q.campaign_id as string] = (scansByCampaign[q.campaign_id as string] || 0) + n;
+          totalScans += n;
+        }
+
+        // Posted per campaign (parallel count queries — cap-free).
+        const postedByCampaign: Record<string, number> = {};
+        await Promise.all(
+          campaigns.map(async (c) => {
+            const { count } = await sb
+              .from("rb_generations")
+              .select("id", { count: "exact", head: true })
+              .eq("location_id", locationId)
+              .eq("campaign_id", c.id)
+              .eq("posted", true);
+            postedByCampaign[c.id as string] = count ?? 0;
+          }),
+        );
+
+        const perCampaign = campaigns.map((c) => ({
+          id: c.id,
+          name: c.name,
+          platform: c.platform,
+          scans: scansByCampaign[c.id as string] ?? 0,
+          posted: postedByCampaign[c.id as string] ?? 0,
+        }));
+
+        // 30-day daily trend from rb_generations timestamps (1 gen = 1 scan).
+        const since = new Date(Date.now() - 30 * 86_400_000);
+        since.setUTCHours(0, 0, 0, 0);
+        const { data: recent, error: recentErr } = await sb
+          .from("rb_generations")
+          .select("created_at")
+          .eq("location_id", locationId)
+          .gte("created_at", since.toISOString())
+          .order("created_at", { ascending: true });
+        if (recentErr) throw recentErr;
+        const dayMap: Record<string, number> = {};
+        for (const r of recent ?? []) {
+          const key = String(r.created_at).slice(0, 10);
+          dayMap[key] = (dayMap[key] || 0) + 1;
+        }
+        const daily: { date: string; scans: number }[] = [];
+        for (let i = 29; i >= 0; i--) {
+          const key = new Date(Date.now() - i * 86_400_000).toISOString().slice(0, 10);
+          daily.push({ date: key, scans: dayMap[key] || 0 });
+        }
+
+        return json({
+          stats: {
+            totals: { scans: totalScans, posted: postedCountRes.count ?? 0, generations: genCountRes.count ?? 0 },
+            perCampaign,
+            daily,
+          },
+        });
+      }
+
       default:
         return json({ error: `Unknown action: ${action || "(none)"}` }, 400);
     }

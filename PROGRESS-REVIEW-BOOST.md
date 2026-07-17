@@ -5,7 +5,7 @@ from a Lovable export into this Vite + react-router app. All work is on branch
 **`feat/review-boost`** (cut from `main`, NOT from `feat/copywriter` — the two
 tools live on separate branches). Commit + push after every phase.
 
-_Last updated: 2026-07-17 — Phase 8 done (QR poster: campaign-detail dialog, bilingual printable poster A4/table-tent/square + bare-QR, PNG export via html-to-image)._
+_Last updated: 2026-07-17 — Phase 9 done (dashboard: scans/posted/posted-rate tiles + 30-day trend + per-campaign comparison, recharts; posted-rate labeled self-reported)._
 
 ## Scope (locked by owner)
 
@@ -252,7 +252,22 @@ QR / printable poster, tracks scans + generations.
   scannable QR, size switch + promo work, `toPng` returns a valid PNG (data:image/
   png; ~250KB@1×) with zero console errors. iOS note added (may open image →
   long-press to save).
-- [ ] **Phase 9 — Dashboard.** Scans / generations / posted-rate stats (recharts).
+- [x] **Phase 9 — Dashboard (2026-07-17).** The location's own results page
+  (`/review-boost/location/:id[/dashboard]`), replacing the stub. Owner chose:
+  **merge scans/generations into one metric** (they're 1:1 in our model — each
+  scan generates exactly one row) + **standard richness**. Shows: 3 stat tiles
+  (扫码次数 / 已发布 / 发布率) + a **30-day scan trend** (recharts area chart) +
+  **per-campaign comparison** (each campaign's scans bar + posted-rate, links to
+  detail) + a friendly empty state. **Posted-rate is labeled self-reported**
+  ("顾客自报…非平台核实") per the owner's ask. New `rb` action `getStats` (scoped
+  by location_id): headline totals via COUNT queries (cap-free — never truncated),
+  scans from `rb_qr_codes.scan_count`, posted per campaign via parallel count
+  queries, 30-day daily trend bucketed from `rb_generations.created_at`. NO schema
+  change; recharts already installed. Files: `supabase/functions/rb` (getStats),
+  `src/lib/reviewBoost.ts` (getStats + RBStats), `src/pages/review-boost/
+  LocationDashboard.tsx`, wired in `src/App.tsx`. **Verified live**: location A
+  shows scans 2 / posted 1 / 50% + trend spike today + per-campaign row; empty
+  location B shows the empty state; isolation holds.
 - [ ] **Phase 10 — Polish + merge.** Reconcile the `/tools` cards, merge to `main`.
 
 ## Pre-launch hardening TODO (do BEFORE going public, NOT now)
@@ -267,6 +282,12 @@ Recorded 2026-07-17; **do not build yet.**
   smallint on `rb_generations` (additive migration, our own table) and cap
   regenerates per row server-side to fully lock it. Deferred now because per-review
   cost is tiny and the owner has the `rb_qr_codes.is_active` kill-switch.
+- **Dashboard trend at scale.** `getStats`' headline totals + per-campaign use
+  cap-free COUNT queries, but the 30-day trend buckets fetched `rb_generations`
+  rows client-side in the fn — accurate up to ~1000 scans/30d, then Supabase's
+  default row cap truncates older days. Before a location can plausibly exceed
+  that, move the trend (and ideally all stats) to a read-only SQL group-by RPC.
+  Fine now (locations are at single-digit scans).
 
 ## Launch TODO — embed the whole Playbook in GHL (do at GO-LIVE, NOT now)
 
