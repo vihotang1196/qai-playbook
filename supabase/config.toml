@@ -15,3 +15,8 @@ verify_jwt = false
 # location_id). Anon-callable; every query is scoped by location_id.
 [functions.rb]
 verify_jwt = false
+
+# Review Boost AI review generation (Claude). Anon-callable: preview is scoped by
+# location_id; the Phase 7 scan flow is public. Reads ANTHROPIC_API_KEY secret.
+[functions.generate-review]
+verify_jwt = false

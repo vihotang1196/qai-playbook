@@ -137,3 +137,36 @@ export async function listGenerations(locationId: string, campaignId: string): P
   });
   return generations || [];
 }
+
+// ── AI review generation (Claude, via the `generate-review` edge function) ──
+
+export type RBReviewSample = { review_text: string; persona: string | null };
+export type RBReviewLanguage = "cn" | "en" | "ms";
+
+/**
+ * Preview AI-written reviews for a campaign (admin test). Scoped to the caller's
+ * own location server-side; writes nothing to the DB. Retries a few times since
+ * each attempt is an independent Claude call (dodges transient edge/API blips).
+ */
+export async function previewReviews(
+  locationId: string,
+  campaignId: string,
+  opts: { language: RBReviewLanguage; count?: number } = { language: "cn" },
+): Promise<RBReviewSample[]> {
+  let lastErr: unknown;
+  for (let attempt = 0; attempt < 3; attempt++) {
+    try {
+      const { data, error } = await getSupabase().functions.invoke("generate-review", {
+        body: { mode: "preview", locationId, campaignId, language: opts.language, count: opts.count ?? 3 },
+      });
+      if (error) throw error;
+      if (data && typeof data === "object" && "error" in data && (data as { error?: string }).error) {
+        throw new Error((data as { error: string }).error);
+      }
+      return ((data as { reviews?: RBReviewSample[] })?.reviews) || [];
+    } catch (e) {
+      lastErr = e;
+    }
+  }
+  throw lastErr instanceof Error ? lastErr : new Error("Failed to generate reviews");
+}

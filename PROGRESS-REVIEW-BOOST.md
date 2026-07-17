@@ -5,7 +5,7 @@ from a Lovable export into this Vite + react-router app. All work is on branch
 **`feat/review-boost`** (cut from `main`, NOT from `feat/copywriter` — the two
 tools live on separate branches). Commit + push after every phase.
 
-_Last updated: 2026-07-17 — Phase 5b done (platform links: many-per-platform + named, toggle removed; campaign picker selects a specific link; detail shows which link)._
+_Last updated: 2026-07-17 — Phase 6 done (AI review generation via Claude: `generate-review` preview mode + campaign-detail preview modal; cn/en/ms; persona-varied realistic reviews)._
 
 ## Scope (locked by owner)
 
@@ -78,7 +78,7 @@ QR / printable poster, tracks scans + generations.
 - **Admin routes:** `/review-boost/*` (inside shared `<Layout>`)
 - **Public routes:** `/scan/:code`, `/thank-you/:generationId` (OUTSIDE Layout, mobile full-screen)
 - **Frontend:** `src/pages/review-boost/` (pages), `src/components/review-boost/` (AdminShell + AdminSidebar), `src/lib/{supabase,ghl}.ts`, `src/hooks/useLocationContext.tsx`
-- **Edge Functions (Deno):** `ghl` (customer identity — getLocation only) + `rb` (customer-scoped RB data, by location_id) + `sync-ghl-locations` (agency GHL sync) + `_shared/ghl.ts` (tool-neutral helpers)
+- **Edge Functions (Deno):** `ghl` (customer identity — getLocation only) + `rb` (customer-scoped RB data, by location_id) + `generate-review` (AI reviews via Claude; preview mode) + `sync-ghl-locations` (agency GHL sync) + `_shared/ghl.ts` (tool-neutral helpers)
 - **Identity:** GHL passes `location_id` in the URL (path `/location/:id` or `?location_id=`); no email login
 
 ## Phased plan
@@ -182,7 +182,28 @@ QR / printable poster, tracks scans + generations.
   **Verified live** vs real sub-account A: 2 named Google links persist, picker
   lists both, campaign detail shows the target link, isolation holds, thank-you
   message saves correctly. Demo left on A: 2 links + 1 campaign "母亲节好评 · 总店".
-- [ ] **Phase 6 — AI generation (Claude).** `generate-review` (preview + scan modes) + result modal.
+- [x] **Phase 6 — AI generation (Claude) (2026-07-17).** New `generate-review`
+  edge fn calls the Claude Messages API (`claude-sonnet-4-5`, tool-use for
+  structured JSON via a `write_reviews` tool, non-streaming, `temperature: 1`).
+  ANTHROPIC_API_KEY reused from the copywriter (already a Playbook Edge secret).
+  **`preview` mode** (shipped): REQUIRES locationId + campaignId, verifies the
+  campaign belongs to that location (own-data only), feeds the campaign's business
+  info (business_name/industry/category/signature_features + platform) to Claude,
+  returns N sample reviews (count clamped 1–5), writes NOTHING to the DB.
+  **`scan` mode** = Phase 7 (public by short_code, saves rb_generations) — stubbed,
+  returns 400 for now. Realism techniques (owner chose 拟真): random persona per
+  review, varied length/tone, name 1–2 specific features, local casual language,
+  avoid AI tells, occasional emoji. Language (owner chose default-cn-switchable):
+  a per-call `language` param cn/en/ms — each hint names the DOMINANT language so
+  switching actually switches (the business info is Chinese, so it drifts
+  Chinese-heavy without this). NO schema change. Frontend: `previewReviews()` in
+  `src/lib/reviewBoost.ts` (3 retries, each an independent Claude call); campaign
+  detail page has a "试生成" button → dialog with a cn/en/ms switch, 3 samples
+  (persona pill + copy each), and 再写一批 (regenerate). Files: `supabase/functions/
+  generate-review`, `supabase/config.toml` (verify_jwt=false), `src/lib/reviewBoost.ts`,
+  `src/pages/review-boost/CampaignDetail.tsx`. **Verified live** vs real campaign:
+  cn/en/ms all produce natural, human-sounding persona-varied reviews; isolation
+  holds (other location → 404); missing campaignId → 400.
 - [ ] **Phase 7 — Scan flow.** `/scan/:code` + thank-you + platform tutorial (the core loop). ⭐
 - [ ] **Phase 8 — QR / poster.** Printable poster + centered-logo QR, PNG export.
 - [ ] **Phase 9 — Dashboard.** Scans / generations / posted-rate stats (recharts).
@@ -246,7 +267,7 @@ it needs REAL auth — never URL secrecy. Planned design:
 ## Owner to provide (when the phase needs it)
 
 - **Phase 3:** ✅ done — `GHL_AGENCY_API_KEY` (PIT) + `GHL_COMPANY_ID` (Agency ID) set as Playbook Edge secrets.
-- **Phase 6:** `ANTHROPIC_API_KEY` — already set for the copywriter; same project reuses it.
+- **Phase 6:** ✅ done — `ANTHROPIC_API_KEY` reused (already a Playbook Edge secret from the copywriter; confirmed present 2026-07-17).
 - **Phase 7 test:** a real business name/industry + a real Google/FB review link + a logo.
 
 ## Notes / dependencies

@@ -10,17 +10,29 @@ import {
   ExternalLink,
   QrCode,
   Star,
+  Sparkles,
+  RefreshCw,
 } from "lucide-react";
 import { toast } from "sonner";
 import { useLang } from "@/i18n/LanguageContext";
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogDescription,
+} from "@/components/ui/dialog";
 import { RB_PLATFORMS } from "@/lib/review-boost/platforms";
 import {
   getCampaign,
   deleteCampaign,
   listGenerations,
+  previewReviews,
   campaignShortCode,
   type RBCampaign,
   type RBGeneration,
+  type RBReviewSample,
+  type RBReviewLanguage,
 } from "@/lib/reviewBoost";
 
 /**
@@ -42,6 +54,13 @@ export default function CampaignDetail() {
   const [loading, setLoading] = useState(true);
   const [copied, setCopied] = useState(false);
   const [deleting, setDeleting] = useState(false);
+
+  // AI review preview (admin test — nothing is saved to the DB).
+  const [previewOpen, setPreviewOpen] = useState(false);
+  const [previewLang, setPreviewLang] = useState<RBReviewLanguage>("cn");
+  const [previewLoading, setPreviewLoading] = useState(false);
+  const [samples, setSamples] = useState<RBReviewSample[]>([]);
+  const [copiedIdx, setCopiedIdx] = useState<number | null>(null);
 
   useEffect(() => {
     let cancelled = false;
@@ -113,6 +132,44 @@ export default function CampaignDetail() {
       setDeleting(false);
     }
   };
+
+  const runPreview = async (lang: RBReviewLanguage) => {
+    if (!locationId || !id) return;
+    setPreviewLang(lang);
+    setPreviewLoading(true);
+    try {
+      const reviews = await previewReviews(locationId, id, { language: lang, count: 3 });
+      setSamples(reviews);
+      if (reviews.length === 0) toast.error(label("没有生成结果，请再试一次", "No reviews generated — try again"));
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : "Generation failed");
+    } finally {
+      setPreviewLoading(false);
+    }
+  };
+
+  const openPreview = () => {
+    setSamples([]);
+    setPreviewOpen(true);
+    runPreview(previewLang);
+  };
+
+  const copySample = async (text: string, idx: number) => {
+    try {
+      await navigator.clipboard.writeText(text);
+      setCopiedIdx(idx);
+      toast.success(label("已复制", "Copied"));
+      setTimeout(() => setCopiedIdx((c) => (c === idx ? null : c)), 1500);
+    } catch {
+      toast.error(label("复制失败", "Copy failed"));
+    }
+  };
+
+  const LANGS: { id: RBReviewLanguage; label: string }[] = [
+    { id: "cn", label: "华文" },
+    { id: "en", label: "English" },
+    { id: "ms", label: "Malay" },
+  ];
 
   const features = campaign.signature_features ?? [];
 
@@ -221,6 +278,30 @@ export default function CampaignDetail() {
         )}
       </section>
 
+      {/* ── AI review preview (试生成) ───────────────────────────────── */}
+      <section className="glass-card rounded-2xl p-5 flex items-center justify-between gap-4">
+        <div className="min-w-0">
+          <div className="flex items-center gap-2">
+            <Sparkles className="w-4 h-4 text-primary" />
+            <h2 className="font-display font-semibold">{label("AI 好评预览", "AI review preview")}</h2>
+          </div>
+          <p className="text-xs text-muted-foreground mt-0.5">
+            {label(
+              "看看 AI 会为这个活动写出什么样的评价（顾客扫码看到的就是这种）。只是试看，不会保存。",
+              "See what the AI writes for this campaign (this is what customers see when they scan). Preview only — nothing is saved.",
+            )}
+          </p>
+        </div>
+        <button
+          onClick={openPreview}
+          className="inline-flex items-center gap-1.5 rounded-xl px-4 py-2.5 text-sm font-semibold text-white shrink-0"
+          style={{ background: "linear-gradient(135deg, #FF7E5F, #FF3D6E)" }}
+        >
+          <Sparkles className="w-4 h-4" />
+          {label("试生成", "Try it")}
+        </button>
+      </section>
+
       {/* ── Business info summary ───────────────────────────────────── */}
       <section className="glass-card rounded-2xl p-5 space-y-3">
         <h2 className="font-display font-semibold">{label("商家资料", "Business info")}</h2>
@@ -271,6 +352,88 @@ export default function CampaignDetail() {
           </div>
         )}
       </section>
+
+      {/* ── AI review preview dialog ─────────────────────────────────── */}
+      <Dialog open={previewOpen} onOpenChange={setPreviewOpen}>
+        <DialogContent className="max-w-lg">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <Sparkles className="w-5 h-5 text-primary" />
+              {label("AI 好评预览", "AI review preview")}
+            </DialogTitle>
+            <DialogDescription>
+              {label(
+                "顾客扫码时看到的就是这种评价。换语言或点「再写一批」看更多样子。",
+                "This is what customers see when they scan. Switch language or regenerate for more.",
+              )}
+            </DialogDescription>
+          </DialogHeader>
+
+          {/* Language switch */}
+          <div className="flex gap-2">
+            {LANGS.map((l) => (
+              <button
+                key={l.id}
+                onClick={() => runPreview(l.id)}
+                disabled={previewLoading}
+                className={`flex-1 rounded-xl px-3 py-2 text-sm font-medium border transition-colors disabled:opacity-60 ${
+                  previewLang === l.id
+                    ? "border-primary bg-primary/10 text-primary"
+                    : "border-border/60 text-muted-foreground hover:border-border"
+                }`}
+              >
+                {l.label}
+              </button>
+            ))}
+          </div>
+
+          {/* Results */}
+          <div className="space-y-2 max-h-[45vh] overflow-y-auto">
+            {previewLoading ? (
+              <div className="py-10 flex items-center justify-center gap-2 text-muted-foreground">
+                <Loader2 className="w-5 h-5 animate-spin" />
+                {label("AI 正在写…", "AI is writing…")}
+              </div>
+            ) : samples.length === 0 ? (
+              <div className="py-8 text-center text-sm text-muted-foreground">
+                {label("还没有结果", "No results yet")}
+              </div>
+            ) : (
+              samples.map((s, i) => (
+                <div key={i} className="rounded-xl border border-border/50 p-3">
+                  <div className="flex items-center gap-2 mb-1.5">
+                    <span className="text-amber-500 text-xs">★★★★★</span>
+                    {s.persona && (
+                      <span className="text-[11px] rounded-full px-2 py-0.5 bg-primary/10 text-primary truncate">
+                        {s.persona}
+                      </span>
+                    )}
+                    <button
+                      onClick={() => copySample(s.review_text, i)}
+                      className="ml-auto inline-flex items-center gap-1 text-xs text-muted-foreground hover:text-primary shrink-0"
+                    >
+                      {copiedIdx === i ? <Check className="w-3.5 h-3.5" /> : <Copy className="w-3.5 h-3.5" />}
+                      {label("复制", "Copy")}
+                    </button>
+                  </div>
+                  <p className="text-sm whitespace-pre-wrap leading-relaxed">{s.review_text}</p>
+                </div>
+              ))
+            )}
+          </div>
+
+          {/* Regenerate */}
+          <button
+            onClick={() => runPreview(previewLang)}
+            disabled={previewLoading}
+            className="inline-flex items-center justify-center gap-1.5 rounded-xl px-4 py-2.5 text-sm font-semibold text-white disabled:opacity-70"
+            style={{ background: "linear-gradient(135deg, #FF7E5F, #FF3D6E)" }}
+          >
+            {previewLoading ? <Loader2 className="w-4 h-4 animate-spin" /> : <RefreshCw className="w-4 h-4" />}
+            {label("再写一批", "Regenerate")}
+          </button>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }
