@@ -17,7 +17,11 @@ import type { SupabaseClient } from "https://esm.sh/@supabase/supabase-js@2.49.4
 const CAMPAIGN_COLS =
   "id, location_id, name, platform, integration_id, business_name, industry, category, " +
   "signature_features, logo_url, thank_you_mode, thank_you_message, redirect_url, " +
-  "is_active, created_at, updated_at, rb_qr_codes(id, short_code, scan_count, is_active)";
+  "is_active, created_at, updated_at, " +
+  "rb_qr_codes(id, short_code, scan_count, is_active), " +
+  // The specific platform link this campaign points at (name + url), so the
+  // detail page can show "→ Google Maps · 美容院-总店" at a glance.
+  "integration:rb_platform_integrations(id, platform, label, review_url)";
 
 // Unambiguous short-code alphabet (no l/o/0/1) for the /scan/<code> URL.
 const CODE_ALPHABET = "abcdefghijkmnpqrstuvwxyz23456789";
@@ -78,40 +82,59 @@ serve(async (req) => {
     const sb = serviceClient();
 
     switch (action) {
-      // ── Platforms (rb_platform_integrations) — links only, per platform ──
+      // ── Platform links (rb_platform_integrations) — MANY per platform now,
+      //    each an optional-named review link. "Has a link" = usable; no toggle.
       case "listPlatforms": {
         const { data, error } = await sb
           .from("rb_platform_integrations")
-          .select("id, platform, review_url, is_enabled")
+          .select("id, platform, review_url, label, created_at")
           .eq("location_id", locationId)
-          .order("platform", { ascending: true });
+          .order("platform", { ascending: true })
+          .order("created_at", { ascending: true });
         if (error) throw error;
         return json({ platforms: data ?? [] });
       }
-      case "savePlatform": {
+      case "savePlatformLink": {
+        // id present = edit that link; absent = add a new link to a platform.
+        const linkId = body?.id ? String(body.id).trim() : null;
+        const review_url = body?.review_url ? String(body.review_url).trim() : "";
+        const labelVal = body?.label ? String(body.label).trim() : null;
+        if (!review_url) return json({ error: "review_url required" }, 400);
+
+        if (linkId) {
+          const { data, error } = await sb
+            .from("rb_platform_integrations")
+            .update({ review_url, label: labelVal })
+            .eq("location_id", locationId)
+            .eq("id", linkId)
+            .select("id, platform, review_url, label")
+            .maybeSingle();
+          if (error) throw error;
+          if (!data) return json({ error: "Link not found" }, 404);
+          return json({ platform: data });
+        }
+
         const platform = String(body?.platform || "").trim();
         if (!platform) return json({ error: "platform required" }, 400);
-        const review_url = body?.review_url ? String(body.review_url).trim() : null;
-        const is_enabled = !!body?.is_enabled;
         const { data, error } = await sb
           .from("rb_platform_integrations")
-          .upsert(
-            { location_id: locationId, platform, review_url, is_enabled },
-            { onConflict: "location_id,platform" },
-          )
-          .select("id, platform, review_url, is_enabled")
+          .insert({ location_id: locationId, platform, review_url, label: labelVal })
+          .select("id, platform, review_url, label")
           .single();
         if (error) throw error;
         return json({ platform: data });
       }
-      case "deletePlatform": {
-        const platform = String(body?.platform || "").trim();
-        if (!platform) return json({ error: "platform required" }, 400);
+      case "deletePlatformLink": {
+        // Delete one link by its id. A campaign pointing at it keeps existing —
+        // the integration_id FK is ON DELETE SET NULL (campaign just needs
+        // re-pointing).
+        const linkId = String(body?.id || "").trim();
+        if (!linkId) return json({ error: "id required" }, 400);
         const { error } = await sb
           .from("rb_platform_integrations")
           .delete()
           .eq("location_id", locationId)
-          .eq("platform", platform);
+          .eq("id", linkId);
         if (error) throw error;
         return json({ ok: true });
       }

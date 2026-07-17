@@ -9,7 +9,7 @@ import {
   getCampaign,
   listPlatforms,
   saveCampaign,
-  type RBPlatformConfig,
+  type RBPlatformLink,
 } from "@/lib/reviewBoost";
 
 /**
@@ -20,9 +20,6 @@ import {
  * and points at ONE already-configured platform link (integration_id, from the
  * Platforms page). All reads/writes scoped to this location via the `rb` fn.
  */
-const platformLabel = (id: string, lang: "cn" | "en") =>
-  RB_PLATFORMS.find((p) => p.id === id)?.label[lang] ?? id;
-
 type FormState = {
   name: string;
   business_name: string;
@@ -58,14 +55,14 @@ export default function LocationCampaignCreate() {
   const navigate = useNavigate();
 
   const [form, setForm] = useState<FormState>(EMPTY);
-  const [platforms, setPlatforms] = useState<RBPlatformConfig[]>([]);
+  const [links, setLinks] = useState<RBPlatformLink[]>([]);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
 
-  // Only platforms that are enabled AND have a link can receive customers.
-  const usablePlatforms = useMemo(
-    () => platforms.filter((p) => p.is_enabled && (p.review_url || "").trim()),
-    [platforms],
+  // Any saved link (all have a URL now) can receive customers.
+  const usableLinks = useMemo(
+    () => links.filter((l) => (l.review_url || "").trim()),
+    [links],
   );
 
   const set = <K extends keyof FormState>(key: K, val: FormState[K]) =>
@@ -82,7 +79,7 @@ export default function LocationCampaignCreate() {
           isEdit ? getCampaign(locationId, id!) : Promise.resolve(null),
         ]);
         if (cancelled) return;
-        setPlatforms(pf);
+        setLinks(pf);
         if (isEdit) {
           if (!campaign) {
             toast.error(lang === "cn" ? "找不到这个活动" : "Campaign not found");
@@ -120,8 +117,8 @@ export default function LocationCampaignCreate() {
       toast.error(lang === "cn" ? "请填活动名" : "Please enter a campaign name");
       return;
     }
-    // The platform a customer is sent to comes from the chosen platform config.
-    const chosen = usablePlatforms.find((p) => p.id === form.integration_id);
+    // The platform a customer is sent to comes from the chosen link.
+    const chosen = usableLinks.find((l) => l.id === form.integration_id);
 
     setSaving(true);
     try {
@@ -255,23 +252,23 @@ export default function LocationCampaignCreate() {
       {/* ── Platform (which link the customer is sent to) ───────────── */}
       <section className="glass-card rounded-2xl p-5 space-y-3">
         <div>
-          <h2 className="font-display font-semibold">{label("发布平台", "Review platform")}</h2>
+          <h2 className="font-display font-semibold">{label("评价链接", "Review link")}</h2>
           <p className="text-xs text-muted-foreground mt-0.5">
             {label(
-              "顾客写完评价后，跳去哪个平台发布。选项来自「平台」页里已开启并填了链接的平台。",
-              "Where the customer posts the review. Options come from platforms you enabled + linked on the Platforms page.",
+              "顾客写完评价后跳去哪条链接（哪家店）。选项来自「平台」页里的链接。",
+              "Which link (which branch) the customer is sent to. Options come from the links on the Platforms page.",
             )}
           </p>
         </div>
-        {usablePlatforms.length === 0 ? (
+        {usableLinks.length === 0 ? (
           <div className="rounded-xl bg-amber-500/10 px-4 py-3 flex items-start gap-2 text-sm">
             <Info className="w-4 h-4 text-amber-500 shrink-0 mt-0.5" />
             <span className="text-muted-foreground">
-              {label("还没有可用的平台。先去 ", "No usable platform yet. First set one up on the ")}
+              {label("还没有可选的链接。先去 ", "No links yet. First add one on the ")}
               <Link to={`/review-boost/location/${locationId}/platforms`} className="text-primary font-medium underline">
                 {label("平台页", "Platforms page")}
               </Link>
-              {label(" 开启一个平台并填好评价链接。", ", then enable it and paste its review link.")}
+              {label(" 添加一条评价链接。", ", then add a review link.")}
             </span>
           </div>
         ) : (
@@ -281,11 +278,19 @@ export default function LocationCampaignCreate() {
             className="glass-input w-full px-4 py-2.5 text-sm"
           >
             <option value="">{label("— 暂不指定 —", "— none yet —")}</option>
-            {usablePlatforms.map((p) => (
-              <option key={p.id} value={p.id}>
-                {platformLabel(p.platform, lang)} — {p.review_url}
-              </option>
-            ))}
+            {RB_PLATFORMS.map((p) => {
+              const group = usableLinks.filter((l) => l.platform === p.id);
+              if (group.length === 0) return null;
+              return (
+                <optgroup key={p.id} label={p.label[lang]}>
+                  {group.map((l) => (
+                    <option key={l.id} value={l.id}>
+                      {l.label ? l.label : l.review_url}
+                    </option>
+                  ))}
+                </optgroup>
+              );
+            })}
           </select>
         )}
       </section>

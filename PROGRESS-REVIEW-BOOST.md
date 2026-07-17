@@ -5,7 +5,7 @@ from a Lovable export into this Vite + react-router app. All work is on branch
 **`feat/review-boost`** (cut from `main`, NOT from `feat/copywriter` — the two
 tools live on separate branches). Commit + push after every phase.
 
-_Last updated: 2026-07-15 — Phase 5 done (Campaigns: create/edit/list + auto short_code + detail w/ scan link + history placeholder; embed made sticky)._
+_Last updated: 2026-07-17 — Phase 5b done (platform links: many-per-platform + named, toggle removed; campaign picker selects a specific link; detail shows which link)._
 
 ## Scope (locked by owner)
 
@@ -49,10 +49,13 @@ sub-account is the **子账号 (sub-account / location)**; under it are **平台
   trigger sync. See the "Admin Portal (roadmap)" section below.
 - Do NOT put any cross-client/agency capability in the customer app again.
 
-**Data model — Option B (locked 2026-07-15):**
-- `rb_platform_integrations` = the platform-config layer, **links only**: one row
-  per (location_id, platform) with `review_url` + `is_enabled`. The sub-account
-  enables a platform + pastes its link on the Platforms page.
+**Data model — Option B (locked 2026-07-15; platform layer revised in Phase 5b):**
+- `rb_platform_integrations` = the platform-config layer, **links only**. As of
+  Phase 5b: **MANY rows per (location_id, platform)** (the `unique(location_id,
+  platform)` constraint was dropped), each with `review_url` + an OPTIONAL `label`
+  (a name the owner gives it, e.g. 美容院-总店). There is **no `is_enabled`
+  toggle** — a link simply existing means it's usable. The sub-account adds/edits/
+  deletes links on the Platforms page.
 - `rb_campaigns` carries its **own business info** (business_name / industry /
   category / signature_features — "which business/product this campaign praises")
   + name / logo / thank_you_* / platform, and **references a platform config via
@@ -158,6 +161,27 @@ QR / printable poster, tracks scans + generations.
   B can't list/get/delete A's campaign) via the deployed fn; UI create (CJK+emoji
   ok) → detail (scan link `/scan/5exdsnj`) → B's campaigns empty; embed persists
   across navigation. DB unchanged (Phase 1/1b schema already had everything).
+- [x] **Phase 5b — Platform links reworked (2026-07-17).** Owner-approved change
+  (A/B/C/D): (1) removed the on/off toggle — a link existing = usable; (2) a
+  platform can now hold MANY links, each with an OPTIONAL name/label (multiple
+  branches, e.g. several Google pages); (3) the campaign "platform" picker is now
+  a "pick a specific link" dropdown (grouped by platform, shows the link's name),
+  storing that link's id in `integration_id`; (4) NO Google-API auto-detect —
+  manual names instead. DB: additive migration
+  `20260715160000_review_boost_phase5b_platform_links.sql` on `rb_platform_integrations`
+  ONLY — drops the `unique(location_id, platform)` constraint (by looking it up,
+  name-agnostic), adds `label text`, drops `is_enabled`. Dry-run→applied to hkqzz;
+  copywriter (generate-copy/voice) verified untouched; existing link + campaign
+  preserved (the campaign→link FK references the link's PK id, unaffected). `rb` fn:
+  `listPlatforms` (label, no is_enabled), `savePlatformLink` (insert new / edit by
+  id), `deletePlatformLink` (by id); `getCampaign`/`listCampaigns` now embed the
+  linked `integration` (id/platform/label/review_url) so the detail page shows
+  "→ Google Maps · 美容院-总店". Files: migration, `supabase/functions/rb/index.ts`,
+  `src/lib/reviewBoost.ts` (RBPlatformLink + campaign.integration), `src/pages/
+  review-boost/{LocationPlatforms,LocationCampaignCreate,CampaignDetail}.tsx`.
+  **Verified live** vs real sub-account A: 2 named Google links persist, picker
+  lists both, campaign detail shows the target link, isolation holds, thank-you
+  message saves correctly. Demo left on A: 2 links + 1 campaign "母亲节好评 · 总店".
 - [ ] **Phase 6 — AI generation (Claude).** `generate-review` (preview + scan modes) + result modal.
 - [ ] **Phase 7 — Scan flow.** `/scan/:code` + thank-you + platform tutorial (the core loop). ⭐
 - [ ] **Phase 8 — QR / poster.** Printable poster + centered-logo QR, PNG export.

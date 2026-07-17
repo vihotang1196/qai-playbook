@@ -146,6 +146,20 @@ export default function CampaignDetail() {
             {platformLabel(campaign.platform, lang)}
             <span className="text-muted-foreground/60"> · {scans} {label("次扫码", "scans")}</span>
           </p>
+          {/* D — which platform link (which branch) this campaign points at. */}
+          <p className="text-xs mt-1">
+            {campaign.integration ? (
+              <span className="text-muted-foreground">
+                {label("指向：", "→ ")}
+                <span className="text-foreground font-medium">
+                  {platformLabel(campaign.integration.platform, lang)}
+                  {campaign.integration.label ? ` · ${campaign.integration.label}` : ` · ${campaign.integration.review_url}`}
+                </span>
+              </span>
+            ) : (
+              <span className="text-amber-600">{label("未指定评价链接", "No review link set")}</span>
+            )}
+          </p>
         </div>
         <div className="flex items-center gap-2 shrink-0">
           <Link

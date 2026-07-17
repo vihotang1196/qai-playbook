@@ -4,11 +4,12 @@ import { getSupabase } from "@/lib/supabase";
 // passes the sub-account's own locationId (from the URL); the function scopes
 // all data to it. The frontend never touches tables directly.
 
-export type RBPlatformConfig = {
-  id?: string;
-  platform: string;
-  review_url: string | null;
-  is_enabled: boolean;
+export type RBPlatformLink = {
+  id: string;
+  platform: string;       // google_maps | facebook | shopee | custom
+  review_url: string;     // a link always has a URL (no empty rows)
+  label: string | null;   // optional name/note the owner gives it (e.g. 美容院-总店)
+  created_at?: string;
 };
 
 export type RBQrCode = {
@@ -36,6 +37,8 @@ export type RBCampaign = {
   created_at: string;
   updated_at?: string;
   rb_qr_codes?: RBQrCode[];
+  /** The specific platform link this campaign points at (null if unset/deleted). */
+  integration?: Pick<RBPlatformLink, "id" | "platform" | "label" | "review_url"> | null;
 };
 
 export type RBGeneration = {
@@ -80,19 +83,27 @@ async function callRb<T>(action: string, payload: Record<string, unknown>): Prom
   return data as T;
 }
 
-/** This location's platform configs (links). Scoped to locationId server-side. */
-export async function listPlatforms(locationId: string): Promise<RBPlatformConfig[]> {
-  const { platforms } = await callRb<{ platforms: RBPlatformConfig[] }>("listPlatforms", { locationId });
+/** All this location's platform links (many per platform). Scoped server-side. */
+export async function listPlatforms(locationId: string): Promise<RBPlatformLink[]> {
+  const { platforms } = await callRb<{ platforms: RBPlatformLink[] }>("listPlatforms", { locationId });
   return platforms || [];
 }
 
-/** Create/update one platform's config for this location. */
-export async function savePlatform(
+/**
+ * Add a link (no id → needs `platform`) or edit one (with id → url/label only).
+ * A link must have a URL; the label is optional.
+ */
+export async function savePlatformLink(
   locationId: string,
-  cfg: { platform: string; review_url: string | null; is_enabled: boolean },
-): Promise<RBPlatformConfig> {
-  const { platform } = await callRb<{ platform: RBPlatformConfig }>("savePlatform", { locationId, ...cfg });
+  link: { id?: string; platform?: string; review_url: string; label: string | null },
+): Promise<RBPlatformLink> {
+  const { platform } = await callRb<{ platform: RBPlatformLink }>("savePlatformLink", { locationId, ...link });
   return platform;
+}
+
+/** Delete one platform link by id. Campaigns pointing at it just lose the link. */
+export async function deletePlatformLink(locationId: string, id: string): Promise<void> {
+  await callRb<{ ok: true }>("deletePlatformLink", { locationId, id });
 }
 
 /** All campaigns for this location (newest first). Scoped server-side. */
