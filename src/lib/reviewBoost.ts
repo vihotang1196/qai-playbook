@@ -170,3 +170,101 @@ export async function previewReviews(
   }
   throw lastErr instanceof Error ? lastErr : new Error("Failed to generate reviews");
 }
+
+// ── Public scan flow (customer, no login) — via `generate-review` ──────────
+
+export type RBScanResult = {
+  generation: { id: string; review_text: string; persona: string | null; rating: number };
+  campaign: {
+    name: string | null;
+    logo_url: string | null;
+    thank_you_mode: "message" | "url";
+    redirect_url: string | null;
+  };
+  platform: { platform: string; review_url: string; label: string | null } | null;
+};
+
+export type RBThankYou = {
+  business_name: string | null;
+  logo_url: string | null;
+  thank_you_mode: "message" | "url";
+  thank_you_message: string | null;
+  redirect_url: string | null;
+};
+
+// Business error codes the server returns (don't retry these; map to friendly UI).
+const SCAN_BIZ_ERRORS = new Set([
+  "inactive",
+  "rate_limited",
+  "expired",
+  "not found",
+  "generation failed",
+  "code required",
+  "generationId required",
+]);
+
+/** Invoke generate-review, surfacing the server's {error} string even on non-2xx. */
+async function invokeGenReview<T>(body: Record<string, unknown>): Promise<T> {
+  const { data, error } = await getSupabase().functions.invoke("generate-review", { body });
+  if (error) {
+    let msg = error instanceof Error ? error.message : "request failed";
+    try {
+      const ctx = (error as { context?: Response }).context;
+      if (ctx && typeof ctx.json === "function") {
+        const b = await ctx.json();
+        if (b?.error) msg = String(b.error);
+      }
+    } catch {
+      /* keep generic message */
+    }
+    throw new Error(msg);
+  }
+  if (data && typeof data === "object" && "error" in data && (data as { error?: string }).error) {
+    throw new Error((data as { error: string }).error);
+  }
+  return data as T;
+}
+
+async function genReviewWithRetry<T>(body: Record<string, unknown>, attempts = 3): Promise<T> {
+  let lastErr: unknown;
+  for (let i = 0; i < attempts; i++) {
+    try {
+      return await invokeGenReview<T>(body);
+    } catch (e) {
+      lastErr = e;
+      if (e instanceof Error && SCAN_BIZ_ERRORS.has(e.message)) throw e; // don't retry business errors
+    }
+  }
+  throw lastErr instanceof Error ? lastErr : new Error("Failed");
+}
+
+/** Customer scans → generate 1 review, save it, bump scan_count. */
+export function scanReview(code: string, language: RBReviewLanguage = "cn"): Promise<RBScanResult> {
+  return genReviewWithRetry<RBScanResult>({ mode: "scan", code, language });
+}
+
+/** Regenerate the review shown on this scan (updates in place; no new scan). */
+export async function regenerateReview(
+  code: string,
+  generationId: string,
+  language: RBReviewLanguage = "cn",
+): Promise<RBScanResult["generation"]> {
+  const { generation } = await genReviewWithRetry<{ generation: RBScanResult["generation"] }>({
+    mode: "regenerate",
+    code,
+    generationId,
+    language,
+  });
+  return generation;
+}
+
+/** Customer confirmed they posted → sets posted=true (the posted-rate signal). */
+export async function markPosted(generationId: string): Promise<void> {
+  await invokeGenReview<{ ok: true }>({ mode: "posted", generationId });
+}
+
+/** Thank-you page content (public, by generationId). */
+export async function getThankYou(generationId: string): Promise<RBThankYou> {
+  const { thankYou } = await invokeGenReview<{ thankYou: RBThankYou }>({ mode: "thankyou", generationId });
+  return thankYou;
+}

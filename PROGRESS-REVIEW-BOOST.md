@@ -5,7 +5,7 @@ from a Lovable export into this Vite + react-router app. All work is on branch
 **`feat/review-boost`** (cut from `main`, NOT from `feat/copywriter` — the two
 tools live on separate branches). Commit + push after every phase.
 
-_Last updated: 2026-07-17 — Phase 6 done (AI review generation via Claude: `generate-review` preview mode + campaign-detail preview modal; cn/en/ms; persona-varied realistic reviews)._
+_Last updated: 2026-07-17 — Phase 7 done (scan flow ⭐: public /scan/:code generates+saves 1 review, copy→platform→"I posted it"→thank-you; per-QR rate limit; scan_count + posted-rate)._
 
 ## Scope (locked by owner)
 
@@ -204,7 +204,36 @@ QR / printable poster, tracks scans + generations.
   `src/pages/review-boost/CampaignDetail.tsx`. **Verified live** vs real campaign:
   cn/en/ms all produce natural, human-sounding persona-varied reviews; isolation
   holds (other location → 404); missing campaignId → 400.
-- [ ] **Phase 7 — Scan flow.** `/scan/:code` + thank-you + platform tutorial (the core loop). ⭐
+- [x] **Phase 7 — Scan flow (2026-07-17) ⭐.** The core customer loop, live.
+  Public pages (OUTSIDE Layout, mobile-first coral-glass, own background):
+  `ScanPage` (`/scan/:code`) + `ThankYouPage` (`/thank-you/:generationId`).
+  `generate-review` gained 4 PUBLIC modes: **scan** (resolve QR by short_code +
+  is_active, generate 1 review, save rb_generations, bump scan_count via RPC,
+  return the campaign's linked platform URL via integration_id) · **regenerate**
+  (owner chose precise counting: UPDATE the same row in place — no new row, no
+  scan_count bump; anti-tamper = generation must belong to the code; only for a
+  row <60min old) · **posted** (set posted=true — the posted-rate signal) ·
+  **thankyou** (campaign thank-you content by generationId). **Abuse (owner chose
+  per-QR limiting, NO new table/IP):** per-QR caps counted from existing
+  rb_generations rows — hourly 60, daily 300; over → friendly "rate_limited";
+  plus the existing is_active kill-switch. **Language (owner chose default-cn +
+  customer switch):** scan page has a cn/en/ms switch that regenerates in that
+  language (client cap 3 regens/page). Flow: scan → review shown first (auto-copy
+  best-effort; the reliable copy is the button gesture — mobile clipboard rule) →
+  "复制好评并前往 {平台}" opens the review link in a new tab (same-tab fallback if
+  popup-blocked) → paste+post → "我发了" (enabled only after opening the link) →
+  posted=true → url-mode redirects to redirect_url (WhatsApp = a wa.me link),
+  else → thank-you page. Files: `supabase/functions/generate-review` (extended),
+  `src/lib/reviewBoost.ts` (scanReview/regenerateReview/markPosted/getThankYou),
+  `src/pages/review-boost/{ScanPage,ThankYouPage}.tsx`, wired in `src/App.tsx`.
+  NO schema change (rate limit uses rb_generations; DB already had everything).
+  **Verified live** vs a real campaign: scan generates+saves+counts (scan_count
+  0→1), regenerate updates in place (count stays 1), posted + thankyou work,
+  cn/en/ms switch works in the UI, inactive code → friendly error, tamper → 404.
+  **Residual (noted):** regenerate is bounded by client cap + anti-tamper + 60-min
+  window + the shared hourly cap, but a scripted attacker could still regenerate a
+  recent row repeatedly — a 1-column `regen_count` on rb_generations would fully
+  lock it server-side (deferred; per-review cost is tiny + kill-switch exists).
 - [ ] **Phase 8 — QR / poster.** Printable poster + centered-logo QR, PNG export.
 - [ ] **Phase 9 — Dashboard.** Scans / generations / posted-rate stats (recharts).
 - [ ] **Phase 10 — Polish + merge.** Reconcile the `/tools` cards, merge to `main`.
@@ -268,7 +297,7 @@ it needs REAL auth — never URL secrecy. Planned design:
 
 - **Phase 3:** ✅ done — `GHL_AGENCY_API_KEY` (PIT) + `GHL_COMPANY_ID` (Agency ID) set as Playbook Edge secrets.
 - **Phase 6:** ✅ done — `ANTHROPIC_API_KEY` reused (already a Playbook Edge secret from the copywriter; confirmed present 2026-07-17).
-- **Phase 7 test:** a real business name/industry + a real Google/FB review link + a logo.
+- **Phase 7 test:** ✅ done — verified vs the demo campaign (Ong pei shirl / 妈妈美容院, Google link 美容院-总店). A real logo is still nice-to-have for polish.
 
 ## Notes / dependencies
 

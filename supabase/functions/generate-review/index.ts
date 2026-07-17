@@ -136,6 +136,49 @@ async function generate(campaign: Campaign, language: string, count: number) {
     .filter((r) => r.review_text);
 }
 
+// ── Abuse limits for the PUBLIC scan flow (owner chose per-QR rate limiting,
+//    counted from existing rb_generations rows — no new table, no IP/PII) ──
+const HOURLY_CAP = 60; // max reviews generated per QR per hour
+const DAILY_CAP = 300; // max reviews generated per QR per day
+// Regenerate can only target a row created within this window (stops an old
+// generationId being reused to burn API forever).
+const REGEN_MAX_AGE_MS = 60 * 60 * 1000;
+
+/** How many reviews this QR has generated within the last `sinceMs`. */
+async function countRecent(
+  sb: ReturnType<typeof serviceClient>,
+  qrId: string,
+  sinceMs: number,
+): Promise<number> {
+  const since = new Date(Date.now() - sinceMs).toISOString();
+  const { count, error } = await sb
+    .from("rb_generations")
+    .select("id", { count: "exact", head: true })
+    .eq("qr_code_id", qrId)
+    .gte("created_at", since);
+  if (error) throw error;
+  return count ?? 0;
+}
+
+/** The specific platform link a campaign points at (Option B: integration_id). */
+async function resolvePlatformLink(
+  sb: ReturnType<typeof serviceClient>,
+  integrationId: string | null,
+) {
+  if (!integrationId) return null;
+  const { data, error } = await sb
+    .from("rb_platform_integrations")
+    .select("platform, review_url, label")
+    .eq("id", integrationId)
+    .maybeSingle();
+  if (error) throw error;
+  return data ?? null;
+}
+
+const CAMPAIGN_FIELDS =
+  "business_name, industry, category, signature_features, platform, name, logo_url, " +
+  "integration_id, thank_you_mode, thank_you_message, redirect_url, is_active";
+
 serve(async (req) => {
   if (req.method === "OPTIONS") return new Response(null, { headers: corsHeaders });
 
@@ -167,7 +210,141 @@ serve(async (req) => {
       return json({ reviews });
     }
 
-    // scan mode = Phase 7 (public, by short_code, saves rb_generations).
+    // ── PUBLIC scan flow (customer, no login) ────────────────────────
+    if (mode === "scan") {
+      const code = String(body?.code || "").trim();
+      if (!code) return json({ error: "code required" }, 400);
+      const sb = serviceClient();
+
+      const { data: qr, error: qrErr } = await sb
+        .from("rb_qr_codes")
+        .select(`id, campaign_id, location_id, is_active, rb_campaigns(${CAMPAIGN_FIELDS})`)
+        .eq("short_code", code)
+        .maybeSingle();
+      if (qrErr) throw qrErr;
+      const campaign = (qr?.rb_campaigns || null) as (Campaign & Record<string, unknown>) | null;
+      if (!qr || !qr.is_active || !campaign || campaign.is_active === false) {
+        return json({ error: "inactive" }, 404);
+      }
+
+      // Per-QR rate limit (bounds API spend for a hammered code).
+      if ((await countRecent(sb, qr.id, 3_600_000)) >= HOURLY_CAP) return json({ error: "rate_limited" }, 429);
+      if ((await countRecent(sb, qr.id, 86_400_000)) >= DAILY_CAP) return json({ error: "rate_limited" }, 429);
+
+      const [review] = await generate(campaign, language, 1);
+      if (!review) return json({ error: "generation failed" }, 500);
+
+      const { data: gen, error: insErr } = await sb
+        .from("rb_generations")
+        .insert({
+          campaign_id: qr.campaign_id,
+          qr_code_id: qr.id,
+          location_id: qr.location_id,
+          review_text: review.review_text,
+          persona: review.persona,
+          rating: 5,
+        })
+        .select("id, review_text, persona, rating")
+        .single();
+      if (insErr) throw insErr;
+
+      // One scan = one review generated = one scan_count bump.
+      await sb.rpc("increment_scan_count", { qr_id: qr.id }).then(
+        () => {},
+        () => {}, // non-fatal
+      );
+
+      const platform = await resolvePlatformLink(sb, (campaign.integration_id as string) || null);
+      return json({
+        generation: gen,
+        campaign: {
+          // Customer sees the business identity, not the owner's internal campaign title.
+          name: (campaign.business_name as string) || campaign.name,
+          logo_url: campaign.logo_url,
+          thank_you_mode: campaign.thank_you_mode,
+          redirect_url: campaign.redirect_url,
+        },
+        platform,
+      });
+    }
+
+    // Regenerate the review shown on THIS scan (owner chose: no new scan_count,
+    // no new row — update in place). Anti-tamper: the generation must belong to
+    // this code; shares the per-QR hourly cap; only for a recently-created scan.
+    if (mode === "regenerate") {
+      const code = String(body?.code || "").trim();
+      const generationId = String(body?.generationId || "").trim();
+      if (!code || !generationId) return json({ error: "code and generationId required" }, 400);
+      const sb = serviceClient();
+
+      const { data: gen, error } = await sb
+        .from("rb_generations")
+        .select(`id, qr_code_id, created_at, rb_qr_codes!inner(short_code), rb_campaigns!inner(${CAMPAIGN_FIELDS})`)
+        .eq("id", generationId)
+        .maybeSingle();
+      if (error) throw error;
+      const belongs = gen && (gen.rb_qr_codes as { short_code?: string })?.short_code === code;
+      if (!belongs) return json({ error: "not found" }, 404);
+      if (Date.now() - new Date(gen.created_at as string).getTime() > REGEN_MAX_AGE_MS) {
+        return json({ error: "expired" }, 410);
+      }
+      if ((await countRecent(sb, gen.qr_code_id as string, 3_600_000)) >= HOURLY_CAP) {
+        return json({ error: "rate_limited" }, 429);
+      }
+
+      const [review] = await generate(gen.rb_campaigns as unknown as Campaign, language, 1);
+      if (!review) return json({ error: "generation failed" }, 500);
+
+      const { data: updated, error: upErr } = await sb
+        .from("rb_generations")
+        .update({ review_text: review.review_text, persona: review.persona })
+        .eq("id", generationId)
+        .select("id, review_text, persona, rating")
+        .single();
+      if (upErr) throw upErr;
+      return json({ generation: updated });
+    }
+
+    // Customer confirmed they posted → the posted-rate data point.
+    if (mode === "posted") {
+      const generationId = String(body?.generationId || "").trim();
+      if (!generationId) return json({ error: "generationId required" }, 400);
+      const sb = serviceClient();
+      const { error } = await sb
+        .from("rb_generations")
+        .update({ posted: true })
+        .eq("id", generationId)
+        .eq("posted", false);
+      if (error) throw error;
+      return json({ ok: true });
+    }
+
+    // Thank-you page content by generationId (public).
+    if (mode === "thankyou") {
+      const generationId = String(body?.generationId || "").trim();
+      if (!generationId) return json({ error: "generationId required" }, 400);
+      const sb = serviceClient();
+      const { data: gen, error } = await sb
+        .from("rb_generations")
+        .select("rb_campaigns(name, business_name, logo_url, thank_you_mode, thank_you_message, redirect_url)")
+        .eq("id", generationId)
+        .maybeSingle();
+      if (error) throw error;
+      const c = (gen?.rb_campaigns || null) as
+        | { name?: string; business_name?: string; logo_url?: string; thank_you_mode?: string; thank_you_message?: string; redirect_url?: string }
+        | null;
+      if (!c) return json({ error: "not found" }, 404);
+      return json({
+        thankYou: {
+          business_name: c.business_name ?? c.name ?? null,
+          logo_url: c.logo_url ?? null,
+          thank_you_mode: c.thank_you_mode ?? "message",
+          thank_you_message: c.thank_you_message ?? null,
+          redirect_url: c.redirect_url ?? null,
+        },
+      });
+    }
+
     return json({ error: `Unsupported mode: ${mode}` }, 400);
   } catch (e) {
     console.error("generate-review fn error:", e);

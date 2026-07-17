@@ -18,11 +18,11 @@ import LocationPlatforms from "./pages/review-boost/LocationPlatforms";
 import RBLocationCampaigns from "./pages/review-boost/LocationCampaigns";
 import RBLocationCampaignCreate from "./pages/review-boost/LocationCampaignCreate";
 import RBCampaignDetail from "./pages/review-boost/CampaignDetail";
+import RBScanPage from "./pages/review-boost/ScanPage";
+import RBThankYouPage from "./pages/review-boost/ThankYouPage";
 import {
   LocationDashboard as RBLocationDashboard,
   LocationSettings as RBLocationSettings,
-  ScanPage as RBScanPage,
-  ThankYouPage as RBThankYouPage,
 } from "./pages/review-boost/pages";
 
 const ScrollToTop = () => {
