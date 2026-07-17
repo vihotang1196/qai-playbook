@@ -238,6 +238,19 @@ QR / printable poster, tracks scans + generations.
 - [ ] **Phase 9 — Dashboard.** Scans / generations / posted-rate stats (recharts).
 - [ ] **Phase 10 — Polish + merge.** Reconcile the `/tools` cards, merge to `main`.
 
+## Pre-launch hardening TODO (do BEFORE going public, NOT now)
+
+Recorded 2026-07-17; **do not build yet.**
+- **Scan-page "regenerate" abuse hardening.** Today regenerate is bounded by a
+  client cap (3/page) + anti-tamper (generation must belong to the code) + a
+  60-min row-age window + the shared per-QR hourly cap — but those hourly/daily
+  caps count `rb_generations` ROWS (inserts), and regenerate UPDATES in place, so
+  a script pointed at one recent generationId could still burn a bit of Claude
+  spend. Before the QR codes are truly public to the crowd, add a `regen_count`
+  smallint on `rb_generations` (additive migration, our own table) and cap
+  regenerates per row server-side to fully lock it. Deferred now because per-review
+  cost is tiny and the owner has the `rb_qr_codes.is_active` kill-switch.
+
 ## Launch TODO — embed the whole Playbook in GHL (do at GO-LIVE, NOT now)
 
 Recorded 2026-07-15; **do not build yet.** Cross-cutting (whole Playbook, not
