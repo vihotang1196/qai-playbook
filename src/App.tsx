@@ -22,6 +22,9 @@ import RBScanPage from "./pages/review-boost/ScanPage";
 import RBThankYouPage from "./pages/review-boost/ThankYouPage";
 import RBLocationDashboard from "./pages/review-boost/LocationDashboard";
 import { LocationSettings as RBLocationSettings } from "./pages/review-boost/pages";
+import AdminLayout from "./components/admin/AdminLayout";
+import AdminLogin from "./pages/admin/AdminLogin";
+import AdminHome from "./pages/admin/AdminHome";
 
 const ScrollToTop = () => {
   const { pathname } = useLocation();
@@ -44,6 +47,14 @@ const App = () => (
                 intentionally OUTSIDE the shared Layout (no site navbar/footer). */}
             <Route path="/scan/:code" element={<RBScanPage />} />
             <Route path="/thank-you/:generationId" element={<RBThankYouPage />} />
+
+            {/* Admin Portal — platform-wide, real-login-guarded, OUTSIDE the
+                customer Layout (its own dark chrome; zero customer capability).
+                AdminLayout guards; every admin edge-fn action re-checks server-side. */}
+            <Route path="/admin/login" element={<AdminLogin />} />
+            <Route path="/admin" element={<AdminLayout />}>
+              <Route index element={<AdminHome />} />
+            </Route>
 
             {/* All other routes share the Layout shell (continuous background + Navbar + Footer). */}
             <Route element={<Layout />}>

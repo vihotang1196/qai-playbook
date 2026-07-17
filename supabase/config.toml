@@ -20,3 +20,9 @@ verify_jwt = false
 # location_id; the Phase 7 scan flow is public. Reads ANTHROPIC_API_KEY secret.
 [functions.generate-review]
 verify_jwt = false
+
+# Admin Portal (platform-wide). Anon-callable at the gateway; the REAL gate is
+# requireAdmin() inside — it validates the caller's session JWT + checks the
+# platform_admins allowlist before any privileged work.
+[functions.admin]
+verify_jwt = false
