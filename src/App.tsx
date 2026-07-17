@@ -26,6 +26,7 @@ import AdminLayout from "./components/admin/AdminLayout";
 import AdminLogin from "./pages/admin/AdminLogin";
 import AdminHome from "./pages/admin/AdminHome";
 import AdminSubAccounts from "./pages/admin/AdminSubAccounts";
+import AdminStats from "./pages/admin/AdminStats";
 import AdminAudit from "./pages/admin/AdminAudit";
 
 const ScrollToTop = () => {
@@ -57,6 +58,7 @@ const App = () => (
             <Route path="/admin" element={<AdminLayout />}>
               <Route index element={<AdminHome />} />
               <Route path="sub-accounts" element={<AdminSubAccounts />} />
+              <Route path="stats" element={<AdminStats />} />
               <Route path="audit" element={<AdminAudit />} />
             </Route>
 

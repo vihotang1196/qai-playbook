@@ -16,6 +16,7 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { corsHeaders, json, serviceClient } from "../_shared/ghl.ts";
 import { hasToolAccess } from "../_shared/access.ts";
+import { logToolUsage } from "../_shared/usage.ts";
 
 const MODEL = "claude-sonnet-4-5";
 const ANTHROPIC_URL = "https://api.anthropic.com/v1/messages";
@@ -260,6 +261,13 @@ serve(async (req) => {
         () => {},
         () => {}, // non-fatal
       );
+      // Platform usage meter (Admin Portal stats).
+      await logToolUsage(sb, {
+        tool_key: "review_boost",
+        event_type: "generation",
+        location_id: qr.location_id as string,
+        meta: { campaign_id: qr.campaign_id },
+      });
 
       const platform = await resolvePlatformLink(sb, (campaign.integration_id as string) || null);
       return json({
@@ -312,6 +320,13 @@ serve(async (req) => {
         .select("id, review_text, persona, rating")
         .single();
       if (upErr) throw upErr;
+      // Regenerate is another AI call → count it as usage (cost) too.
+      await logToolUsage(sb, {
+        tool_key: "review_boost",
+        event_type: "generation",
+        location_id: gen.location_id as string,
+        meta: { regenerate: true },
+      });
       return json({ generation: updated });
     }
 
@@ -320,12 +335,23 @@ serve(async (req) => {
       const generationId = String(body?.generationId || "").trim();
       if (!generationId) return json({ error: "generationId required" }, 400);
       const sb = serviceClient();
-      const { error } = await sb
+      const { data: updated, error } = await sb
         .from("rb_generations")
         .update({ posted: true })
         .eq("id", generationId)
-        .eq("posted", false);
+        .eq("posted", false)
+        .select("location_id, campaign_id")
+        .maybeSingle();
       if (error) throw error;
+      // Only log the first time posted flips false→true (idempotent).
+      if (updated) {
+        await logToolUsage(sb, {
+          tool_key: "review_boost",
+          event_type: "posted",
+          location_id: updated.location_id as string,
+          meta: { campaign_id: updated.campaign_id },
+        });
+      }
       return json({ ok: true });
     }
 

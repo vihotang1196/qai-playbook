@@ -68,6 +68,19 @@ export async function listAudit(limit = 100): Promise<AdminAuditEntry[]> {
   return audit || [];
 }
 
+export type AdminUsageStats = {
+  totals: { generations: number; posted: number; activeSubAccounts: number };
+  byTool: { tool_key: string; count: number }[];
+  topSubAccounts: { location_id: string; business_name: string | null; count: number }[];
+  daily: { date: string; count: number }[];
+};
+
+/** Cross-tool usage overview (from tool_usage). Scoped to admins server-side. */
+export async function getUsageStats(): Promise<AdminUsageStats> {
+  const { stats } = await callAdmin<{ stats: AdminUsageStats }>("getUsageStats");
+  return stats;
+}
+
 /** Trigger a GHL sub-account sync (now admin-gated). */
 export async function syncLocations(): Promise<number> {
   const { data, error } = await getSupabase().functions.invoke("sync-ghl-locations", { body: {} });

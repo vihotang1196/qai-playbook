@@ -126,6 +126,80 @@ serve(async (req) => {
         return json({ audit });
       }
 
+      // ── Cross-tool usage overview (from tool_usage) ─────────────────────
+      // Headline totals via cap-free COUNT queries; ranking / trend / by-tool
+      // aggregated from recent rows (fine early — see PROGRESS pre-scale TODO:
+      // move to a SQL group-by RPC before high volume).
+      case "getUsageStats": {
+        const [genRes, postedRes] = await Promise.all([
+          sb.from("tool_usage").select("id", { count: "exact", head: true }).eq("event_type", "generation"),
+          sb.from("tool_usage").select("id", { count: "exact", head: true }).eq("event_type", "posted"),
+        ]);
+
+        const since90 = new Date(Date.now() - 90 * 86_400_000).toISOString();
+        const { data: rows, error } = await sb
+          .from("tool_usage")
+          .select("tool_key, location_id, created_at")
+          .eq("event_type", "generation")
+          .gte("created_at", since90)
+          .order("created_at", { ascending: false })
+          .limit(2000);
+        if (error) throw error;
+        const recent = rows ?? [];
+
+        const byToolMap: Record<string, number> = {};
+        const byLoc: Record<string, number> = {};
+        const since30 = Date.now() - 30 * 86_400_000;
+        const active = new Set<string>();
+        const dayMap: Record<string, number> = {};
+        for (const r of recent) {
+          byToolMap[r.tool_key as string] = (byToolMap[r.tool_key as string] || 0) + 1;
+          const t = new Date(r.created_at as string).getTime();
+          if (r.location_id) {
+            byLoc[r.location_id as string] = (byLoc[r.location_id as string] || 0) + 1;
+            if (t >= since30) active.add(r.location_id as string);
+          }
+          if (t >= since30) {
+            const k = String(r.created_at).slice(0, 10);
+            dayMap[k] = (dayMap[k] || 0) + 1;
+          }
+        }
+
+        const topIds = Object.entries(byLoc).sort((a, b) => b[1] - a[1]).slice(0, 10);
+        const nameMap: Record<string, string> = {};
+        if (topIds.length) {
+          const { data: locs } = await sb
+            .from("ghl_locations")
+            .select("location_id, business_name")
+            .in("location_id", topIds.map(([id]) => id));
+          for (const l of locs ?? []) nameMap[l.location_id as string] = (l.business_name as string) ?? "";
+        }
+        const topSubAccounts = topIds.map(([location_id, count]) => ({
+          location_id,
+          business_name: nameMap[location_id] ?? null,
+          count,
+        }));
+
+        const daily: { date: string; count: number }[] = [];
+        for (let i = 29; i >= 0; i--) {
+          const k = new Date(Date.now() - i * 86_400_000).toISOString().slice(0, 10);
+          daily.push({ date: k, count: dayMap[k] || 0 });
+        }
+
+        return json({
+          stats: {
+            totals: {
+              generations: genRes.count ?? 0,
+              posted: postedRes.count ?? 0,
+              activeSubAccounts: active.size,
+            },
+            byTool: Object.entries(byToolMap).map(([tool_key, count]) => ({ tool_key, count })),
+            topSubAccounts,
+            daily,
+          },
+        });
+      }
+
       default:
         return json({ error: `Unknown action: ${action || "(none)"}` }, 400);
     }
