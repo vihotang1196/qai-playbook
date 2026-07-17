@@ -25,6 +25,8 @@ import { LocationSettings as RBLocationSettings } from "./pages/review-boost/pag
 import AdminLayout from "./components/admin/AdminLayout";
 import AdminLogin from "./pages/admin/AdminLogin";
 import AdminHome from "./pages/admin/AdminHome";
+import AdminSubAccounts from "./pages/admin/AdminSubAccounts";
+import AdminAudit from "./pages/admin/AdminAudit";
 
 const ScrollToTop = () => {
   const { pathname } = useLocation();
@@ -54,6 +56,8 @@ const App = () => (
             <Route path="/admin/login" element={<AdminLogin />} />
             <Route path="/admin" element={<AdminLayout />}>
               <Route index element={<AdminHome />} />
+              <Route path="sub-accounts" element={<AdminSubAccounts />} />
+              <Route path="audit" element={<AdminAudit />} />
             </Route>
 
             {/* All other routes share the Layout shell (continuous background + Navbar + Footer). */}

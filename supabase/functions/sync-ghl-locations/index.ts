@@ -9,13 +9,25 @@
 // ════════════════════════════════════════════════════════════════════════
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { corsHeaders, json, serviceClient, syncGhlLocations } from "../_shared/ghl.ts";
+import { requireAdmin } from "../_shared/admin.ts";
 
 serve(async (req) => {
   if (req.method === "OPTIONS") return new Response(null, { headers: corsHeaders });
 
   try {
+    // Locked behind the admin allowlist (was previously public — anyone with the
+    // anon key could trigger a full GHL sync). Only the Admin Portal calls this.
+    const admin = await requireAdmin(req);
+    if (!admin) return json({ error: "not_authorized" }, 403);
+
     const sb = serviceClient();
     const result = await syncGhlLocations(sb);
+    await sb.from("admin_audit_log").insert({
+      admin_user_id: admin.user_id,
+      admin_email: admin.email,
+      action: "sync_locations",
+      detail: { total: result.total },
+    });
     return json({ success: true, total: result.total });
   } catch (e) {
     console.error("sync-ghl-locations error:", e);

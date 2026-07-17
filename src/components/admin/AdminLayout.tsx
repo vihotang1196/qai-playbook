@@ -1,7 +1,13 @@
 import { useEffect, useState } from "react";
-import { Navigate, Outlet, useLocation } from "react-router-dom";
+import { Navigate, NavLink, Outlet, useLocation } from "react-router-dom";
 import { Loader2, ShieldCheck, LogOut } from "lucide-react";
 import { whoami, signOut, type AdminIdentity } from "@/lib/adminAuth";
+
+const NAV = [
+  { to: "/admin", label: "首页", end: true },
+  { to: "/admin/sub-accounts", label: "子账号 & 权限", end: false },
+  { to: "/admin/audit", label: "审计日志", end: false },
+];
 
 /**
  * Guard + shell for every /admin route. On mount it asks the server who the
@@ -56,6 +62,22 @@ export default function AdminLayout() {
           <p className="font-semibold text-sm leading-tight">Playbook Admin</p>
           <p className="text-[11px] text-slate-400 truncate">{admin?.name || admin?.email}</p>
         </div>
+        <nav className="ml-4 hidden sm:flex items-center gap-1">
+          {NAV.map((n) => (
+            <NavLink
+              key={n.to}
+              to={n.to}
+              end={n.end}
+              className={({ isActive }) =>
+                `rounded-lg px-3 py-1.5 text-xs font-medium transition-colors ${
+                  isActive ? "bg-white/10 text-white" : "text-slate-400 hover:text-slate-200"
+                }`
+              }
+            >
+              {n.label}
+            </NavLink>
+          ))}
+        </nav>
         <button
           onClick={async () => {
             await signOut();

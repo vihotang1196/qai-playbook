@@ -9,7 +9,7 @@ Branch: **`feat/admin-portal`** (cut from `feat/review-boost`, so it has RB's co
 to enforce access into). Shares the Playbook Supabase project (`hkqzzfyigmvisaftdmwh`).
 Commit + push after every step.
 
-_Last updated: 2026-07-17 — Step A done (auth foundation: login + guard + allowlist)._
+_Last updated: 2026-07-17 — Step B done (sub-account list + per-tool access toggles + audit; sync locked behind admin)._
 
 ## Architecture principles (manage ALL tools)
 - **Tool-agnostic:** every tool is a `tool_key` (`review_boost`, `copywriter`, future
@@ -60,10 +60,30 @@ _Last updated: 2026-07-17 — Step A done (auth foundation: login + guard + allo
     anon REST read of `platform_admins` → [] (RLS); /admin/login renders; unauthenticated
     /admin redirects to /admin/login. **Not yet tested: a successful admin login** — needs
     the owner to configure Auth + create an account + seed the allowlist (below).
-- [ ] **Step B — Sub-accounts + per-tool access toggles + audit.** List all
-  sub-accounts (from ghl_locations) + per-(location, tool) enable/disable →
-  `location_tool_access` + `admin_audit_log`; move `sync-ghl-locations` behind
-  requireAdmin (currently public — security fix).
+- [x] **Step B — Sub-accounts + per-tool access toggles + audit (2026-07-17).**
+  - Migration `20260717140000_admin_portal_step_b_access_audit.sql`: `location_tool_access`
+    (location_id, tool_key, enabled, updated_by; unique(location_id,tool_key)) +
+    `admin_audit_log` (admin, action, target, tool, detail jsonb). Both RLS-on with
+    NO anon/authenticated policy → service-role only. Applied to hkqzz.
+  - `admin` edge fn actions (all after requireAdmin): `listLocations({query,limit})`
+    (all ghl_locations + merged per-tool access; server-side search, default cap 50),
+    `setToolAccess({location_id,tool_key,enabled})` (upsert + audit with from→to;
+    default-allow = no row means enabled), `listAudit({limit})` (enriched w/ business
+    names). Tool registry: `src/lib/admin/tools.ts` (ADMIN_TOOLS) + KNOWN_TOOLS set in
+    the fn — add a tool in one place.
+  - **Security fix:** `sync-ghl-locations` was PUBLIC (anyone with the anon key could
+    trigger a full GHL sync) — now gated by requireAdmin + writes an audit row.
+  - Frontend: `src/lib/adminApi.ts` (listLocations/setToolAccess/listAudit/syncLocations),
+    `src/pages/admin/AdminSubAccounts.tsx` (search + "从 GHL 同步" + per-row RB toggle,
+    copywriter shown as "即将", "打开" → the sub-account's RB view), `src/pages/admin/
+    AdminAudit.tsx`; nav added to AdminLayout; AdminHome cards link through. Routes in App.tsx.
+  - **Verified live (with a real admin session):** 911 sub-accounts list + search
+    (911→1 on "Nutritionist"); toggled Ong pei shirl RB off → persisted on reload →
+    audit showed "shaofeng@grandvisionx.com 把 Ong pei shirl 的 Review Boost 关闭了" →
+    toggled back on. Anon → 403 on every admin action AND on sync; anon REST read of
+    both new tables → []. Default-allow confirmed (no row = toggle shows on).
+  - NOTE: owner's platform_admins.name is the placeholder "你的名字" — cosmetic, update
+    the row's name anytime (email/audit are correct).
 - [ ] **Step C — Enforce access in tools.** RB `rb` + `generate-review`(scan) call a
   shared `hasToolAccess(location_id, 'review_boost')` (default-allow); disabled → blocked.
 - [ ] **Step D — Cross-tool stats.** `tool_usage` table; RB logs scan/generation/posted;
