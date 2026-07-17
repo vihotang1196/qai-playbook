@@ -7,6 +7,7 @@ import {
   fetchLocation,
   type GhlLocation,
 } from "@/lib/ghl";
+import { checkRbAccess } from "@/lib/reviewBoost";
 
 /**
  * Current GHL location context for the Review Boost admin.
@@ -23,6 +24,8 @@ type LocationContextValue = {
   isEmbed: boolean;
   loading: boolean;
   error: string | null;
+  /** RB access for this location (Admin Portal toggle). null = still resolving. */
+  toolEnabled: boolean | null;
 };
 
 const Ctx = createContext<LocationContextValue>({
@@ -32,6 +35,7 @@ const Ctx = createContext<LocationContextValue>({
   isEmbed: false,
   loading: false,
   error: null,
+  toolEnabled: null,
 });
 
 export function LocationProvider({ children }: { children: ReactNode }) {
@@ -43,6 +47,7 @@ export function LocationProvider({ children }: { children: ReactNode }) {
   const [location, setLocation] = useState<GhlLocation | null>(null);
   const [loading, setLoading] = useState<boolean>(customerView && !!locationId);
   const [error, setError] = useState<string | null>(null);
+  const [toolEnabled, setToolEnabled] = useState<boolean | null>(null);
 
   useEffect(() => {
     let cancelled = false;
@@ -50,10 +55,12 @@ export function LocationProvider({ children }: { children: ReactNode }) {
       setLocation(null);
       setLoading(false);
       setError(null);
+      setToolEnabled(null);
       return;
     }
     setLoading(true);
     setError(null);
+    setToolEnabled(null);
     fetchLocation(locationId)
       .then((loc) => {
         if (cancelled) return;
@@ -66,6 +73,10 @@ export function LocationProvider({ children }: { children: ReactNode }) {
       .finally(() => {
         if (!cancelled) setLoading(false);
       });
+    // Resolve RB access in parallel (Admin Portal toggle) for the whole-app gate.
+    checkRbAccess(locationId)
+      .then((ok) => !cancelled && setToolEnabled(ok))
+      .catch(() => !cancelled && setToolEnabled(true));
     return () => {
       cancelled = true;
     };
@@ -73,7 +84,7 @@ export function LocationProvider({ children }: { children: ReactNode }) {
 
   return (
     <Ctx.Provider
-      value={{ locationId, location, isCustomerView: customerView, isEmbed: embed, loading, error }}
+      value={{ locationId, location, isCustomerView: customerView, isEmbed: embed, loading, error, toolEnabled }}
     >
       {children}
     </Ctx.Provider>

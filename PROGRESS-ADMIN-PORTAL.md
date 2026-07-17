@@ -9,7 +9,7 @@ Branch: **`feat/admin-portal`** (cut from `feat/review-boost`, so it has RB's co
 to enforce access into). Shares the Playbook Supabase project (`hkqzzfyigmvisaftdmwh`).
 Commit + push after every step.
 
-_Last updated: 2026-07-17 — Step B done (sub-account list + per-tool access toggles + audit; sync locked behind admin)._
+_Last updated: 2026-07-17 — Step C done (access enforced in RB: disabled → whole customer app + scan blocked, server-side)._
 
 ## Architecture principles (manage ALL tools)
 - **Tool-agnostic:** every tool is a `tool_key` (`review_boost`, `copywriter`, future
@@ -84,8 +84,25 @@ _Last updated: 2026-07-17 — Step B done (sub-account list + per-tool access to
     both new tables → []. Default-allow confirmed (no row = toggle shows on).
   - NOTE: owner's platform_admins.name is the placeholder "你的名字" — cosmetic, update
     the row's name anytime (email/audit are correct).
-- [ ] **Step C — Enforce access in tools.** RB `rb` + `generate-review`(scan) call a
-  shared `hasToolAccess(location_id, 'review_boost')` (default-allow); disabled → blocked.
+- [x] **Step C — Enforce access in RB (2026-07-17).** Owner chose A (block the
+  WHOLE customer app, not just generation). Shared `supabase/functions/_shared/access.ts`
+  `hasToolAccess(sb, location_id, tool_key)` — default-allow (no row / enabled=true →
+  true; enabled=false → false). Enforced server-side:
+  - `rb` fn: access gate right after the locationId check, BEFORE the switch → every
+    action returns `tool_disabled` (403) when off. Added a cheap `access` probe action
+    (returns {ok:true}, reached only when allowed) for the shell to call.
+  - `generate-review`: gate in preview (by locationId), scan (by qr.location_id, before
+    generating → no API burn), and regenerate (by the generation's location_id).
+  - Frontend: `checkRbAccess(locationId)` in reviewBoost.ts (fail-open on transient —
+    server still enforces); `useLocationContext` exposes `toolEnabled`; `AdminShell`
+    renders a full-page "Review Boost 未对此 Sub Account 开放，请联系管理员" block
+    (no sidebar/outlet) when disabled; ScanPage maps `tool_disabled` → "此活动暂不可用".
+  - **Verified live:** portal toggled Ong pei shirl OFF → rb access/listCampaigns/scan
+    all 403 `tool_disabled` (curl), RB admin showed the block page, scan page showed
+    "此活动暂不可用" (no generation) → toggled ON → everything restored. Server-enforced
+    regardless of the frontend.
+  - NOTE: since the customer app is URL-identity, the admin's "打开" into a disabled
+    Sub Account also shows the block — expected (manage access from the portal).
 - [ ] **Step D — Cross-tool stats.** `tool_usage` table; RB logs scan/generation/posted;
   `/admin` stats page aggregates per tool + per sub-account.
 

@@ -1,5 +1,5 @@
 import { Outlet } from "react-router-dom";
-import { Loader2, Building2, AlertTriangle } from "lucide-react";
+import { Loader2, Building2, AlertTriangle, Lock } from "lucide-react";
 import { useLang } from "@/i18n/LanguageContext";
 import { LocationProvider, useLocationContext } from "@/hooks/useLocationContext";
 import AdminSidebar from "./AdminSidebar";
@@ -19,18 +19,41 @@ export default function ReviewBoostAdminShell() {
 }
 
 function ShellInner() {
-  const { isEmbed } = useLocationContext();
+  const { isEmbed, isCustomerView, toolEnabled } = useLocationContext();
+  const blocked = isCustomerView && toolEnabled === false;
   return (
     <div className={`min-h-screen px-4 sm:px-6 pb-16 ${isEmbed ? "pt-6" : "pt-20 md:pt-24"}`}>
       <div className="max-w-6xl mx-auto">
         <LocationHeader />
-        <div className="flex flex-col md:flex-row gap-5 mt-4">
-          <AdminSidebar />
-          <main className="flex-1 min-w-0">
-            <Outlet />
-          </main>
-        </div>
+        {blocked ? (
+          <ToolDisabled />
+        ) : (
+          <div className="flex flex-col md:flex-row gap-5 mt-4">
+            <AdminSidebar />
+            <main className="flex-1 min-w-0">
+              <Outlet />
+            </main>
+          </div>
+        )}
       </div>
+    </div>
+  );
+}
+
+/** Whole-app block when the Admin Portal has turned Review Boost off here. */
+function ToolDisabled() {
+  const { lang } = useLang();
+  return (
+    <div className="glass-card rounded-3xl px-6 py-12 mt-4 flex flex-col items-center text-center gap-3">
+      <div className="w-14 h-14 rounded-2xl bg-muted/60 flex items-center justify-center">
+        <Lock className="w-7 h-7 text-muted-foreground" />
+      </div>
+      <p className="font-display font-semibold text-lg">
+        {lang === "cn" ? "Review Boost 未对此 Sub Account 开放" : "Review Boost isn't available for this Sub Account"}
+      </p>
+      <p className="text-sm text-muted-foreground max-w-sm">
+        {lang === "cn" ? "请联系管理员开通。" : "Please contact your administrator to enable it."}
+      </p>
     </div>
   );
 }

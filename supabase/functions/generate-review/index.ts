@@ -15,6 +15,7 @@
 // ════════════════════════════════════════════════════════════════════════
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { corsHeaders, json, serviceClient } from "../_shared/ghl.ts";
+import { hasToolAccess } from "../_shared/access.ts";
 
 const MODEL = "claude-sonnet-4-5";
 const ANTHROPIC_URL = "https://api.anthropic.com/v1/messages";
@@ -196,6 +197,7 @@ serve(async (req) => {
       const count = Math.min(Math.max(Number(body?.count) || 3, 1), 5);
 
       const sb = serviceClient();
+      if (!(await hasToolAccess(sb, locationId, "review_boost"))) return json({ error: "tool_disabled" }, 403);
       // Own-data only: the campaign must belong to THIS location.
       const { data: campaign, error } = await sb
         .from("rb_campaigns")
@@ -225,6 +227,11 @@ serve(async (req) => {
       const campaign = (qr?.rb_campaigns || null) as (Campaign & Record<string, unknown>) | null;
       if (!qr || !qr.is_active || !campaign || campaign.is_active === false) {
         return json({ error: "inactive" }, 404);
+      }
+
+      // Admin Portal access gate — RB disabled for this location → no generation.
+      if (!(await hasToolAccess(sb, qr.location_id as string, "review_boost"))) {
+        return json({ error: "tool_disabled" }, 403);
       }
 
       // Per-QR rate limit (bounds API spend for a hammered code).
@@ -279,12 +286,15 @@ serve(async (req) => {
 
       const { data: gen, error } = await sb
         .from("rb_generations")
-        .select(`id, qr_code_id, created_at, rb_qr_codes!inner(short_code), rb_campaigns!inner(${CAMPAIGN_FIELDS})`)
+        .select(`id, qr_code_id, location_id, created_at, rb_qr_codes!inner(short_code), rb_campaigns!inner(${CAMPAIGN_FIELDS})`)
         .eq("id", generationId)
         .maybeSingle();
       if (error) throw error;
       const belongs = gen && (gen.rb_qr_codes as { short_code?: string })?.short_code === code;
       if (!belongs) return json({ error: "not found" }, 404);
+      if (!(await hasToolAccess(sb, gen.location_id as string, "review_boost"))) {
+        return json({ error: "tool_disabled" }, 403);
+      }
       if (Date.now() - new Date(gen.created_at as string).getTime() > REGEN_MAX_AGE_MS) {
         return json({ error: "expired" }, 410);
       }

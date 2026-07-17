@@ -164,6 +164,8 @@ export default function ScanPage() {
     const msg =
       errorCode === "inactive"
         ? label("这个二维码已停用了。", "This QR code is no longer active.")
+        : errorCode === "tool_disabled"
+        ? label("此活动暂不可用。", "This campaign is currently unavailable.")
         : errorCode === "rate_limited"
         ? label("现在太多人在用了，请等一下再扫。", "Too many requests right now — please try again shortly.")
         : label("出了点问题，请再扫一次。", "Something went wrong — please scan again.");

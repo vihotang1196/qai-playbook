@@ -83,6 +83,35 @@ async function callRb<T>(action: string, payload: Record<string, unknown>): Prom
   return data as T;
 }
 
+/**
+ * Whether Review Boost is enabled for this location (Admin Portal toggle).
+ * Fail-OPEN on transient errors — the server still gates every real action, so
+ * a network blip shouldn't wrongly show the "not available" block.
+ */
+export async function checkRbAccess(locationId: string): Promise<boolean> {
+  try {
+    const { data, error } = await getSupabase().functions.invoke("rb", {
+      body: { action: "access", locationId },
+    });
+    if (error) {
+      const ctx = (error as { context?: Response }).context;
+      if (ctx && typeof ctx.json === "function") {
+        try {
+          const b = await ctx.json();
+          if (b?.error === "tool_disabled") return false;
+        } catch {
+          /* not JSON — treat as transient */
+        }
+      }
+      return true; // transient / unknown → fail-open
+    }
+    if (data && (data as { error?: string }).error === "tool_disabled") return false;
+    return true;
+  } catch {
+    return true;
+  }
+}
+
 /** All this location's platform links (many per platform). Scoped server-side. */
 export async function listPlatforms(locationId: string): Promise<RBPlatformLink[]> {
   const { platforms } = await callRb<{ platforms: RBPlatformLink[] }>("listPlatforms", { locationId });
@@ -209,6 +238,7 @@ export type RBThankYou = {
 // Business error codes the server returns (don't retry these; map to friendly UI).
 const SCAN_BIZ_ERRORS = new Set([
   "inactive",
+  "tool_disabled",
   "rate_limited",
   "expired",
   "not found",
