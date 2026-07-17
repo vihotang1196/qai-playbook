@@ -11,9 +11,9 @@ export default function AdminHome() {
   const admin = useOutletContext<AdminIdentity>();
 
   const cards = [
-    { icon: <Building2 className="w-5 h-5" />, title: "子账号 & 权限", desc: "开/关每个子账号每个工具的权限", to: "/admin/sub-accounts", soon: null },
+    { icon: <Building2 className="w-5 h-5" />, title: "Sub Account & 权限", desc: "开/关每个 Sub Account 每个工具的权限", to: "/admin/sub-accounts", soon: null },
     { icon: <ScrollText className="w-5 h-5" />, title: "审计日志", desc: "谁改了谁的权限、谁触发同步", to: "/admin/audit", soon: null },
-    { icon: <BarChart3 className="w-5 h-5" />, title: "使用统计", desc: "各子账号在各工具上的用量总览", to: null, soon: "步骤 D" },
+    { icon: <BarChart3 className="w-5 h-5" />, title: "使用统计", desc: "各 Sub Account 在各工具上的用量总览", to: null, soon: "步骤 D" },
   ];
 
   return (

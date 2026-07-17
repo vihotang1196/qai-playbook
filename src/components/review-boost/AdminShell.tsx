@@ -64,7 +64,7 @@ function LocationHeader() {
       <div className="glass-card rounded-2xl px-5 py-4 flex items-center gap-3">
         <Loader2 className="w-5 h-5 text-primary animate-spin" />
         <p className="text-sm text-muted-foreground">
-          {lang === "cn" ? "识别子账号中…" : "Identifying sub-account…"}
+          {lang === "cn" ? "识别 Sub Account 中…" : "Identifying Sub Account…"}
         </p>
       </div>
     );
@@ -78,13 +78,13 @@ function LocationHeader() {
         </div>
         <div>
           <p className="font-display font-semibold text-sm">
-            {lang === "cn" ? "找不到这个子账号" : "Sub-account not found"}
+            {lang === "cn" ? "找不到这个 Sub Account" : "Sub Account not found"}
           </p>
           <p className="text-xs text-muted-foreground break-all">
             location_id: <span className="font-mono">{locationId || "(none)"}</span>
             {" — "}
             {lang === "cn"
-              ? "确认从 GHL 打开、或该子账号已同步。"
+              ? "确认从 GHL 打开、或该 Sub Account 已同步。"
               : "Open it from GHL, or make sure it's synced."}
           </p>
         </div>
@@ -103,10 +103,10 @@ function LocationHeader() {
       </div>
       <div className="min-w-0">
         <p className="font-display font-semibold text-sm truncate">
-          {location.business_name || (lang === "cn" ? "(未命名子账号)" : "(unnamed sub-account)")}
+          {location.business_name || (lang === "cn" ? "(未命名 Sub Account)" : "(unnamed Sub Account)")}
         </p>
         <p className="text-xs text-muted-foreground truncate">
-          {location.niche || (lang === "cn" ? "子账号" : "Sub-account")}
+          {location.niche || (lang === "cn" ? "Sub Account" : "Sub Account")}
           <span className="text-muted-foreground/60"> · {location.location_id}</span>
         </p>
       </div>

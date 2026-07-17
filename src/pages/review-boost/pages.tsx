@@ -30,8 +30,8 @@ export const Platforms = mk(
   "Phase 4",
 );
 export const SubAccounts = mk(
-  { cn: "子账号", en: "Sub-accounts" },
-  { cn: "从 GoHighLevel 同步的子账号列表。", en: "Sub-accounts synced from GoHighLevel." },
+  { cn: "Sub Account", en: "Sub Account" },
+  { cn: "从 GoHighLevel 同步的 Sub Account 列表。", en: "Sub Accounts synced from GoHighLevel." },
   "Phase 3",
 );
 export const CampaignDetail = mk(
@@ -41,7 +41,7 @@ export const CampaignDetail = mk(
 );
 export const LocationCampaigns = mk(
   { cn: "活动", en: "Campaigns" },
-  { cn: "该子账号的所有好评活动。", en: "All review campaigns for this sub-account." },
+  { cn: "该 Sub Account 的所有好评活动。", en: "All review campaigns for this Sub Account." },
   "Phase 5",
 );
 export const LocationCampaignCreate = mk(
@@ -56,7 +56,7 @@ export const LocationDashboard = mk(
 );
 export const LocationSettings = mk(
   { cn: "设置", en: "Settings" },
-  { cn: "子账号品牌与偏好设定。", en: "Sub-account branding and preferences." },
+  { cn: "Sub Account 品牌与偏好设定。", en: "Sub Account branding and preferences." },
   "Phase 5",
 );
 // (Email/password login removed — identity comes from GHL via the URL

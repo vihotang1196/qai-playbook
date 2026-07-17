@@ -38,6 +38,10 @@ share it:
 **Terminology (locked 2026-07-15):** there is NO "store/门店" concept. The GHL
 sub-account is the **子账号 (sub-account / location)**; under it are **平台
 (platforms)** and **活动 (campaigns)**. Don't reintroduce "store".
+**UI display term updated 2026-07-17:** all user-facing text now shows
+**"Sub Account"** (both cn + en) instead of 子账号, across the Admin Portal + RB
+client. Code / tables / fields / route paths are UNCHANGED (location_id,
+ghl_locations, /admin/sub-accounts). Don't reintroduce 子账号 in rendered UI.
 
 **TWO-TIER ACCESS — privacy critical (corrected 2026-07-15, commit ca02982):**
 - **Customer app** (the Review Boost admin, unauthenticated URL identity): a

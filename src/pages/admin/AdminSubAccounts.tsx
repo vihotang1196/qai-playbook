@@ -72,7 +72,7 @@ export default function AdminSubAccounts() {
     setSyncing(true);
     try {
       const n = await syncLocations();
-      toast.success(`已从 GHL 同步 ${n} 个子账号`);
+      toast.success(`已从 GHL 同步 ${n} 个 Sub Account`);
       await load(query.trim());
     } catch (e) {
       toast.error(e instanceof Error ? e.message : "同步失败");
@@ -85,9 +85,9 @@ export default function AdminSubAccounts() {
     <div>
       <div className="flex items-center gap-3 flex-wrap">
         <div>
-          <h1 className="text-xl font-semibold">子账号 & 权限</h1>
+          <h1 className="text-xl font-semibold">Sub Account & 权限</h1>
           <p className="text-sm text-slate-400 mt-1">
-            开/关每个子账号每个工具的权限{total != null ? ` · 共 ${total} 个子账号` : ""}
+            开/关每个 Sub Account 每个工具的权限{total != null ? ` · 共 ${total} 个 Sub Account` : ""}
           </p>
         </div>
         <button
@@ -115,7 +115,7 @@ export default function AdminSubAccounts() {
           <Loader2 className="w-5 h-5 animate-spin" /> 加载中…
         </div>
       ) : locations.length === 0 ? (
-        <p className="mt-6 text-sm text-slate-400 py-10 text-center">没有匹配的子账号。</p>
+        <p className="mt-6 text-sm text-slate-400 py-10 text-center">没有匹配的 Sub Account。</p>
       ) : (
         <>
           <div className="mt-4 space-y-2">

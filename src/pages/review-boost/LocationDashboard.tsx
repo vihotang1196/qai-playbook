@@ -60,7 +60,7 @@ export default function LocationDashboard() {
       <div>
         <h1 className="text-2xl font-display font-bold">{label("数据面板", "Dashboard")}</h1>
         <p className="text-sm text-muted-foreground mt-1">
-          {label("这个子账号所有活动的扫码与好评效果。", "Scans and reviews across all your campaigns.")}
+          {label("这个 Sub Account 所有活动的扫码与好评效果。", "Scans and reviews across all your campaigns.")}
         </p>
       </div>
 

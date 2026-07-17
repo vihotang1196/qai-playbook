@@ -34,7 +34,7 @@ export default function AdminAudit() {
       return `${who} 把「${biz}」的 ${toolName(r.tool_key)} ${to ? "开启" : "关闭"}了`;
     }
     if (r.action === "sync_locations") {
-      return `${who} 从 GHL 同步了子账号（${r.detail?.total ?? "?"} 个）`;
+      return `${who} 从 GHL 同步了 Sub Account（${r.detail?.total ?? "?"} 个）`;
     }
     return `${who} · ${r.action}`;
   };
