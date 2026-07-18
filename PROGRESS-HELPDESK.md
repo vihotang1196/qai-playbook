@@ -1,20 +1,21 @@
 # QAI Helpdesk — Rebuild Progress
 
 Rebuild of the **Helpdesk** (4th migrated tool) into this Playbook project,
-ported from a Lovable export. **NOT STARTED — planning only.** This file records
-the owner's locked decisions + the old-version facts so a new session can pick up
-without re-researching.
+ported from a Lovable export. **IN PROGRESS — P0 (scaffold) + P1 (DB) done.**
+This file records the owner's locked decisions, the old-version facts, and the
+phased plan so a new session can pick up without re-researching.
 
-_Last updated: 2026-07-17 — decisions locked; research done; no code written yet._
+_Last updated: 2026-07-18 — branch cut; P0 (routes + placeholders) + P1 (hd_
+schema) done, committed + pushed to `feat/helpdesk`. Next: P2 (login + shell)._
 
 ## Where to build it
 - **Old version (read-only reference):** `C:\Users\chais\Projects\QAI Helpdesk`
   (a Lovable export; DO NOT edit it, DO NOT copy it into the Playbook repo). Same
   read-only-sibling pattern used for `QAI Review Boost`.
-- **New branch:** cut `feat/helpdesk` **from `feat/admin-portal`** (recommended) —
+- **New branch:** ✅ `feat/helpdesk` cut from `feat/admin-portal` (2026-07-18) —
   that branch already has the reusable Admin Portal auth (requireAdmin + the
   `platform_admins` allowlist + the light admin shell), the shared `ghl_locations`
-  + `tool_usage`, and the `_shared/*` Deno helpers. Confirm with owner before cutting.
+  + `tool_usage`, and the `_shared/*` Deno helpers.
 - **Supabase:** reuse the shared **Playbook** project `hkqzzfyigmvisaftdmwh` (like
   every other tool); the old Helpdesk used its own project `mgygxonqmjmjlboapgcz`
   — do NOT reuse that.
@@ -40,19 +41,63 @@ _Last updated: 2026-07-17 — decisions locked; research done; no code written y
    + `match_knowledge` RPC were never wired up. Don't port them (unless we deliberately
    choose embeddings for retrieval later).
 
-## Open questions (decide when the rebuild starts)
-- **Conversation attribution:** content is shared, but do we still tag each
-  conversation with the GHL `location_id` (which sub-account the visitor came from) for
-  analytics? Old version did. Likely yes (cheap, useful) — confirm.
-- **Notion: keep or drop long-term?** Owner said keep for now. It's the heaviest,
-  most fragile subsystem (~1000-line sync). Porting it is the biggest single effort.
-- **Streaming chat** vs non-streaming (project standard is non-streaming). The widget
-  UX may want streaming; decide.
-- **Retrieval:** keyword search (old, title-only) → upgrade to Claude tool-use reading
-  bodies (decided). Embeddings optional/later.
-- **Where the widget lives in Playbook** (route/embed) + whether it shows the Playbook
-  navbar (probably NOT — it's an embeddable widget/iframe, keep it chrome-less like
-  the RB `/scan` page, which is outside `<Layout>`).
+## Open questions — RESOLVED by owner (2026-07-18)
+1. **Conversation attribution:** ✅ YES — tag each conversation with the GHL
+   `location_id` (analytics only, never scopes content). `hd_conversations`,
+   `hd_message_feedback`, `hd_support_analytics` all carry a nullable, FK-free
+   `location_id`.
+2. **Streaming chat:** ✅ NON-streaming first (project standard; simple + stable).
+   Upgrade to streaming later only if the widget UX needs it.
+3. **Widget placement:** ✅ OUTSIDE `<Layout>`, chrome-less, full-screen — route
+   `/help`, embeds as an iframe like the RB `/scan` page.
+4. **Notion:** keep (owner). Heaviest/most fragile subsystem (~1000-line sync) —
+   the biggest single phase (P4).
+5. **Retrieval:** keyword (old, title-only) → Claude tool-use reading BODIES
+   (decided). Embeddings optional/later (pgvector dropped in P1).
+
+## Phased plan (owner-approved 2026-07-18)
+Each phase is committed + pushed to `feat/helpdesk` when done.
+- [x] **P0 — Scaffold (2026-07-18).** Cut branch. Public widget stub `/help`
+  (chrome-less, OUTSIDE Layout). Helpdesk admin nested INSIDE the Admin Portal at
+  `/admin/helpdesk/*` (reuses the ONE requireAdmin login + coral-glass chrome) via
+  `HelpdeskAdminShell` sub-tabs: knowledge / conversations / analytics / updates /
+  settings, each a placeholder. Added Helpdesk nav item (AdminLayout) + AdminHome
+  card. `vite.config` honors `PORT` env + `launch.json` `autoPort` (coexist with
+  another chat's dev server on 5180). Files: `src/pages/help/HelpWidget.tsx`,
+  `src/components/helpdesk/HelpdeskAdminShell.tsx`, `src/pages/admin/helpdesk/
+  sections.tsx`, routes in `src/App.tsx`, `AdminLayout.tsx`, `AdminHome.tsx`.
+  **Verified in dev:** `/help` renders (no navbar); `/admin/helpdesk` → redirects
+  to `/admin/login` when unauthenticated; `tsc --noEmit` clean; no console errors.
+- [x] **P1 — DB (2026-07-18).** Migration `20260718120000_helpdesk_phase1.sql`
+  (additive; dry-run → applied to hkqzz). 11 `hd_` tables (see table map below).
+  Dropped pgvector (embedding col + match_knowledge never created). No
+  ghl_settings. Every `hd_` table RLS ON + NO policy = service-role only.
+  Singletons `hd_widget_settings` / `hd_notion_settings` seeded one row each.
+  **Verified:** all 11 hd_ tables → anon `200 []` (RLS blocks even seeded rows, so
+  the Notion key is NOT anon-readable); rb_*/ghl_locations/platform_admins/
+  location_tool_access/admin_audit_log/tool_usage intact; knowledge_entries +
+  match_knowledge → 404 (never introduced).
+- [ ] **P2 — Login + admin shell.** Reuse `requireAdmin`; a `helpdesk-admin` edge
+  fn (or extend `admin`) service-role-gated; wire the shell to real data. NEXT.
+- [ ] **P3 — Knowledge Base admin.** Articles/folders CRUD (manual path first).
+- [ ] **P4 — Notion sync ⭐ (biggest).** Port the ~1000-line importer + copy
+  Notion media into Supabase Storage; tombstones via `hd_deleted_notion_entries`.
+- [ ] **P5 — AI chat backend.** Claude `claude-sonnet-4-5` + tool-use
+  (`search_knowledge` / `get_article` read BODIES), non-streaming.
+- [ ] **P6 — The widget.** ONE unified embeddable widget at `/help`.
+- [ ] **P7 — Conversations + analytics admin.**
+- [ ] **P8 — Product updates + FAQ.**
+- [ ] **P9 — Widget settings / branding + preview.**
+- [ ] **P10 — Polish + merge** (`/tools` cards, merge to main).
+
+### hd_ table map (old → new; built in P1)
+`knowledge_folders`→`hd_folders` · `knowledge_entries`→`hd_articles` (no
+embedding) · `conversations`→`hd_conversations` · `messages`→`hd_messages` ·
+`message_feedback`→`hd_message_feedback` · `support_analytics`→
+`hd_support_analytics` · `faq_entries`→`hd_faq` · `system_updates`→`hd_updates` ·
+`widget_settings`→`hd_widget_settings` (singleton) · `notion_settings`→
+`hd_notion_settings` (singleton, service-role only) · `deleted_notion_entries`→
+`hd_deleted_notion_entries` · `ghl_settings`→(not ported).
 
 ## Old-version facts (from read-only research, so we don't re-dig)
 Product: an embeddable **AI support chat widget** ("Angel AI") — Guidelines/KB +
