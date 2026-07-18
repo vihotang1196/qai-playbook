@@ -85,15 +85,15 @@ export default function AdminSubAccounts() {
     <div>
       <div className="flex items-center gap-3 flex-wrap">
         <div>
-          <h1 className="text-xl font-semibold">Sub Account & 权限</h1>
-          <p className="text-sm text-slate-400 mt-1">
+          <h1 className="text-xl font-display font-bold">Sub Account & 权限</h1>
+          <p className="text-sm text-muted-foreground mt-1">
             开/关每个 Sub Account 每个工具的权限{total != null ? ` · 共 ${total} 个 Sub Account` : ""}
           </p>
         </div>
         <button
           onClick={sync}
           disabled={syncing}
-          className="ml-auto inline-flex items-center gap-1.5 rounded-lg px-3 py-2 text-sm font-medium border border-white/15 hover:bg-white/5 disabled:opacity-60"
+          className="ml-auto inline-flex items-center gap-1.5 rounded-lg px-3 py-2 text-sm font-medium border border-border/60 hover:border-border disabled:opacity-60"
         >
           {syncing ? <Loader2 className="w-4 h-4 animate-spin" /> : <RefreshCw className="w-4 h-4" />}
           从 GHL 同步
@@ -101,43 +101,43 @@ export default function AdminSubAccounts() {
       </div>
 
       <div className="relative mt-4">
-        <Search className="w-4 h-4 text-slate-500 absolute left-3 top-1/2 -translate-y-1/2" />
+        <Search className="w-4 h-4 text-muted-foreground absolute left-3 top-1/2 -translate-y-1/2 z-10" />
         <input
           value={query}
           onChange={(e) => setQuery(e.target.value)}
           placeholder="搜索商家名或 location_id…"
-          className="w-full rounded-xl bg-white/5 border border-white/10 pl-9 pr-3 py-2.5 text-sm text-slate-100 outline-none focus:border-primary/60"
+          className="glass-input w-full pl-9 pr-3 py-2.5 text-sm"
         />
       </div>
 
       {loading ? (
-        <div className="mt-6 flex items-center justify-center gap-2 text-slate-400 py-10">
+        <div className="mt-6 flex items-center justify-center gap-2 text-muted-foreground py-10">
           <Loader2 className="w-5 h-5 animate-spin" /> 加载中…
         </div>
       ) : locations.length === 0 ? (
-        <p className="mt-6 text-sm text-slate-400 py-10 text-center">没有匹配的 Sub Account。</p>
+        <p className="mt-6 text-sm text-muted-foreground py-10 text-center">没有匹配的 Sub Account。</p>
       ) : (
         <>
           <div className="mt-4 space-y-2">
             {locations.map((loc) => (
-              <div key={loc.location_id} className="rounded-xl border border-white/10 bg-white/5 p-3 flex items-center gap-3">
-                <div className="w-9 h-9 rounded-lg bg-white/10 flex items-center justify-center overflow-hidden shrink-0">
+              <div key={loc.location_id} className="glass-card rounded-xl p-3 flex items-center gap-3">
+                <div className="w-9 h-9 rounded-lg bg-white shadow-sm border border-border/40 flex items-center justify-center overflow-hidden shrink-0">
                   {loc.logo_url ? (
                     <img src={loc.logo_url} alt="" className="w-full h-full object-contain" />
                   ) : (
-                    <Building2 className="w-4 h-4 text-slate-400" />
+                    <Building2 className="w-4 h-4 text-muted-foreground" />
                   )}
                 </div>
                 <div className="min-w-0 flex-1">
                   <p className="text-sm font-medium truncate">{loc.business_name || "(未命名)"}</p>
-                  <p className="text-[11px] text-slate-500 truncate font-mono">{loc.location_id}</p>
+                  <p className="text-[11px] text-muted-foreground truncate font-mono">{loc.location_id}</p>
                 </div>
 
                 <div className="flex items-center gap-4 shrink-0">
                   {ADMIN_TOOLS.map((t) =>
                     t.live ? (
                       <label key={t.key} className="flex items-center gap-1.5 cursor-pointer select-none">
-                        <span className="text-xs text-slate-400 hidden sm:inline">{t.name.cn}</span>
+                        <span className="text-xs text-muted-foreground hidden sm:inline">{t.name.cn}</span>
                         <Toggle
                           on={isToolEnabled(loc, t.key)}
                           busy={busy === `${loc.location_id}:${t.key}`}
@@ -145,7 +145,7 @@ export default function AdminSubAccounts() {
                         />
                       </label>
                     ) : (
-                      <span key={t.key} className="text-[11px] text-slate-600 hidden md:inline">
+                      <span key={t.key} className="text-[11px] text-muted-foreground/50 hidden md:inline">
                         {t.name.cn} · 即将
                       </span>
                     ),
@@ -154,7 +154,7 @@ export default function AdminSubAccounts() {
                     href={`/review-boost/location/${loc.location_id}?embed=true`}
                     target="_blank"
                     rel="noreferrer"
-                    className="inline-flex items-center gap-1 text-xs text-slate-400 hover:text-primary"
+                    className="inline-flex items-center gap-1 text-xs text-muted-foreground hover:text-primary"
                   >
                     <ExternalLink className="w-3.5 h-3.5" /> 打开
                   </a>
@@ -163,7 +163,7 @@ export default function AdminSubAccounts() {
             ))}
           </div>
           {capped && (
-            <p className="mt-3 text-xs text-slate-500 text-center">只显示前 50 个 · 用搜索找更多</p>
+            <p className="mt-3 text-xs text-muted-foreground text-center">只显示前 50 个 · 用搜索找更多</p>
           )}
         </>
       )}
@@ -177,11 +177,11 @@ function Toggle({ on, busy, onChange }: { on: boolean; busy: boolean; onChange: 
       type="button"
       onClick={() => !busy && onChange(!on)}
       disabled={busy}
-      className={`relative inline-flex h-5 w-9 items-center rounded-full transition-colors ${on ? "bg-primary" : "bg-white/15"} disabled:opacity-60`}
+      className={`relative inline-flex h-5 w-9 items-center rounded-full transition-colors ${on ? "bg-primary" : "bg-muted"} disabled:opacity-60`}
       aria-pressed={on}
     >
-      <span className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${on ? "translate-x-4" : "translate-x-0.5"}`}>
-        {busy && <Loader2 className="w-3 h-3 animate-spin text-slate-500 m-0.5" />}
+      <span className={`inline-block h-4 w-4 transform rounded-full bg-white shadow-sm transition-transform ${on ? "translate-x-4" : "translate-x-0.5"}`}>
+        {busy && <Loader2 className="w-3 h-3 animate-spin text-muted-foreground m-0.5" />}
       </span>
     </button>
   );

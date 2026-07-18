@@ -130,6 +130,14 @@ _Last updated: 2026-07-17 — Step D done (shared tool_usage log + cross-tool /a
 identity before it can be gated/metered — it appears in the tool registry + stats
 as a placeholder).
 
+**UI polish (2026-07-17):** Admin Portal restyled from dark → **light coral-glass**
+(matches Playbook/RB): light ambient bg + glass-card panels + coral accents
+(AdminLayout/Login/Home/SubAccounts/Stats/Audit). "Sub Account" wording kept here
+(agency-facing). NOTE: the heavy sub-accounts page (911 rows + blur) can time out
+the headless *screenshot* capture — the page itself renders fine (verify via
+read_page). Also this session: RB client de-"Sub Account" + embed now shows the
+Playbook navbar — see PROGRESS-REVIEW-BOOST.md notes.
+
 ## Owner to do (Step A go-live prerequisites)
 1. Supabase dashboard → **Authentication → Providers → Email: enabled**; **Sign-ups:
    turn OFF "Allow new users to sign up"** (no public signup).

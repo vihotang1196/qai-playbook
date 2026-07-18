@@ -54,47 +54,51 @@ export default function AdminLogin() {
 
   if (checking) {
     return (
-      <div className="min-h-screen flex items-center justify-center bg-[#0e1016] text-slate-300">
+      <div className="min-h-screen flex items-center justify-center bg-[#FCFDFF] text-muted-foreground">
         <Loader2 className="w-6 h-6 animate-spin" />
       </div>
     );
   }
 
   return (
-    <div className="min-h-screen flex items-center justify-center bg-[#0e1016] px-4">
-      <form onSubmit={submit} className="w-full max-w-sm rounded-2xl border border-white/10 bg-white/5 p-7">
+    <div className="relative min-h-screen flex items-center justify-center px-4 overflow-hidden bg-[#FCFDFF]">
+      <div aria-hidden className="pointer-events-none fixed inset-0 -z-10">
+        <div className="absolute -top-[15vh] -left-[10vw] w-[60vw] h-[60vh] rounded-full bg-[#FCE4F1] opacity-30 blur-[100px]" />
+        <div className="absolute -bottom-[20vh] -right-[10vw] w-[60vw] h-[55vh] rounded-full bg-[#EAE2FF] opacity-25 blur-[100px]" />
+      </div>
+      <form onSubmit={submit} className="w-full max-w-sm glass-card rounded-3xl p-7">
         <div className="flex items-center gap-2 mb-1">
           <div className="w-9 h-9 rounded-xl flex items-center justify-center text-white" style={{ background: "linear-gradient(135deg, #FF7E5F, #FF3D6E)" }}>
             <ShieldCheck className="w-5 h-5" />
           </div>
           <div>
-            <h1 className="text-slate-100 font-semibold leading-tight">Playbook Admin</h1>
-            <p className="text-[11px] text-slate-400">团队管理后台</p>
+            <h1 className="font-display font-semibold leading-tight">Playbook Admin</h1>
+            <p className="text-[11px] text-muted-foreground">团队管理后台</p>
           </div>
         </div>
 
-        <label className="block text-xs text-slate-400 mt-5 mb-1">邮箱</label>
+        <label className="block text-xs text-muted-foreground mt-5 mb-1">邮箱</label>
         <input
           type="email"
           value={email}
           onChange={(e) => setEmail(e.target.value)}
           autoComplete="username"
-          className="w-full rounded-xl bg-[#171a22] border border-white/10 px-3.5 py-2.5 text-sm text-slate-100 outline-none focus:border-primary/60"
+          className="glass-input w-full px-3.5 py-2.5 text-sm"
           placeholder="you@company.com"
           required
         />
-        <label className="block text-xs text-slate-400 mt-3 mb-1">密码</label>
+        <label className="block text-xs text-muted-foreground mt-3 mb-1">密码</label>
         <input
           type="password"
           value={password}
           onChange={(e) => setPassword(e.target.value)}
           autoComplete="current-password"
-          className="w-full rounded-xl bg-[#171a22] border border-white/10 px-3.5 py-2.5 text-sm text-slate-100 outline-none focus:border-primary/60"
+          className="glass-input w-full px-3.5 py-2.5 text-sm"
           placeholder="••••••••"
           required
         />
 
-        {err && <p className="text-xs text-red-400 mt-3">{err}</p>}
+        {err && <p className="text-xs text-red-500 mt-3">{err}</p>}
 
         <button
           type="submit"
@@ -104,7 +108,7 @@ export default function AdminLogin() {
         >
           {busy && <Loader2 className="w-4 h-4 animate-spin" />} 登录
         </button>
-        <p className="text-[11px] text-slate-500 mt-4 text-center">仅限受邀团队成员 · 无公开注册</p>
+        <p className="text-[11px] text-muted-foreground mt-4 text-center">仅限受邀团队成员 · 无公开注册</p>
       </form>
     </div>
   );

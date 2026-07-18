@@ -44,7 +44,7 @@ export default function AdminLayout() {
 
   if (state === "loading") {
     return (
-      <div className="min-h-screen flex items-center justify-center bg-[#0e1016] text-slate-300">
+      <div className="min-h-screen flex items-center justify-center bg-[#FCFDFF] text-muted-foreground">
         <Loader2 className="w-6 h-6 animate-spin" />
       </div>
     );
@@ -54,14 +54,15 @@ export default function AdminLayout() {
   }
 
   return (
-    <div className="min-h-screen bg-[#0e1016] text-slate-100">
-      <header className="border-b border-white/10 px-4 sm:px-6 py-3 flex items-center gap-3">
+    <div className="relative min-h-screen overflow-x-hidden text-foreground">
+      <AdminBackground />
+      <header className="sticky top-0 z-20 backdrop-blur-xl bg-white/60 border-b border-border/50 px-4 sm:px-6 py-3 flex items-center gap-3">
         <div className="w-8 h-8 rounded-xl flex items-center justify-center text-white shrink-0" style={{ background: "linear-gradient(135deg, #FF7E5F, #FF3D6E)" }}>
           <ShieldCheck className="w-4 h-4" />
         </div>
         <div className="min-w-0">
-          <p className="font-semibold text-sm leading-tight">Playbook Admin</p>
-          <p className="text-[11px] text-slate-400 truncate">{admin?.name || admin?.email}</p>
+          <p className="font-display font-semibold text-sm leading-tight">Playbook Admin</p>
+          <p className="text-[11px] text-muted-foreground truncate">{admin?.name || admin?.email}</p>
         </div>
         <nav className="ml-4 hidden sm:flex items-center gap-1">
           {NAV.map((n) => (
@@ -71,7 +72,7 @@ export default function AdminLayout() {
               end={n.end}
               className={({ isActive }) =>
                 `rounded-lg px-3 py-1.5 text-xs font-medium transition-colors ${
-                  isActive ? "bg-white/10 text-white" : "text-slate-400 hover:text-slate-200"
+                  isActive ? "bg-primary/10 text-primary" : "text-muted-foreground hover:text-foreground"
                 }`
               }
             >
@@ -84,7 +85,7 @@ export default function AdminLayout() {
             await signOut();
             window.location.href = "/admin/login";
           }}
-          className="ml-auto inline-flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-xs font-medium border border-white/15 hover:bg-white/5"
+          className="ml-auto inline-flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-xs font-medium border border-border/60 text-muted-foreground hover:text-foreground hover:border-border"
         >
           <LogOut className="w-3.5 h-3.5" /> 登出
         </button>
@@ -92,6 +93,17 @@ export default function AdminLayout() {
       <main className="px-4 sm:px-6 py-6 max-w-6xl mx-auto">
         <Outlet context={admin} />
       </main>
+    </div>
+  );
+}
+
+/** Light coral-glass ambient background, matching the Playbook / RB client. */
+function AdminBackground() {
+  return (
+    <div aria-hidden className="pointer-events-none fixed inset-0 -z-10 bg-[#FCFDFF]">
+      <div className="absolute -top-[15vh] -left-[10vw] w-[60vw] h-[60vh] rounded-full bg-[#FCE4F1] opacity-30 blur-[100px]" />
+      <div className="absolute -top-[12vh] -right-[12vw] w-[55vw] h-[55vh] rounded-full bg-[#EAE2FF] opacity-25 blur-[100px]" />
+      <div className="absolute -bottom-[20vh] left-[20vw] w-[70vw] h-[55vh] rounded-full bg-[#DCE6FF] opacity-25 blur-[100px]" />
     </div>
   );
 }

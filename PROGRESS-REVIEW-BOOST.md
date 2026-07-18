@@ -42,6 +42,11 @@ sub-account is the **子账号 (sub-account / location)**; under it are **平台
 **"Sub Account"** (both cn + en) instead of 子账号, across the Admin Portal + RB
 client. Code / tables / fields / route paths are UNCHANGED (location_id,
 ghl_locations, /admin/sub-accounts). Don't reintroduce 子账号 in rendered UI.
+**UI polish (2026-07-17, later same day):** the customer sees NO "Sub Account"
+either — in the RB CLIENT that agency term was removed (identity strip = business
+name over the raw location_id; other copy uses 商家/你的). "Sub Account" is kept
+ONLY in the Admin Portal (agency-facing). So: Admin = "Sub Account"; RB client =
+business name / location_id, never "Sub Account".
 
 **TWO-TIER ACCESS — privacy critical (corrected 2026-07-15, commit ca02982):**
 - **Customer app** (the Review Boost admin, unauthenticated URL identity): a
@@ -356,6 +361,15 @@ it needs REAL auth — never URL secrecy. Planned design:
 
 ## Notes / dependencies
 
+- **Embed navbar REVERSED (2026-07-17, owner decision):** the Playbook navbar +
+  footer are now ALWAYS shown, INCLUDING inside the GHL iframe (embed). This
+  supersedes the earlier "embed hides the navbar" behavior (Phase 2 + the Phase 5b
+  embed-stickiness). `Layout.tsx` renders Navbar/Footer unconditionally; `isEmbed`/
+  `rememberEmbed` are no longer used to hide chrome. The public `/scan` + `/thank-you`
+  pages and the Admin Portal are OUTSIDE `<Layout>`, so they stay clean/full-screen —
+  the scan page must NOT show the navbar.
+- **Platforms page = collapsed list (2026-07-17):** each link shows its NAME only;
+  the URL is revealed only on edit/add (LocationPlatforms.tsx).
 - **`/tools` hub dependency:** the `/tools` page + its cards live on
   `feat/copywriter` (not merged to `main`), so this branch has no `/tools` page.
   Review Boost is reachable directly at `/review-boost` for now; the 3rd `/tools`

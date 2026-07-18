@@ -42,23 +42,23 @@ export default function AdminAudit() {
   return (
     <div>
       <div className="flex items-center gap-2">
-        <ScrollText className="w-5 h-5 text-slate-300" />
-        <h1 className="text-xl font-semibold">审计日志</h1>
+        <ScrollText className="w-5 h-5 text-muted-foreground" />
+        <h1 className="text-xl font-display font-bold">审计日志</h1>
       </div>
-      <p className="text-sm text-slate-400 mt-1">谁改了谁的权限、谁触发了同步。</p>
+      <p className="text-sm text-muted-foreground mt-1">谁改了谁的权限、谁触发了同步。</p>
 
       {loading ? (
-        <div className="mt-6 flex items-center justify-center gap-2 text-slate-400 py-10">
+        <div className="mt-6 flex items-center justify-center gap-2 text-muted-foreground py-10">
           <Loader2 className="w-5 h-5 animate-spin" /> 加载中…
         </div>
       ) : rows.length === 0 ? (
-        <p className="mt-6 text-sm text-slate-400 py-10 text-center">还没有记录。</p>
+        <p className="mt-6 text-sm text-muted-foreground py-10 text-center">还没有记录。</p>
       ) : (
         <div className="mt-4 space-y-1.5">
           {rows.map((r) => (
-            <div key={r.id} className="rounded-lg border border-white/10 bg-white/5 px-3 py-2 flex items-center gap-3">
-              <span className="text-sm text-slate-200 flex-1 min-w-0">{describe(r)}</span>
-              <span className="text-[11px] text-slate-500 shrink-0">{new Date(r.created_at).toLocaleString()}</span>
+            <div key={r.id} className="glass-card rounded-lg px-3 py-2 flex items-center gap-3">
+              <span className="text-sm flex-1 min-w-0">{describe(r)}</span>
+              <span className="text-[11px] text-muted-foreground shrink-0">{new Date(r.created_at).toLocaleString()}</span>
             </div>
           ))}
         </div>

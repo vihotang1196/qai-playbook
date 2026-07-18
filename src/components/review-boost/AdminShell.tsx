@@ -5,10 +5,12 @@ import { LocationProvider, useLocationContext } from "@/hooks/useLocationContext
 import AdminSidebar from "./AdminSidebar";
 
 /**
- * Layout route for the Review Boost admin. Provides the GHL location context,
- * a top identity strip (which sub-account is being managed), and the sidebar.
- * Sits inside the site <Layout>; in embed mode the site navbar is hidden
- * (see Layout.tsx) so only this shell shows inside the GHL iframe.
+ * Layout route for the Review Boost customer admin. Provides the GHL location
+ * context, a top identity strip (business name + location id), and the sidebar.
+ * Sits inside the site <Layout> (which now always shows the Playbook navbar).
+ *
+ * Customer-facing: no agency "Sub Account" wording here — that term is only used
+ * in the (separate) Admin Portal.
  */
 export default function ReviewBoostAdminShell() {
   return (
@@ -19,10 +21,10 @@ export default function ReviewBoostAdminShell() {
 }
 
 function ShellInner() {
-  const { isEmbed, isCustomerView, toolEnabled } = useLocationContext();
+  const { isCustomerView, toolEnabled } = useLocationContext();
   const blocked = isCustomerView && toolEnabled === false;
   return (
-    <div className={`min-h-screen px-4 sm:px-6 pb-16 ${isEmbed ? "pt-6" : "pt-20 md:pt-24"}`}>
+    <div className="min-h-screen px-4 sm:px-6 pb-16 pt-20 md:pt-24">
       <div className="max-w-6xl mx-auto">
         <LocationHeader />
         {blocked ? (
@@ -49,7 +51,7 @@ function ToolDisabled() {
         <Lock className="w-7 h-7 text-muted-foreground" />
       </div>
       <p className="font-display font-semibold text-lg">
-        {lang === "cn" ? "Review Boost 未对此 Sub Account 开放" : "Review Boost isn't available for this Sub Account"}
+        {lang === "cn" ? "Review Boost 尚未对你开放" : "Review Boost isn't available yet"}
       </p>
       <p className="text-sm text-muted-foreground max-w-sm">
         {lang === "cn" ? "请联系管理员开通。" : "Please contact your administrator to enable it."}
@@ -62,8 +64,7 @@ function LocationHeader() {
   const { lang } = useLang();
   const { isCustomerView, location, loading, error, locationId } = useLocationContext();
 
-  // No location_id → not opened from a GHL sub-account. Neutral state only —
-  // NO agency/god-view here (that lives in the authenticated Admin Portal).
+  // No location_id → not opened from GoHighLevel. Neutral state only.
   if (!isCustomerView) {
     return (
       <div className="glass-card rounded-2xl px-5 py-4 flex items-center gap-3">
@@ -86,9 +87,7 @@ function LocationHeader() {
     return (
       <div className="glass-card rounded-2xl px-5 py-4 flex items-center gap-3">
         <Loader2 className="w-5 h-5 text-primary animate-spin" />
-        <p className="text-sm text-muted-foreground">
-          {lang === "cn" ? "识别 Sub Account 中…" : "Identifying Sub Account…"}
-        </p>
+        <p className="text-sm text-muted-foreground">{lang === "cn" ? "加载中…" : "Loading…"}</p>
       </div>
     );
   }
@@ -101,14 +100,14 @@ function LocationHeader() {
         </div>
         <div>
           <p className="font-display font-semibold text-sm">
-            {lang === "cn" ? "找不到这个 Sub Account" : "Sub Account not found"}
+            {lang === "cn" ? "找不到这个商家" : "Business not found"}
           </p>
           <p className="text-xs text-muted-foreground break-all">
             location_id: <span className="font-mono">{locationId || "(none)"}</span>
             {" — "}
             {lang === "cn"
-              ? "确认从 GHL 打开、或该 Sub Account 已同步。"
-              : "Open it from GHL, or make sure it's synced."}
+              ? "请从你的 GoHighLevel 后台重新打开。"
+              : "Please reopen it from your GoHighLevel account."}
           </p>
         </div>
       </div>
@@ -126,12 +125,10 @@ function LocationHeader() {
       </div>
       <div className="min-w-0">
         <p className="font-display font-semibold text-sm truncate">
-          {location.business_name || (lang === "cn" ? "(未命名 Sub Account)" : "(unnamed Sub Account)")}
+          {location.business_name || (lang === "cn" ? "(未命名)" : "(unnamed)")}
         </p>
-        <p className="text-xs text-muted-foreground truncate">
-          {location.niche || (lang === "cn" ? "Sub Account" : "Sub Account")}
-          <span className="text-muted-foreground/60"> · {location.location_id}</span>
-        </p>
+        {/* Business name over the raw location id — no agency wording. */}
+        <p className="text-xs text-muted-foreground truncate font-mono">{location.location_id}</p>
       </div>
     </div>
   );

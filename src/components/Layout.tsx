@@ -1,28 +1,19 @@
-import { useEffect } from "react";
-import { Outlet, useLocation } from "react-router-dom";
+import { Outlet } from "react-router-dom";
 import Navbar from "@/components/Navbar";
 import Footer from "@/components/Footer";
-import { isEmbed, rememberEmbed } from "@/lib/ghl";
 
 /**
- * App shell shared by every route.
+ * App shell shared by every route inside it (homepage + Review Boost customer
+ * app). The public scan / thank-you pages and the Admin Portal live OUTSIDE this
+ * Layout and are unaffected by it.
  *
- * Renders ONE continuous VisionOS ambient background — a fixed, full-viewport
- * layer pinned behind all content — plus the shared Navbar and Footer. Because
- * the background is fixed to the viewport (not per-page / per-section), it never
- * breaks, bands, or jumps when navigating between routes or scrolling.
+ * Renders ONE continuous VisionOS ambient background plus the shared Navbar and
+ * Footer. The navbar is ALWAYS shown — including inside the GHL iframe (embed) —
+ * per the owner's decision, so the full Playbook nav is available there too.
  *
  * Pages must NOT render their own background, Navbar or Footer.
  */
 const Layout = () => {
-  // Embed mode (Review Boost inside the GHL iframe, ?embed=true / ?ghl=true):
-  // hide the Playbook navbar + footer so only the tool's own shell shows.
-  const { search } = useLocation();
-  useEffect(() => {
-    rememberEmbed(search);
-  }, [search]);
-  const embed = isEmbed(search);
-
   return (
     <div className="relative min-h-screen overflow-x-hidden">
       {/* Continuous ambient light layer. Near-white base (#FCFDFF) with three
@@ -35,9 +26,9 @@ const Layout = () => {
         <div className="absolute -bottom-[20vh] left-[20vw] w-[70vw] h-[55vh] rounded-full bg-[#DCE6FF] opacity-25 blur-[100px]" />
       </div>
 
-      {!embed && <Navbar />}
+      <Navbar />
       <Outlet />
-      {!embed && <Footer />}
+      <Footer />
     </div>
   );
 };

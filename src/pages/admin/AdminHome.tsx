@@ -18,8 +18,8 @@ export default function AdminHome() {
 
   return (
     <div>
-      <h1 className="text-xl font-semibold">欢迎回来{admin?.name ? `，${admin.name}` : ""} 👋</h1>
-      <p className="text-sm text-slate-400 mt-1">Playbook 全平台管理后台。</p>
+      <h1 className="text-xl font-display font-bold">欢迎回来{admin?.name ? `，${admin.name}` : ""} 👋</h1>
+      <p className="text-sm text-muted-foreground mt-1">Playbook 全平台管理后台。</p>
 
       <div className="grid sm:grid-cols-3 gap-4 mt-6">
         {cards.map((c) => {
@@ -28,19 +28,19 @@ export default function AdminHome() {
               <div className="w-10 h-10 rounded-xl flex items-center justify-center text-white mb-3" style={{ background: "linear-gradient(135deg, #FF7E5F, #FF3D6E)" }}>
                 {c.icon}
               </div>
-              <p className="font-semibold">{c.title}</p>
-              <p className="text-sm text-slate-400 mt-1">{c.desc}</p>
+              <p className="font-display font-semibold">{c.title}</p>
+              <p className="text-sm text-muted-foreground mt-1">{c.desc}</p>
               {c.soon && (
-                <span className="inline-block mt-3 text-[11px] rounded-full px-2 py-0.5 bg-white/10 text-slate-300">即将上线 · {c.soon}</span>
+                <span className="inline-block mt-3 text-[11px] rounded-full px-2 py-0.5 bg-muted text-muted-foreground">即将上线 · {c.soon}</span>
               )}
             </>
           );
           return c.to ? (
-            <Link key={c.title} to={c.to} className="rounded-2xl border border-white/10 bg-white/5 p-5 hover:border-white/25 transition-colors">
+            <Link key={c.title} to={c.to} className="glass-card rounded-2xl p-5">
               {inner}
             </Link>
           ) : (
-            <div key={c.title} className="rounded-2xl border border-white/10 bg-white/5 p-5 opacity-80">
+            <div key={c.title} className="glass-card rounded-2xl p-5 opacity-80">
               {inner}
             </div>
           );

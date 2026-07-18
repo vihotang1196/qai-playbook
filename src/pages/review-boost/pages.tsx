@@ -41,7 +41,7 @@ export const CampaignDetail = mk(
 );
 export const LocationCampaigns = mk(
   { cn: "活动", en: "Campaigns" },
-  { cn: "该 Sub Account 的所有好评活动。", en: "All review campaigns for this Sub Account." },
+  { cn: "你的所有好评活动。", en: "All your review campaigns." },
   "Phase 5",
 );
 export const LocationCampaignCreate = mk(
@@ -56,7 +56,7 @@ export const LocationDashboard = mk(
 );
 export const LocationSettings = mk(
   { cn: "设置", en: "Settings" },
-  { cn: "Sub Account 品牌与偏好设定。", en: "Sub Account branding and preferences." },
+  { cn: "商家品牌与偏好设定。", en: "Business branding and preferences." },
   "Phase 5",
 );
 // (Email/password login removed — identity comes from GHL via the URL

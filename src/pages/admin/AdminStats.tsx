@@ -37,12 +37,12 @@ export default function AdminStats() {
 
   if (loading) {
     return (
-      <div className="flex items-center justify-center gap-2 text-slate-400 py-16">
+      <div className="flex items-center justify-center gap-2 text-muted-foreground py-16">
         <Loader2 className="w-5 h-5 animate-spin" /> 加载中…
       </div>
     );
   }
-  if (!stats) return <p className="text-sm text-slate-400 py-10">暂无数据。</p>;
+  if (!stats) return <p className="text-sm text-muted-foreground py-10">暂无数据。</p>;
 
   const maxTool = Math.max(1, ...stats.byTool.map((t) => t.count));
   const maxLoc = Math.max(1, ...stats.topSubAccounts.map((t) => t.count));
@@ -50,10 +50,10 @@ export default function AdminStats() {
   return (
     <div>
       <div className="flex items-center gap-2">
-        <BarChart3 className="w-5 h-5 text-slate-300" />
+        <BarChart3 className="w-5 h-5 text-foreground" />
         <h1 className="text-xl font-semibold">使用统计</h1>
       </div>
-      <p className="text-sm text-slate-400 mt-1">各 Sub Account 在各工具上的用量总览。</p>
+      <p className="text-sm text-muted-foreground mt-1">各 Sub Account 在各工具上的用量总览。</p>
 
       {/* Totals */}
       <div className="grid grid-cols-3 gap-3 mt-5">
@@ -63,7 +63,7 @@ export default function AdminStats() {
       </div>
 
       {/* Trend */}
-      <section className="mt-4 rounded-2xl border border-white/10 bg-white/5 p-5">
+      <section className="mt-4 glass-card rounded-2xl p-5">
         <h2 className="font-semibold mb-3">近 30 天用量趋势</h2>
         <div style={{ width: "100%", height: 200 }}>
           <ResponsiveContainer>
@@ -74,10 +74,10 @@ export default function AdminStats() {
                   <stop offset="100%" stopColor="#FF3D6E" stopOpacity={0.04} />
                 </linearGradient>
               </defs>
-              <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.06)" vertical={false} />
-              <XAxis dataKey="date" tickFormatter={(d: string) => d.slice(5)} interval={6} tick={{ fontSize: 11, fill: "#7a7f8c" }} axisLine={false} tickLine={false} />
-              <YAxis allowDecimals={false} tick={{ fontSize: 11, fill: "#7a7f8c" }} axisLine={false} tickLine={false} width={28} />
-              <Tooltip formatter={(v) => [String(v), "生成"]} contentStyle={{ borderRadius: 12, border: "1px solid rgba(0,0,0,0.15)", background: "#171a22", fontSize: 12, color: "#e5e7eb" }} />
+              <CartesianGrid strokeDasharray="3 3" stroke="rgba(0,0,0,0.06)" vertical={false} />
+              <XAxis dataKey="date" tickFormatter={(d: string) => d.slice(5)} interval={6} tick={{ fontSize: 11, fill: "#9a9ab0" }} axisLine={false} tickLine={false} />
+              <YAxis allowDecimals={false} tick={{ fontSize: 11, fill: "#9a9ab0" }} axisLine={false} tickLine={false} width={28} />
+              <Tooltip formatter={(v) => [String(v), "生成"]} contentStyle={{ borderRadius: 12, border: "1px solid rgba(0,0,0,0.08)", background: "#ffffff", fontSize: 12 }} />
               <Area type="monotone" dataKey="count" stroke="#FF3D6E" strokeWidth={2} fill="url(#usageFill)" />
             </AreaChart>
           </ResponsiveContainer>
@@ -86,7 +86,7 @@ export default function AdminStats() {
 
       <div className="grid md:grid-cols-2 gap-4 mt-4">
         {/* By tool */}
-        <section className="rounded-2xl border border-white/10 bg-white/5 p-5">
+        <section className="glass-card rounded-2xl p-5">
           <h2 className="font-semibold mb-3">按工具</h2>
           <div className="space-y-2.5">
             {ADMIN_TOOLS.map((t) => {
@@ -95,10 +95,10 @@ export default function AdminStats() {
               return (
                 <div key={t.key}>
                   <div className="flex items-center justify-between text-sm mb-1">
-                    <span>{t.name.cn}{!t.live && <span className="text-[11px] text-slate-500"> · 即将</span>}</span>
-                    <span className="text-slate-300">{count}</span>
+                    <span>{t.name.cn}{!t.live && <span className="text-[11px] text-muted-foreground"> · 即将</span>}</span>
+                    <span className="text-foreground">{count}</span>
                   </div>
-                  <div className="h-2 rounded-full bg-white/10 overflow-hidden">
+                  <div className="h-2 rounded-full bg-muted overflow-hidden">
                     <div className="h-full rounded-full" style={{ width: `${(count / maxTool) * 100}%`, background: "linear-gradient(90deg, #FF7E5F, #FF3D6E)" }} />
                   </div>
                 </div>
@@ -108,21 +108,21 @@ export default function AdminStats() {
         </section>
 
         {/* Top sub-accounts */}
-        <section className="rounded-2xl border border-white/10 bg-white/5 p-5">
+        <section className="glass-card rounded-2xl p-5">
           <h2 className="font-semibold mb-3">用量最多的 Sub Account</h2>
           {stats.topSubAccounts.length === 0 ? (
-            <p className="text-sm text-slate-400">还没有用量数据。</p>
+            <p className="text-sm text-muted-foreground">还没有用量数据。</p>
           ) : (
             <div className="space-y-2">
               {stats.topSubAccounts.map((s, i) => (
                 <div key={s.location_id} className="flex items-center gap-3">
-                  <span className="text-xs text-slate-500 w-4 shrink-0">{i + 1}</span>
+                  <span className="text-xs text-muted-foreground w-4 shrink-0">{i + 1}</span>
                   <div className="flex-1 min-w-0">
                     <div className="flex items-center justify-between text-sm">
                       <span className="truncate">{s.business_name || s.location_id}</span>
-                      <span className="text-slate-300 shrink-0 ml-2">{s.count}</span>
+                      <span className="text-foreground shrink-0 ml-2">{s.count}</span>
                     </div>
-                    <div className="h-1.5 rounded-full bg-white/10 overflow-hidden mt-1">
+                    <div className="h-1.5 rounded-full bg-muted overflow-hidden mt-1">
                       <div className="h-full rounded-full" style={{ width: `${(s.count / maxLoc) * 100}%`, background: "linear-gradient(90deg, #FF7E5F, #FF3D6E)" }} />
                     </div>
                   </div>
@@ -138,8 +138,8 @@ export default function AdminStats() {
 
 function Tile({ icon, label, value }: { icon: React.ReactNode; label: string; value: number }) {
   return (
-    <div className="rounded-2xl border border-white/10 bg-white/5 p-4">
-      <div className="flex items-center gap-1.5 text-slate-400 mb-1.5">
+    <div className="glass-card rounded-2xl p-4">
+      <div className="flex items-center gap-1.5 text-muted-foreground mb-1.5">
         <span className="text-primary">{icon}</span>
         <span className="text-xs">{label}</span>
       </div>
