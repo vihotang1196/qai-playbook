@@ -26,3 +26,9 @@ verify_jwt = false
 # platform_admins allowlist before any privileged work.
 [functions.admin]
 verify_jwt = false
+
+# Helpdesk admin (agency-internal — the shared help center). Anon-callable at the
+# gateway; the REAL gate is requireAdmin() inside. Runs with the service role;
+# the frontend never touches hd_ tables directly.
+[functions.helpdesk-admin]
+verify_jwt = false

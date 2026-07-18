@@ -1,7 +1,8 @@
 import { NavLink, Outlet } from "react-router-dom";
-import { BookOpen, MessagesSquare, BarChart3, Megaphone, Settings } from "lucide-react";
+import { LayoutDashboard, BookOpen, MessagesSquare, BarChart3, Megaphone, Settings } from "lucide-react";
 
 const TABS = [
+  { to: "/admin/helpdesk", label: "总览", icon: LayoutDashboard, end: true },
   { to: "/admin/helpdesk/knowledge", label: "知识库", icon: BookOpen },
   { to: "/admin/helpdesk/conversations", label: "对话", icon: MessagesSquare },
   { to: "/admin/helpdesk/analytics", label: "分析", icon: BarChart3 },
@@ -35,6 +36,7 @@ export default function HelpdeskAdminShell() {
           <NavLink
             key={t.to}
             to={t.to}
+            end={t.end}
             className={({ isActive }) =>
               `inline-flex items-center gap-1.5 rounded-xl px-3 py-1.5 text-xs font-medium transition-colors ${
                 isActive
