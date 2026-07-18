@@ -5,8 +5,8 @@ ported from a Lovable export. **IN PROGRESS — P0 (scaffold) + P1 (DB) done.**
 This file records the owner's locked decisions, the old-version facts, and the
 phased plan so a new session can pick up without re-researching.
 
-_Last updated: 2026-07-18 — branch cut; P0 (routes + placeholders) + P1 (hd_
-schema) done, committed + pushed to `feat/helpdesk`. Next: P2 (login + shell)._
+_Last updated: 2026-07-18 — P0 (routes) + P1 (hd_ schema) + P2 (admin login +
+live-data shell) done, committed + pushed to `feat/helpdesk`. Next: P3 (KB CRUD)._
 
 ## Where to build it
 - **Old version (read-only reference):** `C:\Users\chais\Projects\QAI Helpdesk`
@@ -77,9 +77,22 @@ Each phase is committed + pushed to `feat/helpdesk` when done.
   the Notion key is NOT anon-readable); rb_*/ghl_locations/platform_admins/
   location_tool_access/admin_audit_log/tool_usage intact; knowledge_entries +
   match_knowledge → 404 (never introduced).
-- [ ] **P2 — Login + admin shell.** Reuse `requireAdmin`; a `helpdesk-admin` edge
-  fn (or extend `admin`) service-role-gated; wire the shell to real data. NEXT.
+- [x] **P2 — Login + admin shell wired to live data (2026-07-18).** Helpdesk
+  admin lives INSIDE the Admin Portal, reusing the ONE requireAdmin login. New
+  dedicated `helpdesk-admin` edge fn (kept separate from the platform `admin` fn
+  so that stays lean — mirrors how `rb` is separate; owner-approved structure):
+  every action gated by `requireAdmin` before any service-role work,
+  `verify_jwt=false` at the gateway. Ships `overview` — live counts (articles/
+  folders/conversations/faq/updates) + Notion connection state (never returns the
+  key). Files: `supabase/functions/helpdesk-admin/index.ts` + `config.toml`,
+  `src/lib/helpdeskAdmin.ts` (session-authed client, same pattern as adminApi.ts),
+  `src/pages/admin/helpdesk/Overview.tsx` (index page, count tiles + Notion card),
+  `HelpdeskAdminShell` gained a 总览 tab. **Verified live:** deployed to hkqzz;
+  with an admin session the Overview renders real counts (all 0 — empty tables) +
+  "Notion 未连接"; anon key / garbage token / no-token all → 403 not_authorized;
+  tsc clean; no console/server errors.
 - [ ] **P3 — Knowledge Base admin.** Articles/folders CRUD (manual path first).
+  NEXT — add CRUD actions to `helpdesk-admin`; build the 知识库 page.
 - [ ] **P4 — Notion sync ⭐ (biggest).** Port the ~1000-line importer + copy
   Notion media into Supabase Storage; tombstones via `hd_deleted_notion_entries`.
 - [ ] **P5 — AI chat backend.** Claude `claude-sonnet-4-5` + tool-use
