@@ -9,7 +9,7 @@ Branch: **`feat/admin-portal`** (cut from `feat/review-boost`, so it has RB's co
 to enforce access into). Shares the Playbook Supabase project (`hkqzzfyigmvisaftdmwh`).
 Commit + push after every step.
 
-_Last updated: 2026-07-17 — Step D done (shared tool_usage log + cross-tool /admin/stats). **All 4 steps (A–D) complete.**_
+_Last updated: 2026-07-17 — Step D done (shared tool_usage log + cross-tool /admin/stats); then UI polish (Admin Portal → light coral-glass theme). **All 4 steps (A–D) complete.**_
 
 ## Architecture principles (manage ALL tools)
 - **Tool-agnostic:** every tool is a `tool_key` (`review_boost`, `copywriter`, future

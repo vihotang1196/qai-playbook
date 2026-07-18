@@ -5,7 +5,12 @@ from a Lovable export into this Vite + react-router app. All work is on branch
 **`feat/review-boost`** (cut from `main`, NOT from `feat/copywriter` — the two
 tools live on separate branches). Commit + push after every phase.
 
-_Last updated: 2026-07-17 — Phase 9 done (dashboard: scans/posted/posted-rate tiles + 30-day trend + per-campaign comparison, recharts; posted-rate labeled self-reported)._
+_Last updated: 2026-07-17 — Phase 9 done, then UI polish (embed navbar reversed → always shown; "Sub Account" removed from the RB CLIENT; platforms page = collapsed list)._
+
+> ⚠️ **Latest RB code lives on `feat/admin-portal`**, not `feat/review-boost`. The
+> `feat/review-boost` branch is FROZEN at Phase 9 (`1d00e47`). `feat/admin-portal`
+> was cut from it and contains RB Phase 0–9 **plus** the Admin Portal (A–D) **plus**
+> the two UI-polish rounds. Do RB work on `feat/admin-portal` (or a branch off it).
 
 ## Scope (locked by owner)
 
