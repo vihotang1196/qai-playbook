@@ -1,6 +1,6 @@
 import { useEffect } from "react";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { BrowserRouter, Route, Routes, useLocation } from "react-router-dom";
+import { BrowserRouter, Navigate, Route, Routes, useLocation } from "react-router-dom";
 import { Toaster as Sonner } from "@/components/ui/sonner";
 import { Toaster } from "@/components/ui/toaster";
 import { TooltipProvider } from "@/components/ui/tooltip";
@@ -28,6 +28,9 @@ import AdminHome from "./pages/admin/AdminHome";
 import AdminSubAccounts from "./pages/admin/AdminSubAccounts";
 import AdminStats from "./pages/admin/AdminStats";
 import AdminAudit from "./pages/admin/AdminAudit";
+import HelpdeskAdminShell from "./components/helpdesk/HelpdeskAdminShell";
+import { HdKnowledge, HdConversations, HdAnalytics, HdUpdates, HdSettings } from "./pages/admin/helpdesk/sections";
+import HelpWidget from "./pages/help/HelpWidget";
 
 const ScrollToTop = () => {
   const { pathname } = useLocation();
@@ -51,6 +54,11 @@ const App = () => (
             <Route path="/scan/:code" element={<RBScanPage />} />
             <Route path="/thank-you/:generationId" element={<RBThankYouPage />} />
 
+            {/* Helpdesk — public embeddable AI support widget. Chrome-less,
+                full-screen, OUTSIDE the shared Layout (embeds as an iframe on any
+                site, like /scan). QAI's SHARED help center — no per-client scoping. */}
+            <Route path="/help" element={<HelpWidget />} />
+
             {/* Admin Portal — platform-wide, real-login-guarded, OUTSIDE the
                 customer Layout (its own dark chrome; zero customer capability).
                 AdminLayout guards; every admin edge-fn action re-checks server-side. */}
@@ -60,6 +68,18 @@ const App = () => (
               <Route path="sub-accounts" element={<AdminSubAccounts />} />
               <Route path="stats" element={<AdminStats />} />
               <Route path="audit" element={<AdminAudit />} />
+
+              {/* Helpdesk admin — the shared help center is managed only by
+                  signed-in platform admins, so it lives INSIDE the portal
+                  (reusing the one login + guard) rather than in a customer route. */}
+              <Route path="helpdesk" element={<HelpdeskAdminShell />}>
+                <Route index element={<Navigate to="knowledge" replace />} />
+                <Route path="knowledge" element={<HdKnowledge />} />
+                <Route path="conversations" element={<HdConversations />} />
+                <Route path="analytics" element={<HdAnalytics />} />
+                <Route path="updates" element={<HdUpdates />} />
+                <Route path="settings" element={<HdSettings />} />
+              </Route>
             </Route>
 
             {/* All other routes share the Layout shell (continuous background + Navbar + Footer). */}

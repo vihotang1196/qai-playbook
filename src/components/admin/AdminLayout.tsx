@@ -6,6 +6,7 @@ import { whoami, signOut, type AdminIdentity } from "@/lib/adminAuth";
 const NAV = [
   { to: "/admin", label: "首页", end: true },
   { to: "/admin/sub-accounts", label: "Sub Account & 权限", end: false },
+  { to: "/admin/helpdesk", label: "Helpdesk", end: false },
   { to: "/admin/stats", label: "使用统计", end: false },
   { to: "/admin/audit", label: "审计日志", end: false },
 ];
