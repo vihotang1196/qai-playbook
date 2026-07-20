@@ -5,9 +5,12 @@ ported from a Lovable export. **IN PROGRESS — P0 (scaffold) + P1 (DB) done.**
 This file records the owner's locked decisions, the old-version facts, and the
 phased plan so a new session can pick up without re-researching.
 
-_Last updated: 2026-07-20 — P0–P3 done, committed + pushed to `feat/helpdesk`.
-P3 = knowledge-base CRUD (verified live, incl. a dialog-freeze bug found & fixed).
-Next: P4 (Notion sync)._
+_Last updated: 2026-07-20 — P0–P3 + P4a/P4b done, committed + pushed to
+`feat/helpdesk`. Notion sync: manual DB list + batched/incremental/resumable text
+import + auto category folders (from section headings) all working on real data.
+Next: P4c (media → Storage). NOTE: corpus is ~1200 articles across ~33 inline
+databases under the "Q.AI Support Library"; articles are media-heavy (screenshots
++ videos), so P4c is essential, not optional._
 
 ## Where to build it
 - **Old version (read-only reference):** `C:\Users\chais\Projects\QAI Helpdesk`
@@ -109,9 +112,31 @@ Each phase is committed + pushed to `feat/helpdesk` when done.
   pointer-events:none after a dialog closed, freezing the page → both dialogs now
   conditionally MOUNTED (full unmount on close) + `releaseBodyPointerLock()`.
   Deps added: react-markdown, remark-gfm. Left one demo folder "入门指南" in the DB.
-- [ ] **P4 — Notion sync ⭐ (biggest).** Port the ~1000-line importer + copy
-  Notion media into Supabase Storage; tombstones via `hd_deleted_notion_entries`.
-  NEXT.
+- **P4 — Notion sync ⭐ (biggest).** Split into sub-steps for the ~1200-article scale:
+  - [x] **P4a — connect + discover (2026-07-20).** `helpdesk-admin`: `testNotion`
+    (title + page count), `listNotionDatabases` (search all accessible DBs + counts,
+    most-first). Settings page: DB-ID input + 测试连接 + 列出数据库. NOTION_API_KEY =
+    Supabase secret (owner set). Found: corpus is ~1200 pages across ~33 untitled
+    INLINE databases under "Q.AI Support Library".
+  - [x] **P4b — manual DB list + batched TEXT sync + auto folders (2026-07-20).**
+    Manual add/remove DB list (`hd_notion_settings.database_ids`); only added DBs
+    sync. Migration: `hd_sync_queue` (per-page work-list) + `hd_articles.notion_last_edited`
+    + `hd_sync_queue.folder_id`. `_shared/notion.ts`: one converter (retrying
+    notionFetch, text-only, media→placeholder, depth-capped) + `folderNameForDatabase`
+    (folder = the section HEADING of the DB's two-column layout — "Automation",
+    "Payments", etc.). Actions: getNotionConfig / add / remove / planNotionSync
+    (folder resolved once, re-folders skipped articles) / runNotionSyncBatch
+    (per-page try/catch, uses stored folder_id) / getNotionSyncStatus. Settings UI:
+    connected-DB list + per-DB sync + progress bar. **Verified live:** synced a
+    19-page + a 4-page library — multi-batch progress, incremental re-sync skips
+    unchanged, folders = "Expert - Start Setup Automation" (19) + "Webinar
+    Templates" (4). 23 real articles imported.
+  - [ ] **P4c — media → Supabase Storage.** Download Notion image/video/file URLs
+    (expiring S3) → upload to a new public bucket → rewrite content URLs. Replace
+    the `[图片]/[视频]` placeholders. ESSENTIAL for this media-heavy corpus. NEXT.
+  - [ ] **P4d — tombstones + scale-out.** Write `hd_deleted_notion_entries` on
+    delete of a Notion article + honor it on sync (no resurrection); retry-failed;
+    full sync of all libraries.
 - [ ] **P5 — AI chat backend.** Claude `claude-sonnet-4-5` + tool-use
   (`search_knowledge` / `get_article` read BODIES), non-streaming.
 - [ ] **P6 — The widget.** ONE unified embeddable widget at `/help`.
