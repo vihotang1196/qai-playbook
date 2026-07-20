@@ -222,6 +222,79 @@ serve(async (req) => {
         return json({ ok: true, title, pageCount: count });
       }
 
+      // ── Notion: list every database this integration can see (P4a helper).
+      //    Uses Notion search, then counts pages per db (globally bounded so a
+      //    huge workspace can't time out). Imports nothing. This is how the
+      //    owner finds their real database id + which one holds the articles. ─
+      case "listNotionDatabases": {
+        const key = Deno.env.get("NOTION_API_KEY");
+        if (!key) return json({ ok: false, message: "NOTION_API_KEY 未配置" });
+
+        const notionHeaders = {
+          Authorization: `Bearer ${key}`,
+          "Notion-Version": "2022-06-28",
+          "Content-Type": "application/json",
+        };
+
+        // 1) search → every database shared with the integration
+        const found: { id: string; title: string; url: string | null }[] = [];
+        let cursor: string | undefined = undefined;
+        let loops = 0;
+        do {
+          const resp = await fetch("https://api.notion.com/v1/search", {
+            method: "POST",
+            headers: notionHeaders,
+            body: JSON.stringify({
+              filter: { property: "object", value: "database" },
+              page_size: 100,
+              start_cursor: cursor,
+            }),
+          });
+          if (!resp.ok) {
+            if (resp.status === 401) return json({ ok: false, message: "密钥无效或未授权，请检查 NOTION_API_KEY" });
+            return json({ ok: false, message: `搜索失败（Notion 返回 ${resp.status}）` });
+          }
+          const data = await resp.json();
+          for (const d of data.results || []) {
+            const title = (d.title || []).map((t: { plain_text?: string }) => t?.plain_text || "").join("").trim() || "(无标题)";
+            found.push({ id: d.id, title, url: d.url || null });
+          }
+          cursor = data.has_more ? data.next_cursor : undefined;
+          loops++;
+          if (loops > 20) break;
+        } while (cursor);
+
+        // 2) count pages per db, bounded by a global request budget
+        let budget = 80;
+        const databases: { id: string; title: string; url: string | null; pageCount: number; capped: boolean }[] = [];
+        for (const d of found) {
+          let count = 0;
+          let c2: string | undefined = undefined;
+          let capped = false;
+          do {
+            if (budget <= 0) {
+              capped = true;
+              break;
+            }
+            const qr = await fetch(`https://api.notion.com/v1/databases/${d.id}/query`, {
+              method: "POST",
+              headers: notionHeaders,
+              body: JSON.stringify({ page_size: 100, start_cursor: c2 }),
+            });
+            budget--;
+            if (!qr.ok) break;
+            const q = await qr.json();
+            count += (q.results || []).length;
+            c2 = q.has_more ? q.next_cursor : undefined;
+          } while (c2);
+          databases.push({ id: d.id, title: d.title, url: d.url, pageCount: count, capped });
+        }
+
+        // Most-articles first — the owner's real library floats to the top.
+        databases.sort((a, b) => b.pageCount - a.pageCount);
+        return json({ ok: true, databases });
+      }
+
       default:
         return json({ error: `Unknown action: ${action || "(none)"}` }, 400);
     }

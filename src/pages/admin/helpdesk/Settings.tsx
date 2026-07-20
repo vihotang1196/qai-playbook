@@ -1,6 +1,12 @@
 import { useState } from "react";
-import { Plug, Loader2, CheckCircle2, XCircle, Palette } from "lucide-react";
-import { testNotion, type NotionTestResult } from "@/lib/helpdeskAdmin";
+import { Plug, Loader2, CheckCircle2, XCircle, Palette, ListTree, Copy } from "lucide-react";
+import { toast } from "sonner";
+import {
+  testNotion,
+  listNotionDatabases,
+  type NotionTestResult,
+  type NotionDatabase,
+} from "@/lib/helpdeskAdmin";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -16,6 +22,10 @@ export default function HelpdeskSettings() {
   const [testing, setTesting] = useState(false);
   const [result, setResult] = useState<NotionTestResult | null>(null);
 
+  const [listing, setListing] = useState(false);
+  const [dbList, setDbList] = useState<NotionDatabase[] | null>(null);
+  const [listErr, setListErr] = useState<string | null>(null);
+
   async function onTest() {
     const id = dbId.trim();
     if (!id) return;
@@ -29,6 +39,28 @@ export default function HelpdeskSettings() {
     } finally {
       setTesting(false);
     }
+  }
+
+  async function onList() {
+    setListing(true);
+    setListErr(null);
+    setDbList(null);
+    try {
+      const r = await listNotionDatabases();
+      if (r.ok && r.databases) setDbList(r.databases);
+      else setListErr(r.message || "列出失败");
+    } catch (e) {
+      setListErr(e instanceof Error ? e.message : "请求失败");
+    } finally {
+      setListing(false);
+    }
+  }
+
+  function copyId(id: string) {
+    navigator.clipboard?.writeText(id).then(
+      () => toast.success("已复制数据库 ID"),
+      () => toast.error("复制失败"),
+    );
   }
 
   return (
@@ -95,6 +127,56 @@ export default function HelpdeskSettings() {
               </div>
             </div>
           )}
+
+          {/* Discover: list every database the integration can see */}
+          <div className="pt-2 border-t border-border/50">
+            <div className="flex items-center justify-between gap-2">
+              <p className="text-sm text-muted-foreground">不确定用哪个库？让集成把它能访问的数据库都列出来：</p>
+              <Button variant="outline" size="sm" className="gap-1.5 shrink-0" onClick={onList} disabled={listing}>
+                {listing ? <Loader2 className="w-4 h-4 animate-spin" /> : <ListTree className="w-4 h-4" />}
+                {listing ? "列出中…" : "列出数据库"}
+              </Button>
+            </div>
+
+            {listErr && <p className="text-sm text-destructive mt-2">{listErr}</p>}
+
+            {dbList && (
+              <div className="mt-3 space-y-1.5">
+                {dbList.length === 0 ? (
+                  <p className="text-sm text-muted-foreground">
+                    没有找到任何数据库——说明还没有数据库被分享给这个集成（在 Notion 里 ••• → Connections 加上）。
+                  </p>
+                ) : (
+                  dbList.map((d) => (
+                    <div key={d.id} className="rounded-xl border border-border/50 px-3 py-2 flex items-center gap-3">
+                      <div className="flex-1 min-w-0">
+                        <p className="text-sm font-medium truncate">{d.title}</p>
+                        <p className="text-[11px] text-muted-foreground font-mono truncate">{d.id}</p>
+                      </div>
+                      <span className="text-xs tabular-nums text-muted-foreground shrink-0">
+                        {d.pageCount}
+                        {d.capped ? "+" : ""} 篇
+                      </span>
+                      <Button variant="ghost" size="icon" className="h-8 w-8 shrink-0" onClick={() => copyId(d.id)} aria-label="复制 ID">
+                        <Copy className="w-3.5 h-3.5" />
+                      </Button>
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        className="shrink-0 text-xs"
+                        onClick={() => {
+                          setDbId(d.id);
+                          setResult(null);
+                        }}
+                      >
+                        填入
+                      </Button>
+                    </div>
+                  ))
+                )}
+              </div>
+            )}
+          </div>
         </div>
       </div>
 

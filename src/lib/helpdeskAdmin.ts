@@ -122,3 +122,17 @@ export type NotionTestResult = { ok: boolean; title?: string; pageCount?: number
 export async function testNotion(databaseId: string): Promise<NotionTestResult> {
   return callHelpdesk<NotionTestResult>("testNotion", { database_id: databaseId });
 }
+
+export type NotionDatabase = {
+  id: string;
+  title: string;
+  url: string | null;
+  pageCount: number;
+  capped: boolean;
+};
+
+/** List every Notion database this integration can access (id + title + page
+ *  count, most-articles first). Imports nothing. Admin-only. */
+export async function listNotionDatabases(): Promise<{ ok: boolean; databases?: NotionDatabase[]; message?: string }> {
+  return callHelpdesk("listNotionDatabases");
+}
