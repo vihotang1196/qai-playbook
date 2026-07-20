@@ -5,12 +5,13 @@ ported from a Lovable export. **IN PROGRESS — P0 (scaffold) + P1 (DB) done.**
 This file records the owner's locked decisions, the old-version facts, and the
 phased plan so a new session can pick up without re-researching.
 
-_Last updated: 2026-07-20 — P0–P3 + P4a/P4b/P4c done, committed + pushed to
-`feat/helpdesk`. Notion sync now imports text + auto category folders + media
-(images/videos → public helpdesk-media bucket, permanent URLs), batched /
-incremental / resumable / per-asset fault-tolerant. Next: P4d (tombstones +
-full-corpus sync of all ~33 libraries). NOTE: corpus is ~1200 articles across
-~33 inline databases under the "Q.AI Support Library"._
+_Last updated: 2026-07-20 — P0–P4 done (P4a–P4d), committed + pushed to
+`feat/helpdesk`. **Notion sync fully working**: manual DB list, batched /
+incremental / resumable / per-asset-fault-tolerant text + auto category folders
+(from section headings) + media (→ public helpdesk-media bucket, permanent URLs)
++ tombstones (deleted articles don't resurrect). KB is READ-ONLY (mirrors Notion).
+Owner syncs libraries one at a time (manual). Storage ~6.9 MB/article (~8 GB for
+the full ~1200). Next: P5 (AI chat — Claude tool-use over the synced KB)._
 
 ## Where to build it
 - **Old version (read-only reference):** `C:\Users\chais\Projects\QAI Helpdesk`
@@ -143,9 +144,18 @@ Each phase is committed + pushed to `feat/helpdesk` when done.
     slow). **Verified live:** force-resynced the 19-page library — the
     placeholder-only "Payment Success" article now has a real image (loads,
     1500×600) + video player, all Supabase URLs, 0 placeholders / 0 failed.
-  - [ ] **P4d — tombstones + scale-out.** Write `hd_deleted_notion_entries` on
-    delete of a Notion article + honor it on sync (no resurrection); retry-failed;
-    full sync of all libraries.
+  - [x] **P4d — tombstones + read-only KB + polish (2026-07-20).** deleteArticle
+    records a Notion article's source_id in `hd_deleted_notion_entries`;
+    planNotionSync skips tombstoned pages ALWAYS (even force) → no resurrection.
+    KB made READ-ONLY (owner: it mirrors Notion) — removed 新建文章 + per-row edit;
+    rows open a read-only `ArticleView` (rendered md, image + `<video>`); kept
+    delete; deleted ArticleEdit.tsx. Sync polish: persistent per-DB last-result +
+    retry-via-resync; `getStorageUsage` action + 已用存储 readout in Settings.
+    **Verified live:** deleted "Payment Success" → re-synced → stayed gone
+    (skipped 19, 0 re-imported). Storage so far 157.8 MB / 38 files for 23
+    articles (~6.9 MB/article → ~8 GB projected for the full ~1200).
+    NOT DONE (owner's choice): full sync of all ~33 libraries — owner adds + syncs
+    them one at a time (manual DB list). Optional later: un-tombstone UI.
 - [ ] **P5 — AI chat backend.** Claude `claude-sonnet-4-5` + tool-use
   (`search_knowledge` / `get_article` read BODIES), non-streaming.
 - [ ] **P6 — The widget.** ONE unified embeddable widget at `/help`.
