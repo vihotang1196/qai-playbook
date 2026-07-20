@@ -38,3 +38,10 @@ verify_jwt = false
 # and log conversations. Reads ANTHROPIC_API_KEY secret.
 [functions.helpdesk-chat]
 verify_jwt = false
+
+# Helpdesk PUBLIC read API — the customer help center (widget) reads the shared
+# KB through here. Anon-callable; runs with the service role internally. READ
+# ONLY (listFolders / listArticles / getArticle); no writes, no secrets, no
+# per-location scoping (the help center is agency-wide shared content).
+[functions.helpdesk]
+verify_jwt = false

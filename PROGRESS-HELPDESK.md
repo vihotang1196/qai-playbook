@@ -1,11 +1,12 @@
 # QAI Helpdesk — Rebuild Progress
 
 Rebuild of the **Helpdesk** (4th migrated tool) into this Playbook project,
-ported from a Lovable export. **IN PROGRESS — P0–P5 done; P6 (help-center page) next.**
+ported from a Lovable export. **IN PROGRESS — P0–P6 done; P7 (conversations +
+analytics admin) next.**
 This file records the owner's locked decisions, the old-version facts, and the
 phased plan so a new session can pick up without re-researching.
 
-_Last updated: 2026-07-20 — P0–P5 done, committed + pushed to `feat/helpdesk`
+_Last updated: 2026-07-20 — P0–P6 done, committed + pushed to `feat/helpdesk`
 (working tree clean, nothing unpushed). **Notion sync fully working** (P4a–d):
 manual DB list, batched / incremental / resumable / per-asset-fault-tolerant text
 + auto category folders (from section headings) + media (→ public helpdesk-media
@@ -177,7 +178,45 @@ Each phase is committed + pushed to `feat/helpdesk` when done.
   page works in-browser. Files: `supabase/functions/helpdesk-chat/index.ts` +
   config.toml, `src/lib/helpdeskChat.ts`, `src/pages/admin/helpdesk/AiTest.tsx`,
   shell tab + route. PRE-LAUNCH TODO: public chat has no rate limit yet (like RB scan).
-- [ ] **P6 — The help-center PAGE (positioning locked 2026-07-20). NEXT.**
+- [x] **P6 — The help-center PAGE (2026-07-20).** Full-screen customer help
+  center at `/help`, OUTSIDE `<Layout>` (chrome-less, embeds as a GHL iframe),
+  coral-glass, mobile-first, THREE top tabs (defaults to AI 问答). New PUBLIC
+  read fn `helpdesk` (verify_jwt=false, service-role internally, READ-ONLY:
+  listFolders / listArticles / getArticle) — the frontend never touches the
+  RLS-locked hd_ tables; the requireAdmin `helpdesk-admin` stays the only WRITE
+  path. **① AI 问答** reuses `helpdesk-chat` (channel="widget" + location_id;
+  visitorId persisted in localStorage); an answer's source guide opens that
+  article IN-PAGE (switches to the browse tab). **② 浏览教程** = folders grouped
+  (from `helpdesk` fn) + title search + read-only render via the shared
+  `Markdown` component (images + `<video>` from permanent helpdesk-media URLs).
+  **③ 产品更新** = placeholder (real content = P8). **Identity** REUSES RB's
+  low-level helpers `getLocationIdFromUrl` + `fetchLocation` (lib/ghl) — NOT the
+  RB `LocationProvider` (it's bound to RB's per-location `checkRbAccess`, which
+  the agency-wide shared help center doesn't have). **Gate** = presence of a URL
+  location_id (trust-the-URL, weak, like RB); no location_id → "请从 GHL 打开".
+  Owner's refinement: content is NOT location-scoped, so the business-name
+  resolution is best-effort (a transient `ghl` lookup failure must NOT lock a
+  real GHL user out of help) — location_id only tags conversations for
+  analytics. Files: `supabase/functions/helpdesk/index.ts` + config.toml,
+  `src/lib/helpdesk.ts`, `src/pages/help/{HelpWidget,HelpChat,HelpBrowse,
+  HelpUpdates}.tsx` (HelpWidget rewritten from the P0 stub; `/help` route
+  already existed). **Verified live in dev** (deployed `helpdesk` to hkqzz):
+  no location_id → gate page; `?location_id=…` → three tabs; AI answer + source
+  link opens the article in-page; browse shows real folders (Dashboard 31 /
+  Expert 18 / Webinar 4), search filters, an article renders a real image
+  (1500px) + `<video>` from Supabase Storage; updates placeholder; bilingual
+  toggle (帮助中心↔Help Center); mobile 375px has no horizontal overflow; tsc
+  clean; no console errors. PRE-LAUNCH TODO: public reads + chat have no rate
+  limit yet (same note as RB /scan + P5).
+  **⚠️ FOUND (P5 chat, not P6) — empty-answer-with-sources.** For
+  screenshot-heavy guides the model sometimes reads articles (so `sources`
+  populate) but returns NO final text → `helpdesk-chat`'s `answer || fallback`
+  shows "抱歉…没找到相关内容" WHILE listing "相关指南: X, Y" below — contradictory
+  UX. Fix is a small P5 tweak (prompt the model to always emit a short text
+  answer when it read an article, and/or in the widget suppress the "not found"
+  fallback when sources exist). Deferred — owner to decide.
+
+  Original P6 spec (kept for reference):
   It is a **full help-center page** at `/help` (NOT a bottom-right popup widget),
   with THREE parts in one page:
   1. **AI 问答** — reuse the P5 `helpdesk-chat` fn (pass `location_id` + a
