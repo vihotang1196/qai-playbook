@@ -180,8 +180,19 @@ serve(async (req) => {
       case "deleteArticle": {
         const id = String(body?.id || "").trim();
         if (!id) return json({ error: "id required" }, 400);
+        // Look up the source BEFORE deleting → tombstone Notion articles so a
+        // later re-sync won't resurrect them.
+        const { data: art } = await sb.from("hd_articles").select("source, source_id").eq("id", id).maybeSingle();
         const { error } = await sb.from("hd_articles").delete().eq("id", id);
         if (error) throw error;
+        if (art?.source === "notion" && art.source_id) {
+          const { data: tomb } = await sb
+            .from("hd_deleted_notion_entries")
+            .select("id")
+            .eq("source_id", art.source_id)
+            .maybeSingle();
+          if (!tomb) await sb.from("hd_deleted_notion_entries").insert({ source_id: art.source_id });
+        }
         return json({ ok: true });
       }
 
@@ -428,16 +439,22 @@ serve(async (req) => {
           for (const a of arts || []) existing.set(a.source_id as string, a.notion_last_edited as string | null);
         }
 
+        // Tombstones — pages the admin deleted must NEVER be re-imported (even
+        // with force). Skip them.
+        const { data: deletedRows } = await sb.from("hd_deleted_notion_entries").select("source_id");
+        const tombstoned = new Set((deletedRows || []).map((d) => d.source_id as string));
+
         await sb.from("hd_sync_queue").delete().eq("database_id", databaseId);
         const rows = pages.map((p) => {
           const imported = existing.get(p.id);
           const unchanged =
             !force && imported && new Date(imported).getTime() === new Date(p.last_edited_time).getTime();
+          const skip = tombstoned.has(p.id) || unchanged;
           return {
             database_id: databaseId,
             page_id: p.id,
             page_last_edited: p.last_edited_time,
-            status: unchanged ? "skipped" : "pending",
+            status: skip ? "skipped" : "pending",
             folder_id: folderId,
           };
         });
@@ -554,6 +571,25 @@ serve(async (req) => {
           counts[s] = count ?? 0;
         }
         return json({ ok: true, counts });
+      }
+
+      // ── Storage used by persisted Notion media (for quota monitoring) ────
+      case "getStorageUsage": {
+        let bytes = 0;
+        let files = 0;
+        let offset = 0;
+        while (offset < 20000) {
+          const { data, error } = await sb.storage
+            .from("helpdesk-media")
+            .list("notion", { limit: 100, offset });
+          if (error) break;
+          if (!data || data.length === 0) break;
+          for (const o of data) bytes += (o.metadata?.size as number) || 0;
+          files += data.length;
+          if (data.length < 100) break;
+          offset += 100;
+        }
+        return json({ ok: true, bytes, files });
       }
 
       default:

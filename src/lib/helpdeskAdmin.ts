@@ -173,3 +173,9 @@ export async function planNotionSync(id: string, force = false): Promise<SyncPla
 export async function runNotionSyncBatch(id: string, batchSize = 3): Promise<SyncBatch> {
   return callHelpdesk("runNotionSyncBatch", { database_id: id, batch_size: batchSize });
 }
+
+/** Bytes + file count of persisted Notion media in Storage (quota monitoring). */
+export async function getStorageUsage(): Promise<{ bytes: number; files: number }> {
+  const { bytes, files } = await callHelpdesk<{ bytes: number; files: number }>("getStorageUsage");
+  return { bytes: bytes || 0, files: files || 0 };
+}

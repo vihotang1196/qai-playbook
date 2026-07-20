@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useState } from "react";
 import { Link } from "react-router-dom";
-import { Plus, FolderCog, Pencil, Trash2, FileText, Loader2, AlertCircle, FolderPlus } from "lucide-react";
+import { FolderCog, Pencil, Eye, Trash2, FileText, Loader2, AlertCircle, FolderPlus } from "lucide-react";
 import { toast } from "sonner";
 import {
   listKnowledge,
@@ -111,12 +111,8 @@ export default function HelpdeskKnowledge() {
 
   return (
     <div className="space-y-4">
-      <div className="flex flex-wrap items-center gap-2">
-        <Button asChild size="sm" className="gap-1.5">
-          <Link to="/admin/helpdesk/knowledge/new">
-            <Plus className="w-4 h-4" /> 新建文章
-          </Link>
-        </Button>
+      <div className="flex flex-wrap items-center justify-between gap-2">
+        <p className="text-sm text-muted-foreground">内容来自 Notion 同步（在「设置」里同步）；这里只查看，不编辑。</p>
         <Button variant="outline" size="sm" className="gap-1.5" onClick={() => setFoldersOpen(true)}>
           <FolderCog className="w-4 h-4" /> 管理文件夹
         </Button>
@@ -147,7 +143,7 @@ export default function HelpdeskKnowledge() {
         <div className="glass-card rounded-2xl p-10 text-center">
           <FileText className="w-8 h-8 text-muted-foreground/50 mx-auto mb-3" />
           <p className="text-sm text-muted-foreground">
-            {articles.length === 0 ? "还没有文章。点「新建文章」写第一篇，或等 P4 从 Notion 导入。" : "这个文件夹里还没有文章。"}
+            {articles.length === 0 ? "还没有文章。去「设置」里加一个 Notion 数据库并同步。" : "这个文件夹里还没有文章。"}
           </p>
         </div>
       ) : (
@@ -167,8 +163,8 @@ export default function HelpdeskKnowledge() {
                 </p>
               </div>
               <Button asChild variant="ghost" size="icon" className="shrink-0">
-                <Link to={`/admin/helpdesk/knowledge/${a.id}`} aria-label="编辑">
-                  <Pencil className="w-4 h-4" />
+                <Link to={`/admin/helpdesk/knowledge/${a.id}`} aria-label="查看">
+                  <Eye className="w-4 h-4" />
                 </Link>
               </Button>
               <Button

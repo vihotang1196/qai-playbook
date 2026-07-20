@@ -9,6 +9,7 @@ import {
   removeNotionDatabase,
   planNotionSync,
   runNotionSyncBatch,
+  getStorageUsage,
   type NotionTestResult,
   type NotionDatabase,
 } from "@/lib/helpdeskAdmin";
@@ -78,13 +79,20 @@ export default function HelpdeskSettings() {
   const [syncingId, setSyncingId] = useState<string | null>(null);
   const [progress, setProgress] = useState<SyncProgress | null>(null);
   const [forceReimport, setForceReimport] = useState(false);
+  const [lastResult, setLastResult] = useState<Record<string, { done: number; skipped: number; failed: number }>>({});
+  const [usage, setUsage] = useState<{ bytes: number; files: number } | null>(null);
 
   useEffect(() => {
     getNotionConfig()
       .then(setDbIds)
       .catch(() => setDbIds([]))
       .finally(() => setLoadingList(false));
+    getStorageUsage()
+      .then(setUsage)
+      .catch(() => {});
   }, []);
+
+  const fmtMB = (bytes: number) => (bytes / (1024 * 1024)).toFixed(bytes >= 1024 * 1024 * 100 ? 0 : 1);
 
   async function onAddDb() {
     const id = newDbId.trim();
@@ -127,6 +135,7 @@ export default function HelpdeskSettings() {
       setProgress({ total, processed: skipped, done, failed, skipped });
       if ((plan.pending ?? 0) === 0) {
         toast.success(`都是最新的，无需更新（${skipped} 篇）`);
+        setLastResult((prev) => ({ ...prev, [id]: { done, skipped, failed } }));
         return;
       }
       let remaining = plan.pending ?? 0;
@@ -142,6 +151,8 @@ export default function HelpdeskSettings() {
         setProgress({ total: b.total ?? total, processed: skipped + done + failed, done, failed, skipped });
       }
       toast.success(`同步完成：导入/更新 ${done}，跳过 ${skipped}，失败 ${failed}`);
+      setLastResult((prev) => ({ ...prev, [id]: { done, skipped, failed } }));
+      getStorageUsage().then(setUsage).catch(() => {});
     } catch (e) {
       toast.error(e instanceof Error ? e.message : "同步出错");
     } finally {
@@ -356,11 +367,28 @@ export default function HelpdeskSettings() {
                       </p>
                     </div>
                   )}
+
+                  {!isSyncing && lastResult[id] && (
+                    <p className="text-[11px] mt-1.5 tabular-nums">
+                      <span className="text-muted-foreground">
+                        上次：导入 {lastResult[id].done} · 跳过 {lastResult[id].skipped}
+                      </span>
+                      {lastResult[id].failed > 0 && (
+                        <span className="text-destructive"> · 失败 {lastResult[id].failed}（再点「同步」可重试失败的）</span>
+                      )}
+                    </p>
+                  )}
                 </div>
               );
             })
           )}
         </div>
+
+        {usage && (
+          <p className="text-xs text-muted-foreground mt-3 pt-3 border-t border-border/50">
+            已用存储：<b className="tabular-nums">{fmtMB(usage.bytes)} MB</b>（{usage.files} 个媒体文件）—— 用来盯 Supabase Storage 额度。
+          </p>
+        )}
       </div>
 
       {/* Widget branding — later phase */}
