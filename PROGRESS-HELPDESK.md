@@ -11,7 +11,9 @@ incremental / resumable / per-asset-fault-tolerant text + auto category folders
 (from section headings) + media (→ public helpdesk-media bucket, permanent URLs)
 + tombstones (deleted articles don't resurrect). KB is READ-ONLY (mirrors Notion).
 Owner syncs libraries one at a time (manual). Storage ~6.9 MB/article (~8 GB for
-the full ~1200). Next: P5 (AI chat — Claude tool-use over the synced KB)._
+the full ~1200). P5 done: AI chat (Angel AI) — Claude tool-use over the KB, plain
+text (no vision, owner's call), bilingual, cites the source guide. Next: P6 (the
+public embeddable widget at /help — reuse helpdesk-chat)._
 
 ## Where to build it
 - **Old version (read-only reference):** `C:\Users\chais\Projects\QAI Helpdesk`
@@ -156,8 +158,21 @@ Each phase is committed + pushed to `feat/helpdesk` when done.
     articles (~6.9 MB/article → ~8 GB projected for the full ~1200).
     NOT DONE (owner's choice): full sync of all ~33 libraries — owner adds + syncs
     them one at a time (manual DB list). Optional later: un-tombstone UI.
-- [ ] **P5 — AI chat backend.** Claude `claude-sonnet-4-5` + tool-use
-  (`search_knowledge` / `get_article` read BODIES), non-streaming.
+- [x] **P5 — AI chat backend + test page (2026-07-20).** Public `helpdesk-chat`
+  edge fn ("Angel AI"): Claude `claude-sonnet-4-5` tool-use loop (non-streaming) —
+  `search_knowledge` (keyword ILIKE over title+body, JS-scored top 8) +
+  `get_article` (full body, media stripped to markers). Plain-text Plan A (NO
+  vision — owner's final call): finds the best guide, short step summary, points
+  to the article for full images/video, answers only from the KB, same-language
+  reply, never fabricates URLs (app renders source links). Returns
+  {conversationId, answer, sources}; persists hd_conversations/messages + logs
+  hd_support_analytics; location_id + channel tags. verify_jwt=false (widget
+  reuses it). Frontend: `helpdeskChat.ts` + "AI 测试" admin tab/page
+  (channel=admin-test). **Verified live:** EN + CN questions resolve to correct
+  real guides, same-language, no invented URLs, sources link to the article; test
+  page works in-browser. Files: `supabase/functions/helpdesk-chat/index.ts` +
+  config.toml, `src/lib/helpdeskChat.ts`, `src/pages/admin/helpdesk/AiTest.tsx`,
+  shell tab + route. PRE-LAUNCH TODO: public chat has no rate limit yet (like RB scan).
 - [ ] **P6 — The widget.** ONE unified embeddable widget at `/help`.
 - [ ] **P7 — Conversations + analytics admin.**
 - [ ] **P8 — Product updates + FAQ.**
