@@ -75,40 +75,64 @@ export function pageTitle(page: any): string {
   return "";
 }
 
-/** Walk a Notion `parent` chain up to the containing PAGE id. Inline databases
- *  have a `block_id` parent (the embedding block), not a `page_id`, so we follow
- *  block parents until we reach a page (bounded depth). */
-async function containingPageId(key: string, parent: any, depth = 0): Promise<string | null> {
-  if (!parent || depth > 6) return null;
-  if (parent.type === "page_id") return parent.page_id || null;
-  if (parent.type === "block_id" && parent.block_id) {
-    try {
-      const block = await notionFetch(key, `https://api.notion.com/v1/blocks/${parent.block_id}`);
-      return await containingPageId(key, block.parent, depth + 1);
-    } catch {
-      return null;
-    }
-  }
-  return null; // workspace / database_id → no containing page
-}
-
-/** Folder name for a database = its containing PAGE's title (owner's option B),
- *  falling back to the database's own title, then "Notion". Handles inline
- *  databases (block-parent) by walking up to the page. */
-export async function folderNameForDatabase(key: string, databaseId: string): Promise<string> {
-  const db = await notionFetch(key, `https://api.notion.com/v1/databases/${databaseId}`);
-  try {
-    const pageId = await containingPageId(key, db.parent);
-    if (pageId) {
-      const page = await getPage(key, pageId);
-      const t = pageTitle(page);
+/** First heading (h1/h2/h3) plain-text found in a block's subtree (bounded
+ *  depth). Skips child databases/pages so we never descend into article rows. */
+async function firstHeadingInSubtree(key: string, blockId: string, depth: number, maxDepth: number): Promise<string | null> {
+  if (depth > maxDepth) return null;
+  const children = await fetchChildren(key, blockId);
+  for (const c of children) {
+    if (c.type === "heading_1" || c.type === "heading_2" || c.type === "heading_3") {
+      const t = (c[c.type]?.rich_text || []).map((r: any) => r?.plain_text || "").join("").trim();
       if (t) return t;
     }
-  } catch {
-    /* fall through to db title */
+    if (c.type === "child_database" || c.type === "child_page") continue; // don't descend into articles
+    if (c.has_children && depth < maxDepth) {
+      const nested = await firstHeadingInSubtree(key, c.id, depth + 1, maxDepth);
+      if (nested) return nested;
+    }
   }
+  return null;
+}
+
+/**
+ * Folder name for a database = the section HEADING of the layout it sits in
+ * (owner's site categories: "Automation", "Payments", "Getting Started", …).
+ * The article DBs live in a two-column layout whose other column carries a
+ * heading_2; we climb from the DB up its block ancestry and return the first
+ * heading found in an enclosing container's subtree. Falls back to the DB's own
+ * title (unless the useless default "New database"), then "Notion".
+ */
+export async function folderNameForDatabase(key: string, databaseId: string): Promise<string> {
+  let db: any;
+  try {
+    db = await notionFetch(key, `https://api.notion.com/v1/databases/${databaseId}`);
+  } catch {
+    return "Notion";
+  }
+
+  let parent = db.parent || {};
+  for (let level = 0; level < 4; level++) {
+    const containerId =
+      parent.type === "block_id" ? parent.block_id : parent.type === "page_id" ? parent.page_id : null;
+    if (!containerId) break;
+    try {
+      const h = await firstHeadingInSubtree(key, containerId, 0, 2);
+      if (h) return h;
+    } catch {
+      /* keep climbing */
+    }
+    if (parent.type === "page_id") break; // reached the page; nothing above it
+    try {
+      const blk = await notionFetch(key, `https://api.notion.com/v1/blocks/${containerId}`);
+      parent = blk.parent || {};
+    } catch {
+      break;
+    }
+  }
+
   const dbTitle = (db.title || []).map((t: any) => t?.plain_text || "").join("").trim();
-  return dbTitle || "Notion";
+  if (dbTitle && dbTitle.toLowerCase() !== "new database") return dbTitle;
+  return "Notion";
 }
 
 // ── Rich text → markdown inline ─────────────────────────────────────────────

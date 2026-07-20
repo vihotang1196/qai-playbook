@@ -206,15 +206,6 @@ serve(async (req) => {
         const title =
           (meta.title || []).map((t: { plain_text?: string }) => t?.plain_text || "").join("").trim() || "(无标题)";
 
-        // Diagnostic: which folder will this land in + what parent type is it?
-        const parentType = meta.parent?.type || "unknown";
-        let folder = "";
-        try {
-          folder = await folderNameForDatabase(key, databaseId);
-        } catch {
-          folder = "";
-        }
-
         // 2) Count pages by paginating ids only (no block/content reads)
         let count = 0;
         let cursor: string | undefined = undefined;
@@ -235,7 +226,7 @@ serve(async (req) => {
           if (loops > 200) break; // safety cap (~20000 pages)
         } while (cursor);
 
-        return json({ ok: true, title, pageCount: count, folder, parentType });
+        return json({ ok: true, title, pageCount: count });
       }
 
       // ── Notion: list every database this integration can see (P4a helper).
@@ -357,6 +348,23 @@ serve(async (req) => {
           return json({ ok: false, message: `列出页面失败：${e instanceof Error ? e.message : e}` });
         }
 
+        // Resolve the folder ONCE (= the layout's section heading) + ensure it.
+        let folderId: string | null = null;
+        let folderName = "";
+        try {
+          folderName = await folderNameForDatabase(key, databaseId);
+          if (folderName) {
+            const { data: f } = await sb.from("hd_folders").select("id").eq("name", folderName).limit(1).maybeSingle();
+            if (f?.id) folderId = f.id as string;
+            else {
+              const { data: created } = await sb.from("hd_folders").insert({ name: folderName }).select("id").single();
+              folderId = (created?.id as string) ?? null;
+            }
+          }
+        } catch {
+          folderId = null; // don't fail planning over foldering
+        }
+
         // Existing imported versions for these pages (chunked .in lookups).
         const existing = new Map<string, string | null>();
         const ids = pages.map((p) => p.id);
@@ -380,17 +388,32 @@ serve(async (req) => {
             page_id: p.id,
             page_last_edited: p.last_edited_time,
             status: unchanged ? "skipped" : "pending",
+            folder_id: folderId,
           };
         });
         for (let i = 0; i < rows.length; i += 500) {
           const { error } = await sb.from("hd_sync_queue").insert(rows.slice(i, i + 500));
           if (error) throw error;
         }
+
+        // Re-folder already-imported (skipped) articles to the resolved folder —
+        // so changing/fixing the folder scheme corrects them without re-import.
+        if (folderId) {
+          const skippedIds = rows.filter((r) => r.status === "skipped").map((r) => r.page_id);
+          for (let i = 0; i < skippedIds.length; i += 100) {
+            const chunk = skippedIds.slice(i, i + 100);
+            if (chunk.length) {
+              await sb.from("hd_articles").update({ folder_id: folderId }).eq("source", "notion").in("source_id", chunk);
+            }
+          }
+        }
+
         return json({
           ok: true,
           total: rows.length,
           pending: rows.filter((r) => r.status === "pending").length,
           skipped: rows.filter((r) => r.status === "skipped").length,
+          folder: folderName,
         });
       }
 
@@ -405,35 +428,18 @@ serve(async (req) => {
 
         const { data: pend, error: pErr } = await sb
           .from("hd_sync_queue")
-          .select("id, page_id, page_last_edited")
+          .select("id, page_id, page_last_edited, folder_id")
           .eq("database_id", databaseId)
           .eq("status", "pending")
           .order("created_at")
           .limit(batchSize);
         if (pErr) throw pErr;
 
-        // Resolve the folder once for this batch (parent page title = folder).
-        let folderId: string | null = null;
-        if ((pend || []).length) {
-          try {
-            const name = await folderNameForDatabase(key, databaseId);
-            if (name) {
-              const { data: f } = await sb.from("hd_folders").select("id").eq("name", name).limit(1).maybeSingle();
-              if (f?.id) folderId = f.id as string;
-              else {
-                const { data: created } = await sb.from("hd_folders").insert({ name }).select("id").single();
-                folderId = (created?.id as string) ?? null;
-              }
-            }
-          } catch {
-            folderId = null; // don't fail the batch over foldering
-          }
-        }
-
         let done = 0;
         let failed = 0;
         for (const row of pend || []) {
           try {
+            const folderId = (row.folder_id as string | null) ?? null; // resolved at plan time
             const page = await getPage(key, row.page_id as string);
             const title = pageTitle(page) || "(无标题)";
             const content = await blocksToMarkdown(key, row.page_id as string);

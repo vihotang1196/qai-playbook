@@ -152,7 +152,7 @@ export async function removeNotionDatabase(id: string): Promise<string[]> {
   return database_ids || [];
 }
 
-export type SyncPlan = { ok: boolean; total?: number; pending?: number; skipped?: number; message?: string };
+export type SyncPlan = { ok: boolean; total?: number; pending?: number; skipped?: number; folder?: string; message?: string };
 export type SyncBatch = {
   ok: boolean;
   batchDone?: number;
