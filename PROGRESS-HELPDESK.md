@@ -5,12 +5,12 @@ ported from a Lovable export. **IN PROGRESS — P0 (scaffold) + P1 (DB) done.**
 This file records the owner's locked decisions, the old-version facts, and the
 phased plan so a new session can pick up without re-researching.
 
-_Last updated: 2026-07-20 — P0–P3 + P4a/P4b done, committed + pushed to
-`feat/helpdesk`. Notion sync: manual DB list + batched/incremental/resumable text
-import + auto category folders (from section headings) all working on real data.
-Next: P4c (media → Storage). NOTE: corpus is ~1200 articles across ~33 inline
-databases under the "Q.AI Support Library"; articles are media-heavy (screenshots
-+ videos), so P4c is essential, not optional._
+_Last updated: 2026-07-20 — P0–P3 + P4a/P4b/P4c done, committed + pushed to
+`feat/helpdesk`. Notion sync now imports text + auto category folders + media
+(images/videos → public helpdesk-media bucket, permanent URLs), batched /
+incremental / resumable / per-asset fault-tolerant. Next: P4d (tombstones +
+full-corpus sync of all ~33 libraries). NOTE: corpus is ~1200 articles across
+~33 inline databases under the "Q.AI Support Library"._
 
 ## Where to build it
 - **Old version (read-only reference):** `C:\Users\chais\Projects\QAI Helpdesk`
@@ -131,9 +131,18 @@ Each phase is committed + pushed to `feat/helpdesk` when done.
     19-page + a 4-page library — multi-batch progress, incremental re-sync skips
     unchanged, folders = "Expert - Start Setup Automation" (19) + "Webinar
     Templates" (4). 23 real articles imported.
-  - [ ] **P4c — media → Supabase Storage.** Download Notion image/video/file URLs
-    (expiring S3) → upload to a new public bucket → rewrite content URLs. Replace
-    the `[图片]/[视频]` placeholders. ESSENTIAL for this media-heavy corpus. NEXT.
+  - [x] **P4c — media → Supabase Storage (2026-07-20).** Sync downloads each
+    Notion-hosted image/video/file (expiring S3) → uploads to the new public
+    `helpdesk-media` bucket (migration) → rewrites content to the permanent URL
+    (external URLs kept as-is). `blocksToMarkdown` takes a `persist` callback;
+    `persistMedia` in helpdesk-admin is idempotent (keyed by block id), 45MB
+    capped, per-asset fault-tolerant (failure → placeholder, never fails the page).
+    Images render inline; video-file links render as a `<video>` player
+    (Markdown.tsx). `planNotionSync` gained `force` (backfill media into
+    already-imported articles) + a 强制重新导入 checkbox; batch default 3 (media is
+    slow). **Verified live:** force-resynced the 19-page library — the
+    placeholder-only "Payment Success" article now has a real image (loads,
+    1500×600) + video player, all Supabase URLs, 0 placeholders / 0 failed.
   - [ ] **P4d — tombstones + scale-out.** Write `hd_deleted_notion_entries` on
     delete of a Notion article + honor it on sync (no resurrection); retry-failed;
     full sync of all libraries.
