@@ -32,6 +32,17 @@ import {
 } from "@/components/ui/alert-dialog";
 
 /**
+ * Radix occasionally leaves `pointer-events: none` on <body> after a modal
+ * closes (radix-ui/primitives#2122), which silently freezes the whole page.
+ * Clear it on the next tick whenever one of our dialogs closes.
+ */
+function releaseBodyPointerLock() {
+  setTimeout(() => {
+    document.body.style.pointerEvents = "";
+  }, 0);
+}
+
+/**
  * Knowledge Base admin (`/admin/helpdesk/knowledge`). P3: manual CRUD for
  * folders + articles, all through the requireAdmin-gated helpdesk-admin fn (the
  * frontend never touches hd_ tables directly). Article bodies are edited on the
@@ -45,7 +56,6 @@ export default function HelpdeskKnowledge() {
   const [activeFolder, setActiveFolder] = useState<string>("all"); // "all" | "none" | folder id
   const [foldersOpen, setFoldersOpen] = useState(false);
   const [deleteTarget, setDeleteTarget] = useState<KBArticleListItem | null>(null);
-  const [busy, setBusy] = useState(false);
 
   const load = useCallback(() => {
     setLoading(true);
@@ -72,18 +82,15 @@ export default function HelpdeskKnowledge() {
     return a.folder_id === activeFolder;
   });
 
-  async function onDeleteArticle() {
-    if (!deleteTarget) return;
-    setBusy(true);
+  async function onDeleteArticle(target: KBArticleListItem) {
+    // The AlertDialog closes itself via Radix (no preventDefault), so we run the
+    // delete after and just refresh the list.
     try {
-      await deleteArticle(deleteTarget.id);
+      await deleteArticle(target.id);
       toast.success("文章已删除");
-      setDeleteTarget(null);
       load();
     } catch (e) {
       toast.error(e instanceof Error ? e.message : "删除失败");
-    } finally {
-      setBusy(false);
     }
   }
 
@@ -178,36 +185,46 @@ export default function HelpdeskKnowledge() {
         </div>
       )}
 
-      <FoldersDialog
-        open={foldersOpen}
-        onOpenChange={setFoldersOpen}
-        folders={folders}
-        onChanged={load}
-      />
+      {/* Conditionally MOUNTED for the same reason as the delete dialog below —
+          full unmount on close removes the portal + overlay so nothing lingers. */}
+      {foldersOpen && (
+        <FoldersDialog onClose={() => setFoldersOpen(false)} folders={folders} onChanged={load} />
+      )}
 
-      <AlertDialog open={!!deleteTarget} onOpenChange={(o) => !o && setDeleteTarget(null)}>
-        <AlertDialogContent>
-          <AlertDialogHeader>
-            <AlertDialogTitle>删除这篇文章？</AlertDialogTitle>
-            <AlertDialogDescription>
-              「{deleteTarget?.title}」将被永久删除，无法恢复。
-            </AlertDialogDescription>
-          </AlertDialogHeader>
-          <AlertDialogFooter>
-            <AlertDialogCancel disabled={busy}>取消</AlertDialogCancel>
-            <AlertDialogAction
-              onClick={(e) => {
-                e.preventDefault();
-                onDeleteArticle();
-              }}
-              disabled={busy}
-              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
-            >
-              {busy ? "删除中…" : "删除"}
-            </AlertDialogAction>
-          </AlertDialogFooter>
-        </AlertDialogContent>
-      </AlertDialog>
+      {/* Conditionally MOUNTED (not just `open`-toggled): when deleteTarget
+          clears, the whole AlertDialog + its portal/overlay unmount at once, so
+          Radix's exit-animation Presence can't leave a stuck full-screen overlay
+          swallowing every click. Body pointer-events is also cleared defensively
+          (radix-ui/primitives#2122). */}
+      {deleteTarget && (
+        <AlertDialog
+          open
+          onOpenChange={(o) => {
+            if (!o) {
+              setDeleteTarget(null);
+              releaseBodyPointerLock();
+            }
+          }}
+        >
+          <AlertDialogContent>
+            <AlertDialogHeader>
+              <AlertDialogTitle>删除这篇文章？</AlertDialogTitle>
+              <AlertDialogDescription>
+                「{deleteTarget.title}」将被永久删除，无法恢复。
+              </AlertDialogDescription>
+            </AlertDialogHeader>
+            <AlertDialogFooter>
+              <AlertDialogCancel>取消</AlertDialogCancel>
+              <AlertDialogAction
+                onClick={() => onDeleteArticle(deleteTarget)}
+                className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+              >
+                删除
+              </AlertDialogAction>
+            </AlertDialogFooter>
+          </AlertDialogContent>
+        </AlertDialog>
+      )}
     </div>
   );
 }
@@ -215,13 +232,11 @@ export default function HelpdeskKnowledge() {
 /** Folder create / rename / delete. Deleting a folder just un-categorises its
  *  articles (FK ON DELETE SET NULL) — no article is lost. */
 function FoldersDialog({
-  open,
-  onOpenChange,
+  onClose,
   folders,
   onChanged,
 }: {
-  open: boolean;
-  onOpenChange: (o: boolean) => void;
+  onClose: () => void;
   folders: KBFolder[];
   onChanged: () => void;
 }) {
@@ -266,10 +281,12 @@ function FoldersDialog({
 
   return (
     <Dialog
-      open={open}
+      open
       onOpenChange={(o) => {
-        if (!o) reset();
-        onOpenChange(o);
+        if (!o) {
+          releaseBodyPointerLock();
+          onClose();
+        }
       }}
     >
       <DialogContent>
