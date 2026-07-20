@@ -24,6 +24,55 @@ import {
   blocksToMarkdown,
 } from "../_shared/notion.ts";
 
+// Media persistence: download a Notion-hosted (expiring) URL → upload to the
+// public helpdesk-media bucket → return the permanent public URL. Fault-tolerant
+// (returns null on any failure so a bad asset never fails the whole article) and
+// idempotent (keyed by block id, upsert). Skips oversized files to protect the
+// function's memory.
+const MEDIA_MAX_BYTES = 45 * 1024 * 1024;
+function extForMedia(contentType: string, url: string): string {
+  const ct = (contentType || "").toLowerCase().split(";")[0].trim();
+  const map: Record<string, string> = {
+    "image/png": "png",
+    "image/jpeg": "jpg",
+    "image/jpg": "jpg",
+    "image/gif": "gif",
+    "image/webp": "webp",
+    "image/svg+xml": "svg",
+    "image/heic": "heic",
+    "video/mp4": "mp4",
+    "video/quicktime": "mov",
+    "video/webm": "webm",
+    "video/x-m4v": "m4v",
+    "application/pdf": "pdf",
+  };
+  if (map[ct]) return map[ct];
+  const m = url.split("?")[0].match(/\.([a-z0-9]{2,5})$/i);
+  return m ? m[1].toLowerCase() : "bin";
+}
+async function persistMedia(
+  sb: ReturnType<typeof serviceClient>,
+  sourceUrl: string,
+  blockId: string,
+): Promise<string | null> {
+  try {
+    const resp = await fetch(sourceUrl);
+    if (!resp.ok) return null;
+    const clen = Number(resp.headers.get("content-length") || 0);
+    if (clen && clen > MEDIA_MAX_BYTES) return null;
+    const contentType = resp.headers.get("content-type") || "application/octet-stream";
+    const buf = new Uint8Array(await resp.arrayBuffer());
+    if (buf.byteLength > MEDIA_MAX_BYTES) return null;
+    const path = `notion/${blockId}.${extForMedia(contentType, sourceUrl)}`;
+    const up = await sb.storage.from("helpdesk-media").upload(path, buf, { contentType, upsert: true });
+    if (up.error) return null;
+    const { data } = sb.storage.from("helpdesk-media").getPublicUrl(path);
+    return data?.publicUrl || null;
+  } catch {
+    return null;
+  }
+}
+
 serve(async (req) => {
   if (req.method === "OPTIONS") return new Response(null, { headers: corsHeaders });
 
@@ -338,6 +387,7 @@ serve(async (req) => {
       case "planNotionSync": {
         const databaseId = String(body?.database_id || "").trim();
         if (!databaseId) return json({ error: "database_id required" }, 400);
+        const force = !!body?.force; // re-import everything (e.g. to backfill media)
         const key = Deno.env.get("NOTION_API_KEY");
         if (!key) return json({ ok: false, message: "NOTION_API_KEY 未配置" });
 
@@ -382,7 +432,7 @@ serve(async (req) => {
         const rows = pages.map((p) => {
           const imported = existing.get(p.id);
           const unchanged =
-            imported && new Date(imported).getTime() === new Date(p.last_edited_time).getTime();
+            !force && imported && new Date(imported).getTime() === new Date(p.last_edited_time).getTime();
           return {
             database_id: databaseId,
             page_id: p.id,
@@ -442,7 +492,9 @@ serve(async (req) => {
             const folderId = (row.folder_id as string | null) ?? null; // resolved at plan time
             const page = await getPage(key, row.page_id as string);
             const title = pageTitle(page) || "(无标题)";
-            const content = await blocksToMarkdown(key, row.page_id as string);
+            const content = await blocksToMarkdown(key, row.page_id as string, {
+              persist: (u, bid) => persistMedia(sb, u, bid),
+            });
 
             const { data: existed } = await sb
               .from("hd_articles")

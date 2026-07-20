@@ -163,11 +163,13 @@ export type SyncBatch = {
 };
 
 /** Plan a sync: (re)build the work-list, marking new/changed pages pending and
- *  unchanged ones skipped. Fast — no article bodies fetched. */
-export async function planNotionSync(id: string): Promise<SyncPlan> {
-  return callHelpdesk("planNotionSync", { database_id: id });
+ *  unchanged ones skipped. `force` re-imports everything (e.g. to backfill media
+ *  into articles imported before media support). Fast — no article bodies fetched. */
+export async function planNotionSync(id: string, force = false): Promise<SyncPlan> {
+  return callHelpdesk("planNotionSync", { database_id: id, force });
 }
-/** Process one batch of pending pages. Call repeatedly until remaining === 0. */
-export async function runNotionSyncBatch(id: string, batchSize = 6): Promise<SyncBatch> {
+/** Process one batch of pending pages. Call repeatedly until remaining === 0.
+ *  Small default batch — media download/upload makes each page slower. */
+export async function runNotionSyncBatch(id: string, batchSize = 3): Promise<SyncBatch> {
   return callHelpdesk("runNotionSyncBatch", { database_id: id, batch_size: batchSize });
 }

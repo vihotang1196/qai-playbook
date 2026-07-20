@@ -77,6 +77,7 @@ export default function HelpdeskSettings() {
   const [adding, setAdding] = useState(false);
   const [syncingId, setSyncingId] = useState<string | null>(null);
   const [progress, setProgress] = useState<SyncProgress | null>(null);
+  const [forceReimport, setForceReimport] = useState(false);
 
   useEffect(() => {
     getNotionConfig()
@@ -114,7 +115,7 @@ export default function HelpdeskSettings() {
     setSyncingId(id);
     setProgress({ total: 0, processed: 0, done: 0, failed: 0, skipped: 0 });
     try {
-      const plan = await planNotionSync(id);
+      const plan = await planNotionSync(id, forceReimport);
       if (!plan.ok) {
         toast.error(plan.message || "规划失败");
         return;
@@ -130,7 +131,7 @@ export default function HelpdeskSettings() {
       }
       let remaining = plan.pending ?? 0;
       while (remaining > 0) {
-        const b = await runNotionSyncBatch(id, 6);
+        const b = await runNotionSyncBatch(id);
         if (!b.ok) {
           toast.error(b.message || "同步失败");
           break;
@@ -279,6 +280,16 @@ export default function HelpdeskSettings() {
             <p className="text-sm text-muted-foreground">手动加入要同步的库，每个可单独同步。只同步你加进来的这些。</p>
           </div>
         </div>
+
+        <label className="flex items-center gap-2 mb-3 text-sm text-muted-foreground cursor-pointer select-none">
+          <input
+            type="checkbox"
+            checked={forceReimport}
+            onChange={(e) => setForceReimport(e.target.checked)}
+            className="accent-primary"
+          />
+          强制重新导入（忽略「没变化」，把全部文章重拉一遍——首次补图片视频时勾上）
+        </label>
 
         <div className="flex gap-2">
           <Input

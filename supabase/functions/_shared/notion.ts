@@ -173,8 +173,36 @@ async function fetchChildren(key: string, blockId: string): Promise<any[]> {
   return out;
 }
 
-function mediaPlaceholder(kind: string): string {
-  return `*[${kind}]*`; // P4c replaces this with the persisted Storage URL
+/** Persist a Notion-hosted (expiring) media URL to permanent storage. Returns
+ *  the permanent URL, or null on failure (caller falls back to a placeholder). */
+export type PersistMedia = (sourceUrl: string, blockId: string, kind: string) => Promise<string | null>;
+export type BlocksOpts = { persist?: PersistMedia };
+
+const mediaLabel: Record<string, string> = { image: "图片", video: "视频", file: "附件", pdf: "PDF" };
+
+/** Build markdown for a media block. Notion-hosted (type 'file') URLs expire, so
+ *  they're persisted via opts.persist; 'external' URLs are stable and used as-is.
+ *  Images render inline; video/file become links (the Markdown renderer turns a
+ *  video-file link into a <video>). Failure → a placeholder, never a throw. */
+async function mediaMd(b: any, kind: string, opts: BlocksOpts): Promise<string> {
+  const node = b[b.type];
+  const isExternal = node?.type === "external";
+  const src = isExternal ? node?.external?.url : node?.file?.url;
+  const caption = (node?.caption || []).map((r: any) => r?.plain_text || "").join("").trim();
+  if (!src) return `*[${mediaLabel[kind] || "媒体"}]*`;
+
+  let url = src;
+  if (!isExternal) {
+    if (!opts.persist) return `*[${mediaLabel[kind] || "媒体"}]*`;
+    const persisted = await opts.persist(src, b.id, kind);
+    if (!persisted) return `*[${mediaLabel[kind] || "媒体"}下载失败]*`;
+    url = persisted;
+  }
+
+  if (kind === "image") return `![${caption}](${url})`;
+  if (kind === "video") return `[📹 ${caption || "视频"}](${url})`;
+  const name = node?.name || caption || mediaLabel[kind] || "附件";
+  return `[📎 ${name}](${url})`;
 }
 
 async function tableToMarkdown(key: string, tableBlockId: string): Promise<string> {
@@ -196,7 +224,12 @@ type Piece = { md: string; list: boolean };
  * for the top-level call. Text-only: media → placeholders. Consecutive list
  * items are joined with single newlines; other blocks get a blank line between.
  */
-export async function blocksToMarkdown(key: string, blockId: string, depth = 0): Promise<string> {
+export async function blocksToMarkdown(
+  key: string,
+  blockId: string,
+  opts: BlocksOpts = {},
+  depth = 0,
+): Promise<string> {
   if (depth > MAX_DEPTH) return "";
   const blocks = await fetchChildren(key, blockId);
   const pieces: Piece[] = [];
@@ -206,7 +239,7 @@ export async function blocksToMarkdown(key: string, blockId: string, depth = 0):
     const type: string = b.type;
     if (type !== "numbered_list_item") numIdx = 0;
 
-    const childMd = async () => (b.has_children ? await blocksToMarkdown(key, b.id, depth + 1) : "");
+    const childMd = async () => (b.has_children ? await blocksToMarkdown(key, b.id, opts, depth + 1) : "");
 
     switch (type) {
       case "paragraph": {
@@ -270,16 +303,10 @@ export async function blocksToMarkdown(key: string, blockId: string, depth = 0):
         pieces.push({ md: "$$\n" + (b.equation.expression || "") + "\n$$", list: false });
         break;
       case "image":
-        pieces.push({ md: mediaPlaceholder("图片"), list: false });
-        break;
       case "video":
-        pieces.push({ md: mediaPlaceholder("视频"), list: false });
-        break;
       case "file":
-        pieces.push({ md: mediaPlaceholder("附件"), list: false });
-        break;
       case "pdf":
-        pieces.push({ md: mediaPlaceholder("PDF"), list: false });
+        pieces.push({ md: await mediaMd(b, type, opts), list: false });
         break;
       case "bookmark":
       case "embed":
