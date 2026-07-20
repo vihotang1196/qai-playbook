@@ -5,8 +5,9 @@ ported from a Lovable export. **IN PROGRESS — P0 (scaffold) + P1 (DB) done.**
 This file records the owner's locked decisions, the old-version facts, and the
 phased plan so a new session can pick up without re-researching.
 
-_Last updated: 2026-07-18 — P0 (routes) + P1 (hd_ schema) + P2 (admin login +
-live-data shell) done, committed + pushed to `feat/helpdesk`. Next: P3 (KB CRUD)._
+_Last updated: 2026-07-20 — P0–P3 done, committed + pushed to `feat/helpdesk`.
+P3 = knowledge-base CRUD (verified live, incl. a dialog-freeze bug found & fixed).
+Next: P4 (Notion sync)._
 
 ## Where to build it
 - **Old version (read-only reference):** `C:\Users\chais\Projects\QAI Helpdesk`
@@ -91,10 +92,26 @@ Each phase is committed + pushed to `feat/helpdesk` when done.
   with an admin session the Overview renders real counts (all 0 — empty tables) +
   "Notion 未连接"; anon key / garbage token / no-token all → 403 not_authorized;
   tsc clean; no console/server errors.
-- [ ] **P3 — Knowledge Base admin.** Articles/folders CRUD (manual path first).
-  NEXT — add CRUD actions to `helpdesk-admin`; build the 知识库 page.
+- [x] **P3 — Knowledge Base admin (2026-07-20).** Manual CRUD for folders +
+  articles, all via the requireAdmin-gated `helpdesk-admin` fn (frontend never
+  touches hd_ tables). Backend actions: listKnowledge / getArticle / saveArticle
+  (insert=source 'manual'; update never rewrites source/source_id → Notion
+  linkage survives) / deleteArticle / saveFolder / deleteFolder (FK SET NULL →
+  articles just un-categorise). Frontend: shared `Markdown.tsx` (react-markdown +
+  remark-gfm, no raw-HTML = XSS-safe; reused by the P6 widget), `Knowledge.tsx`
+  (list + folder-filter chips + folder-mgmt dialog + delete confirm),
+  `ArticleEdit.tsx` (full-page editor, markdown textarea + live preview).
+  Registered `@tailwindcss/typography` for `prose`. Editor chosen by owner:
+  markdown + live preview (not WYSIWYG). **Verified live** (admin session):
+  create folder, create article w/ folder, live preview incl. GFM table, edit
+  (loads body, updates in place), refresh persists, delete. **Bug found + fixed**
+  (commit 2e6c318): Radix left a stuck full-screen overlay + body
+  pointer-events:none after a dialog closed, freezing the page → both dialogs now
+  conditionally MOUNTED (full unmount on close) + `releaseBodyPointerLock()`.
+  Deps added: react-markdown, remark-gfm. Left one demo folder "入门指南" in the DB.
 - [ ] **P4 — Notion sync ⭐ (biggest).** Port the ~1000-line importer + copy
   Notion media into Supabase Storage; tombstones via `hd_deleted_notion_entries`.
+  NEXT.
 - [ ] **P5 — AI chat backend.** Claude `claude-sonnet-4-5` + tool-use
   (`search_knowledge` / `get_article` read BODIES), non-streaming.
 - [ ] **P6 — The widget.** ONE unified embeddable widget at `/help`.
