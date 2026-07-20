@@ -1,19 +1,23 @@
 # QAI Helpdesk — Rebuild Progress
 
 Rebuild of the **Helpdesk** (4th migrated tool) into this Playbook project,
-ported from a Lovable export. **IN PROGRESS — P0 (scaffold) + P1 (DB) done.**
+ported from a Lovable export. **IN PROGRESS — P0–P5 done; P6 (help-center page) next.**
 This file records the owner's locked decisions, the old-version facts, and the
 phased plan so a new session can pick up without re-researching.
 
-_Last updated: 2026-07-20 — P0–P4 done (P4a–P4d), committed + pushed to
-`feat/helpdesk`. **Notion sync fully working**: manual DB list, batched /
-incremental / resumable / per-asset-fault-tolerant text + auto category folders
-(from section headings) + media (→ public helpdesk-media bucket, permanent URLs)
-+ tombstones (deleted articles don't resurrect). KB is READ-ONLY (mirrors Notion).
-Owner syncs libraries one at a time (manual). Storage ~6.9 MB/article (~8 GB for
-the full ~1200). P5 done: AI chat (Angel AI) — Claude tool-use over the KB, plain
-text (no vision, owner's call), bilingual, cites the source guide. Next: P6 (the
-public embeddable widget at /help — reuse helpdesk-chat)._
+_Last updated: 2026-07-20 — P0–P5 done, committed + pushed to `feat/helpdesk`
+(working tree clean, nothing unpushed). **Notion sync fully working** (P4a–d):
+manual DB list, batched / incremental / resumable / per-asset-fault-tolerant text
++ auto category folders (from section headings) + media (→ public helpdesk-media
+bucket, permanent URLs) + tombstones (deleted articles don't resurrect). KB is
+READ-ONLY (mirrors Notion). **P5 done:** AI chat (Angel AI) — Claude tool-use over
+the KB, PLAIN TEXT (no vision, owner's final call), bilingual, cites the source
+guide, never fabricates URLs. **Supabase = Pro** (100 GB; the full ~1200 articles
+≈ 8 GB → fits). Owner does the full sync himself, one library at a time (manual DB
+list). Other branches untouched: main f60158d, feat/admin-portal 755bee9 (RB +
+Admin Portal — helpdesk was cut from here), feat/copywriter ffef217,
+feat/review-boost 1d00e47 (frozen). **Next: P6 — the help-center PAGE (see the
+refined P6 entry in the phased plan below)._
 
 ## Where to build it
 - **Old version (read-only reference):** `C:\Users\chais\Projects\QAI Helpdesk`
@@ -173,7 +177,32 @@ Each phase is committed + pushed to `feat/helpdesk` when done.
   page works in-browser. Files: `supabase/functions/helpdesk-chat/index.ts` +
   config.toml, `src/lib/helpdeskChat.ts`, `src/pages/admin/helpdesk/AiTest.tsx`,
   shell tab + route. PRE-LAUNCH TODO: public chat has no rate limit yet (like RB scan).
-- [ ] **P6 — The widget.** ONE unified embeddable widget at `/help`.
+- [ ] **P6 — The help-center PAGE (positioning locked 2026-07-20). NEXT.**
+  It is a **full help-center page** at `/help` (NOT a bottom-right popup widget),
+  with THREE parts in one page:
+  1. **AI 问答** — reuse the P5 `helpdesk-chat` fn (pass `location_id` + a
+     `channel` like `"widget"`; NOT `admin-test`). Same bilingual, cite-the-guide,
+     plain-text behavior. Source links open the article inside this page.
+  2. **浏览知识库** — browse synced articles grouped by category folder; open one =
+     read-only render (reuse the shared `Markdown` component; images + `<video>`
+     show). Read from a PUBLIC read path (a public `helpdesk` fn action, or extend
+     helpdesk-chat) — the frontend must NOT hit hd_ tables directly (RLS-locked).
+  3. **产品更新** — placeholder / simple list for now (real content = P8; hd_updates).
+  - **Restricted to GHL customers, like Review Boost:** entered via a GHL Custom
+    Menu Link that carries `location_id` (trust-the-URL WEAK gate — the location_id
+    is random + non-enumerable; NOT real auth). NO public navbar. No valid
+    location_id → show a "请从 GHL 打开" message (mirror RB's no-location state).
+  - **Reuse RB's identity logic — do NOT build a new one.** RB reads the URL
+    location_id + embed handling in `src/lib/ghl.ts` + `src/hooks/useLocationContext.tsx`;
+    reuse the same concept. (Note: `/help` is already routed OUTSIDE `<Layout>`,
+    chrome-less, from P0 — HelpWidget.tsx is the placeholder to replace.)
+  - **Layout:** OUTSIDE `<Layout>`, clean full-screen, coral-glass, mobile-first
+    (embeds in a GHL iframe). On mobile the three parts are likely tabs; on desktop
+    a sidebar (browse) + main (chat/article) is fine — decide at build.
+  - Needs a PUBLIC KB read path for browse (list folders+articles, get one article
+    incl. media URLs) — helpdesk-admin is requireAdmin-gated, so add public reads
+    (new public `helpdesk` fn, or public actions on helpdesk-chat). Conversations
+    are per-visitor (like the old version tagged by location_id for analytics).
 - [ ] **P7 — Conversations + analytics admin.**
 - [ ] **P8 — Product updates + FAQ.**
 - [ ] **P9 — Widget settings / branding + preview.**
