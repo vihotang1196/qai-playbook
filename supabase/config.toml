@@ -32,3 +32,9 @@ verify_jwt = false
 # the frontend never touches hd_ tables directly.
 [functions.helpdesk-admin]
 verify_jwt = false
+
+# Helpdesk AI chat (public "Angel AI"). Anon-callable — the widget + the admin
+# test page both call it. Runs with the service role to read the KB (RLS-locked)
+# and log conversations. Reads ANTHROPIC_API_KEY secret.
+[functions.helpdesk-chat]
+verify_jwt = false

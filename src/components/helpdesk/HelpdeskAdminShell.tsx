@@ -1,9 +1,10 @@
 import { NavLink, Outlet } from "react-router-dom";
-import { LayoutDashboard, BookOpen, MessagesSquare, BarChart3, Megaphone, Settings } from "lucide-react";
+import { LayoutDashboard, BookOpen, Bot, MessagesSquare, BarChart3, Megaphone, Settings } from "lucide-react";
 
 const TABS = [
   { to: "/admin/helpdesk", label: "总览", icon: LayoutDashboard, end: true },
   { to: "/admin/helpdesk/knowledge", label: "知识库", icon: BookOpen },
+  { to: "/admin/helpdesk/chat", label: "AI 测试", icon: Bot },
   { to: "/admin/helpdesk/conversations", label: "对话", icon: MessagesSquare },
   { to: "/admin/helpdesk/analytics", label: "分析", icon: BarChart3 },
   { to: "/admin/helpdesk/updates", label: "产品更新", icon: Megaphone },

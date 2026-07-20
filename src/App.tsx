@@ -32,6 +32,7 @@ import HelpdeskAdminShell from "./components/helpdesk/HelpdeskAdminShell";
 import HelpdeskOverview from "./pages/admin/helpdesk/Overview";
 import HelpdeskKnowledge from "./pages/admin/helpdesk/Knowledge";
 import HelpdeskArticleView from "./pages/admin/helpdesk/ArticleView";
+import HelpdeskAiTest from "./pages/admin/helpdesk/AiTest";
 import HelpdeskSettings from "./pages/admin/helpdesk/Settings";
 import { HdConversations, HdAnalytics, HdUpdates } from "./pages/admin/helpdesk/sections";
 import HelpWidget from "./pages/help/HelpWidget";
@@ -80,6 +81,7 @@ const App = () => (
                 <Route index element={<HelpdeskOverview />} />
                 <Route path="knowledge" element={<HelpdeskKnowledge />} />
                 <Route path="knowledge/:articleId" element={<HelpdeskArticleView />} />
+                <Route path="chat" element={<HelpdeskAiTest />} />
                 <Route path="conversations" element={<HdConversations />} />
                 <Route path="analytics" element={<HdAnalytics />} />
                 <Route path="updates" element={<HdUpdates />} />
