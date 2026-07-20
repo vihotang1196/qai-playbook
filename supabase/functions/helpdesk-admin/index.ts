@@ -65,6 +65,104 @@ serve(async (req) => {
         });
       }
 
+      // ── Knowledge base: folders + article list (no bodies) ──────────────
+      case "listKnowledge": {
+        const [foldersRes, articlesRes] = await Promise.all([
+          sb.from("hd_folders").select("id, name, icon, sort_order").order("sort_order").order("name"),
+          sb
+            .from("hd_articles")
+            .select("id, title, category, folder_id, source, source_id, sort_order, updated_at")
+            .order("sort_order")
+            .order("updated_at", { ascending: false }),
+        ]);
+        if (foldersRes.error) throw foldersRes.error;
+        if (articlesRes.error) throw articlesRes.error;
+        return json({ folders: foldersRes.data ?? [], articles: articlesRes.data ?? [] });
+      }
+
+      // ── One article incl. body (for the editor) ─────────────────────────
+      case "getArticle": {
+        const id = String(body?.id || "").trim();
+        if (!id) return json({ error: "id required" }, 400);
+        const { data, error } = await sb.from("hd_articles").select("*").eq("id", id).maybeSingle();
+        if (error) throw error;
+        if (!data) return json({ error: "not_found" }, 404);
+        return json({ article: data });
+      }
+
+      // ── Create / update an article (manual path). On UPDATE we never touch
+      //    source / source_id, so a Notion-linked article keeps its linkage. ─
+      case "saveArticle": {
+        const id = String(body?.id || "").trim();
+        const title = String(body?.title || "").trim();
+        const content = typeof body?.content === "string" ? body.content : "";
+        const category = String(body?.category || "general").trim() || "general";
+        const folder_id = body?.folder_id ? String(body.folder_id) : null;
+        const sort_order = Number.isFinite(Number(body?.sort_order)) ? Number(body.sort_order) : 0;
+        if (!title) return json({ error: "title required" }, 400);
+
+        if (id) {
+          const { data, error } = await sb
+            .from("hd_articles")
+            .update({ title, content, category, folder_id, sort_order })
+            .eq("id", id)
+            .select("id")
+            .maybeSingle();
+          if (error) throw error;
+          if (!data) return json({ error: "not_found" }, 404);
+          return json({ ok: true, id: data.id });
+        }
+        const { data, error } = await sb
+          .from("hd_articles")
+          .insert({ title, content, category, folder_id, sort_order, source: "manual" })
+          .select("id")
+          .single();
+        if (error) throw error;
+        return json({ ok: true, id: data.id });
+      }
+
+      case "deleteArticle": {
+        const id = String(body?.id || "").trim();
+        if (!id) return json({ error: "id required" }, 400);
+        const { error } = await sb.from("hd_articles").delete().eq("id", id);
+        if (error) throw error;
+        return json({ ok: true });
+      }
+
+      // ── Create / update a folder ────────────────────────────────────────
+      case "saveFolder": {
+        const id = String(body?.id || "").trim();
+        const name = String(body?.name || "").trim();
+        const icon = body?.icon ? String(body.icon).trim() : null;
+        const sort_order = Number.isFinite(Number(body?.sort_order)) ? Number(body.sort_order) : 0;
+        if (!name) return json({ error: "name required" }, 400);
+
+        if (id) {
+          const { data, error } = await sb
+            .from("hd_folders")
+            .update({ name, icon, sort_order })
+            .eq("id", id)
+            .select("id")
+            .maybeSingle();
+          if (error) throw error;
+          if (!data) return json({ error: "not_found" }, 404);
+          return json({ ok: true, id: data.id });
+        }
+        const { data, error } = await sb.from("hd_folders").insert({ name, icon, sort_order }).select("id").single();
+        if (error) throw error;
+        return json({ ok: true, id: data.id });
+      }
+
+      // ── Delete a folder. Articles' folder_id → NULL automatically (the FK
+      //    is ON DELETE SET NULL), so no article is lost — just uncategorised. ─
+      case "deleteFolder": {
+        const id = String(body?.id || "").trim();
+        if (!id) return json({ error: "id required" }, 400);
+        const { error } = await sb.from("hd_folders").delete().eq("id", id);
+        if (error) throw error;
+        return json({ ok: true });
+      }
+
       default:
         return json({ error: `Unknown action: ${action || "(none)"}` }, 400);
     }

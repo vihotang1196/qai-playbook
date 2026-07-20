@@ -30,7 +30,9 @@ import AdminStats from "./pages/admin/AdminStats";
 import AdminAudit from "./pages/admin/AdminAudit";
 import HelpdeskAdminShell from "./components/helpdesk/HelpdeskAdminShell";
 import HelpdeskOverview from "./pages/admin/helpdesk/Overview";
-import { HdKnowledge, HdConversations, HdAnalytics, HdUpdates, HdSettings } from "./pages/admin/helpdesk/sections";
+import HelpdeskKnowledge from "./pages/admin/helpdesk/Knowledge";
+import HelpdeskArticleEdit from "./pages/admin/helpdesk/ArticleEdit";
+import { HdConversations, HdAnalytics, HdUpdates, HdSettings } from "./pages/admin/helpdesk/sections";
 import HelpWidget from "./pages/help/HelpWidget";
 
 const ScrollToTop = () => {
@@ -75,7 +77,9 @@ const App = () => (
                   (reusing the one login + guard) rather than in a customer route. */}
               <Route path="helpdesk" element={<HelpdeskAdminShell />}>
                 <Route index element={<HelpdeskOverview />} />
-                <Route path="knowledge" element={<HdKnowledge />} />
+                <Route path="knowledge" element={<HelpdeskKnowledge />} />
+                <Route path="knowledge/new" element={<HelpdeskArticleEdit />} />
+                <Route path="knowledge/:articleId" element={<HelpdeskArticleEdit />} />
                 <Route path="conversations" element={<HdConversations />} />
                 <Route path="analytics" element={<HdAnalytics />} />
                 <Route path="updates" element={<HdUpdates />} />

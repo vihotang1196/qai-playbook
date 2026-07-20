@@ -18,9 +18,6 @@ function Stub({ title, desc, phase }: { title: string; desc: string; phase: stri
   );
 }
 
-export const HdKnowledge = () => (
-  <Stub title="知识库" desc="文章与文件夹的增删改查；从 Notion 同步导入正文与图片。" phase="P3 · P4" />
-);
 export const HdConversations = () => (
   <Stub title="对话" desc="查看访客与 AI 的聊天记录、👍 👎 反馈。" phase="P7" />
 );
