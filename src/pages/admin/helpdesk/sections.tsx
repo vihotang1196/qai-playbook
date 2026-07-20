@@ -27,6 +27,3 @@ export const HdAnalytics = () => (
 export const HdUpdates = () => (
   <Stub title="产品更新" desc="发布产品动态与 FAQ，挂件里向用户展示。" phase="P8" />
 );
-export const HdSettings = () => (
-  <Stub title="设置" desc="挂件品牌（标题／颜色／logo）与 Notion 连接设置。" phase="P4 · P9" />
-);

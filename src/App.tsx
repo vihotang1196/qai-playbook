@@ -32,7 +32,8 @@ import HelpdeskAdminShell from "./components/helpdesk/HelpdeskAdminShell";
 import HelpdeskOverview from "./pages/admin/helpdesk/Overview";
 import HelpdeskKnowledge from "./pages/admin/helpdesk/Knowledge";
 import HelpdeskArticleEdit from "./pages/admin/helpdesk/ArticleEdit";
-import { HdConversations, HdAnalytics, HdUpdates, HdSettings } from "./pages/admin/helpdesk/sections";
+import HelpdeskSettings from "./pages/admin/helpdesk/Settings";
+import { HdConversations, HdAnalytics, HdUpdates } from "./pages/admin/helpdesk/sections";
 import HelpWidget from "./pages/help/HelpWidget";
 
 const ScrollToTop = () => {
@@ -83,7 +84,7 @@ const App = () => (
                 <Route path="conversations" element={<HdConversations />} />
                 <Route path="analytics" element={<HdAnalytics />} />
                 <Route path="updates" element={<HdUpdates />} />
-                <Route path="settings" element={<HdSettings />} />
+                <Route path="settings" element={<HelpdeskSettings />} />
               </Route>
             </Route>
 

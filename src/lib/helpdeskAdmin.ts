@@ -112,3 +112,13 @@ export async function saveFolder(payload: {
 export async function deleteFolder(id: string): Promise<void> {
   await callHelpdesk("deleteFolder", { id });
 }
+
+// ── Notion (P4a: connection test only — imports nothing) ────────────────────
+
+export type NotionTestResult = { ok: boolean; title?: string; pageCount?: number; message?: string };
+
+/** Test a Notion database connection: returns its title + page count, or a
+ *  handled failure message. Does NOT import anything. Admin-only. */
+export async function testNotion(databaseId: string): Promise<NotionTestResult> {
+  return callHelpdesk<NotionTestResult>("testNotion", { database_id: databaseId });
+}

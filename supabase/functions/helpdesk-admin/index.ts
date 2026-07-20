@@ -163,6 +163,65 @@ serve(async (req) => {
         return json({ ok: true });
       }
 
+      // ── Notion: test a database connection (P4a) — reads title + counts
+      //    pages via pagination. Imports NOTHING. Handled failures come back as
+      //    { ok:false, message } (not thrown) so the UI can show them plainly. ─
+      case "testNotion": {
+        const databaseId = String(body?.database_id || "").trim();
+        if (!databaseId) return json({ ok: false, message: "请填写数据库 ID" });
+
+        const key = Deno.env.get("NOTION_API_KEY");
+        if (!key) {
+          return json({ ok: false, message: "NOTION_API_KEY 未配置（请在 Supabase secret 里设置后重试）" });
+        }
+
+        const notionHeaders = {
+          Authorization: `Bearer ${key}`,
+          "Notion-Version": "2022-06-28",
+          "Content-Type": "application/json",
+        };
+
+        // 1) Database metadata → title
+        const metaResp = await fetch(`https://api.notion.com/v1/databases/${databaseId}`, {
+          headers: notionHeaders,
+        });
+        if (!metaResp.ok) {
+          const status = metaResp.status;
+          let message = `Notion 返回错误 ${status}`;
+          if (status === 401) message = "密钥无效或未授权，请检查 Supabase secret 里的 NOTION_API_KEY";
+          else if (status === 404)
+            message =
+              "找不到该数据库：确认 ID 正确，且已在 Notion 里把这个数据库分享给你的集成（••• → Connections → 选你的集成）";
+          else if (status === 400) message = "数据库 ID 格式不正确（应为 32 位字符）";
+          return json({ ok: false, message });
+        }
+        const meta = await metaResp.json();
+        const title =
+          (meta.title || []).map((t: { plain_text?: string }) => t?.plain_text || "").join("").trim() || "(无标题)";
+
+        // 2) Count pages by paginating ids only (no block/content reads)
+        let count = 0;
+        let cursor: string | undefined = undefined;
+        let loops = 0;
+        do {
+          const qResp = await fetch(`https://api.notion.com/v1/databases/${databaseId}/query`, {
+            method: "POST",
+            headers: notionHeaders,
+            body: JSON.stringify({ page_size: 100, start_cursor: cursor }),
+          });
+          if (!qResp.ok) {
+            return json({ ok: false, message: `列出页面失败（Notion 返回 ${qResp.status}）` });
+          }
+          const q = await qResp.json();
+          count += (q.results || []).length;
+          cursor = q.has_more ? q.next_cursor : undefined;
+          loops++;
+          if (loops > 200) break; // safety cap (~20000 pages)
+        } while (cursor);
+
+        return json({ ok: true, title, pageCount: count });
+      }
+
       default:
         return json({ error: `Unknown action: ${action || "(none)"}` }, 400);
     }
