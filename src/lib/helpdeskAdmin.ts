@@ -136,3 +136,38 @@ export type NotionDatabase = {
 export async function listNotionDatabases(): Promise<{ ok: boolean; databases?: NotionDatabase[]; message?: string }> {
   return callHelpdesk("listNotionDatabases");
 }
+
+// ── Notion synced-database list + batched sync (P4b) ────────────────────────
+
+export async function getNotionConfig(): Promise<string[]> {
+  const { database_ids } = await callHelpdesk<{ database_ids: string[] }>("getNotionConfig");
+  return database_ids || [];
+}
+export async function addNotionDatabase(id: string): Promise<string[]> {
+  const { database_ids } = await callHelpdesk<{ database_ids: string[] }>("addNotionDatabase", { database_id: id });
+  return database_ids || [];
+}
+export async function removeNotionDatabase(id: string): Promise<string[]> {
+  const { database_ids } = await callHelpdesk<{ database_ids: string[] }>("removeNotionDatabase", { database_id: id });
+  return database_ids || [];
+}
+
+export type SyncPlan = { ok: boolean; total?: number; pending?: number; skipped?: number; message?: string };
+export type SyncBatch = {
+  ok: boolean;
+  batchDone?: number;
+  batchFailed?: number;
+  remaining?: number;
+  total?: number;
+  message?: string;
+};
+
+/** Plan a sync: (re)build the work-list, marking new/changed pages pending and
+ *  unchanged ones skipped. Fast — no article bodies fetched. */
+export async function planNotionSync(id: string): Promise<SyncPlan> {
+  return callHelpdesk("planNotionSync", { database_id: id });
+}
+/** Process one batch of pending pages. Call repeatedly until remaining === 0. */
+export async function runNotionSyncBatch(id: string, batchSize = 6): Promise<SyncBatch> {
+  return callHelpdesk("runNotionSyncBatch", { database_id: id, batch_size: batchSize });
+}

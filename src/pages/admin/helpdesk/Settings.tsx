@@ -1,15 +1,22 @@
-import { useState } from "react";
-import { Plug, Loader2, CheckCircle2, XCircle, Palette, ListTree, Copy } from "lucide-react";
+import { useEffect, useState } from "react";
+import { Plug, Loader2, CheckCircle2, XCircle, Palette, ListTree, Copy, Database, RefreshCw, Trash2, Plus } from "lucide-react";
 import { toast } from "sonner";
 import {
   testNotion,
   listNotionDatabases,
+  getNotionConfig,
+  addNotionDatabase,
+  removeNotionDatabase,
+  planNotionSync,
+  runNotionSyncBatch,
   type NotionTestResult,
   type NotionDatabase,
 } from "@/lib/helpdeskAdmin";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+
+type SyncProgress = { total: number; processed: number; done: number; failed: number; skipped: number };
 
 /**
  * Helpdesk settings (`/admin/helpdesk/settings`).
@@ -61,6 +68,84 @@ export default function HelpdeskSettings() {
       () => toast.success("已复制数据库 ID"),
       () => toast.error("复制失败"),
     );
+  }
+
+  // ── Connected databases (manual list) + batched sync ──────────────────────
+  const [dbIds, setDbIds] = useState<string[]>([]);
+  const [loadingList, setLoadingList] = useState(true);
+  const [newDbId, setNewDbId] = useState("");
+  const [adding, setAdding] = useState(false);
+  const [syncingId, setSyncingId] = useState<string | null>(null);
+  const [progress, setProgress] = useState<SyncProgress | null>(null);
+
+  useEffect(() => {
+    getNotionConfig()
+      .then(setDbIds)
+      .catch(() => setDbIds([]))
+      .finally(() => setLoadingList(false));
+  }, []);
+
+  async function onAddDb() {
+    const id = newDbId.trim();
+    if (!id) return;
+    setAdding(true);
+    try {
+      setDbIds(await addNotionDatabase(id));
+      setNewDbId("");
+      toast.success("已加入同步列表");
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : "添加失败");
+    } finally {
+      setAdding(false);
+    }
+  }
+
+  async function onRemoveDb(id: string) {
+    try {
+      setDbIds(await removeNotionDatabase(id));
+      toast.success("已从列表移除");
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : "移除失败");
+    }
+  }
+
+  async function onSyncDb(id: string) {
+    if (syncingId) return;
+    setSyncingId(id);
+    setProgress({ total: 0, processed: 0, done: 0, failed: 0, skipped: 0 });
+    try {
+      const plan = await planNotionSync(id);
+      if (!plan.ok) {
+        toast.error(plan.message || "规划失败");
+        return;
+      }
+      const total = plan.total ?? 0;
+      const skipped = plan.skipped ?? 0;
+      let done = 0;
+      let failed = 0;
+      setProgress({ total, processed: skipped, done, failed, skipped });
+      if ((plan.pending ?? 0) === 0) {
+        toast.success(`都是最新的，无需更新（${skipped} 篇）`);
+        return;
+      }
+      let remaining = plan.pending ?? 0;
+      while (remaining > 0) {
+        const b = await runNotionSyncBatch(id, 6);
+        if (!b.ok) {
+          toast.error(b.message || "同步失败");
+          break;
+        }
+        done += b.batchDone ?? 0;
+        failed += b.batchFailed ?? 0;
+        remaining = b.remaining ?? 0;
+        setProgress({ total: b.total ?? total, processed: skipped + done + failed, done, failed, skipped });
+      }
+      toast.success(`同步完成：导入/更新 ${done}，跳过 ${skipped}，失败 ${failed}`);
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : "同步出错");
+    } finally {
+      setSyncingId(null);
+    }
   }
 
   return (
@@ -177,6 +262,93 @@ export default function HelpdeskSettings() {
               </div>
             )}
           </div>
+        </div>
+      </div>
+
+      {/* Connected databases (manual list) + per-database sync */}
+      <div className="glass-card rounded-2xl p-6">
+        <div className="flex items-center gap-3 mb-4">
+          <div
+            className="w-10 h-10 rounded-xl flex items-center justify-center text-white shrink-0"
+            style={{ background: "linear-gradient(135deg, #FF7E5F, #FF3D6E)" }}
+          >
+            <Database className="w-5 h-5" />
+          </div>
+          <div>
+            <h2 className="font-display font-semibold">已连接的数据库</h2>
+            <p className="text-sm text-muted-foreground">手动加入要同步的库，每个可单独同步。只同步你加进来的这些。</p>
+          </div>
+        </div>
+
+        <div className="flex gap-2">
+          <Input
+            value={newDbId}
+            onChange={(e) => setNewDbId(e.target.value)}
+            placeholder="粘贴 Notion 数据库 ID"
+            className="font-mono text-sm"
+            onKeyDown={(e) => e.key === "Enter" && !adding && onAddDb()}
+          />
+          <Button onClick={onAddDb} disabled={adding || !newDbId.trim()} className="gap-1.5 shrink-0">
+            {adding ? <Loader2 className="w-4 h-4 animate-spin" /> : <Plus className="w-4 h-4" />}
+            添加
+          </Button>
+        </div>
+
+        <div className="mt-3 space-y-1.5">
+          {loadingList ? (
+            <div className="flex items-center justify-center py-6 text-muted-foreground">
+              <Loader2 className="w-5 h-5 animate-spin" />
+            </div>
+          ) : dbIds.length === 0 ? (
+            <p className="text-sm text-muted-foreground py-2">还没有加入任何数据库。用上面的搜索找到你的库、复制 ID 加进来。</p>
+          ) : (
+            dbIds.map((id) => {
+              const isSyncing = syncingId === id;
+              const pct = progress && progress.total > 0 ? Math.round((progress.processed / progress.total) * 100) : 0;
+              return (
+                <div key={id} className="rounded-xl border border-border/50 px-3 py-2">
+                  <div className="flex items-center gap-2">
+                    <p className="flex-1 min-w-0 text-xs font-mono truncate text-muted-foreground">{id}</p>
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      className="gap-1.5 shrink-0"
+                      onClick={() => onSyncDb(id)}
+                      disabled={!!syncingId}
+                    >
+                      {isSyncing ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <RefreshCw className="w-3.5 h-3.5" />}
+                      {isSyncing ? "同步中…" : "同步"}
+                    </Button>
+                    <Button
+                      variant="ghost"
+                      size="icon"
+                      className="h-8 w-8 shrink-0 text-destructive hover:text-destructive"
+                      onClick={() => onRemoveDb(id)}
+                      disabled={!!syncingId}
+                      aria-label="移除"
+                    >
+                      <Trash2 className="w-3.5 h-3.5" />
+                    </Button>
+                  </div>
+
+                  {isSyncing && progress && (
+                    <div className="mt-2">
+                      <div className="h-1.5 rounded-full bg-muted overflow-hidden">
+                        <div
+                          className="h-full rounded-full transition-all"
+                          style={{ width: `${pct}%`, background: "linear-gradient(90deg, #FF7E5F, #FF3D6E)" }}
+                        />
+                      </div>
+                      <p className="text-[11px] text-muted-foreground mt-1 tabular-nums">
+                        已处理 {progress.processed} / {progress.total} · 导入 {progress.done} · 跳过 {progress.skipped}
+                        {progress.failed > 0 ? ` · 失败 ${progress.failed}` : ""}
+                      </p>
+                    </div>
+                  )}
+                </div>
+              );
+            })
+          )}
         </div>
       </div>
 

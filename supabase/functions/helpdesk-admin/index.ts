@@ -16,6 +16,13 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { corsHeaders, json, serviceClient } from "../_shared/ghl.ts";
 import { requireAdmin } from "../_shared/admin.ts";
+import {
+  fetchDatabasePages,
+  getPage,
+  pageTitle,
+  folderNameForDatabase,
+  blocksToMarkdown,
+} from "../_shared/notion.ts";
 
 serve(async (req) => {
   if (req.method === "OPTIONS") return new Response(null, { headers: corsHeaders });
@@ -199,6 +206,15 @@ serve(async (req) => {
         const title =
           (meta.title || []).map((t: { plain_text?: string }) => t?.plain_text || "").join("").trim() || "(无标题)";
 
+        // Diagnostic: which folder will this land in + what parent type is it?
+        const parentType = meta.parent?.type || "unknown";
+        let folder = "";
+        try {
+          folder = await folderNameForDatabase(key, databaseId);
+        } catch {
+          folder = "";
+        }
+
         // 2) Count pages by paginating ids only (no block/content reads)
         let count = 0;
         let cursor: string | undefined = undefined;
@@ -219,7 +235,7 @@ serve(async (req) => {
           if (loops > 200) break; // safety cap (~20000 pages)
         } while (cursor);
 
-        return json({ ok: true, title, pageCount: count });
+        return json({ ok: true, title, pageCount: count, folder, parentType });
       }
 
       // ── Notion: list every database this integration can see (P4a helper).
@@ -293,6 +309,193 @@ serve(async (req) => {
         // Most-articles first — the owner's real library floats to the top.
         databases.sort((a, b) => b.pageCount - a.pageCount);
         return json({ ok: true, databases });
+      }
+
+      // ── Notion synced-database list (the owner's manual list) ───────────
+      case "getNotionConfig": {
+        const { data } = await sb.from("hd_notion_settings").select("database_ids").limit(1).maybeSingle();
+        return json({ database_ids: (data?.database_ids as string[]) || [] });
+      }
+
+      case "addNotionDatabase": {
+        const id = String(body?.database_id || "").trim();
+        if (!id) return json({ error: "database_id required" }, 400);
+        const { data } = await sb.from("hd_notion_settings").select("id, database_ids").limit(1).maybeSingle();
+        const current: string[] = (data?.database_ids as string[]) || [];
+        if (!current.includes(id)) current.push(id);
+        if (data?.id) {
+          await sb.from("hd_notion_settings").update({ database_ids: current }).eq("id", data.id);
+        } else {
+          await sb.from("hd_notion_settings").insert({ database_ids: current });
+        }
+        return json({ ok: true, database_ids: current });
+      }
+
+      case "removeNotionDatabase": {
+        const id = String(body?.database_id || "").trim();
+        if (!id) return json({ error: "database_id required" }, 400);
+        const { data } = await sb.from("hd_notion_settings").select("id, database_ids").limit(1).maybeSingle();
+        const current: string[] = ((data?.database_ids as string[]) || []).filter((x) => x !== id);
+        if (data?.id) await sb.from("hd_notion_settings").update({ database_ids: current }).eq("id", data.id);
+        await sb.from("hd_sync_queue").delete().eq("database_id", id); // drop its work-list
+        return json({ ok: true, database_ids: current });
+      }
+
+      // ── Plan a sync: list the database's pages, mark which need import
+      //    (new/changed) vs skip (already up-to-date via notion_last_edited),
+      //    rebuild the queue. Fast — no block reads. ────────────────────────
+      case "planNotionSync": {
+        const databaseId = String(body?.database_id || "").trim();
+        if (!databaseId) return json({ error: "database_id required" }, 400);
+        const key = Deno.env.get("NOTION_API_KEY");
+        if (!key) return json({ ok: false, message: "NOTION_API_KEY 未配置" });
+
+        let pages: { id: string; last_edited_time: string }[];
+        try {
+          pages = await fetchDatabasePages(key, databaseId);
+        } catch (e) {
+          return json({ ok: false, message: `列出页面失败：${e instanceof Error ? e.message : e}` });
+        }
+
+        // Existing imported versions for these pages (chunked .in lookups).
+        const existing = new Map<string, string | null>();
+        const ids = pages.map((p) => p.id);
+        for (let i = 0; i < ids.length; i += 100) {
+          const chunk = ids.slice(i, i + 100);
+          const { data: arts } = await sb
+            .from("hd_articles")
+            .select("source_id, notion_last_edited")
+            .eq("source", "notion")
+            .in("source_id", chunk);
+          for (const a of arts || []) existing.set(a.source_id as string, a.notion_last_edited as string | null);
+        }
+
+        await sb.from("hd_sync_queue").delete().eq("database_id", databaseId);
+        const rows = pages.map((p) => {
+          const imported = existing.get(p.id);
+          const unchanged =
+            imported && new Date(imported).getTime() === new Date(p.last_edited_time).getTime();
+          return {
+            database_id: databaseId,
+            page_id: p.id,
+            page_last_edited: p.last_edited_time,
+            status: unchanged ? "skipped" : "pending",
+          };
+        });
+        for (let i = 0; i < rows.length; i += 500) {
+          const { error } = await sb.from("hd_sync_queue").insert(rows.slice(i, i + 500));
+          if (error) throw error;
+        }
+        return json({
+          ok: true,
+          total: rows.length,
+          pending: rows.filter((r) => r.status === "pending").length,
+          skipped: rows.filter((r) => r.status === "skipped").length,
+        });
+      }
+
+      // ── Process one batch of pending pages: fetch → convert → upsert. Each
+      //    page independent (one failure → mark failed + continue). ─────────
+      case "runNotionSyncBatch": {
+        const databaseId = String(body?.database_id || "").trim();
+        if (!databaseId) return json({ error: "database_id required" }, 400);
+        const batchSize = Math.min(Math.max(Number(body?.batch_size) || 6, 1), 15);
+        const key = Deno.env.get("NOTION_API_KEY");
+        if (!key) return json({ ok: false, message: "NOTION_API_KEY 未配置" });
+
+        const { data: pend, error: pErr } = await sb
+          .from("hd_sync_queue")
+          .select("id, page_id, page_last_edited")
+          .eq("database_id", databaseId)
+          .eq("status", "pending")
+          .order("created_at")
+          .limit(batchSize);
+        if (pErr) throw pErr;
+
+        // Resolve the folder once for this batch (parent page title = folder).
+        let folderId: string | null = null;
+        if ((pend || []).length) {
+          try {
+            const name = await folderNameForDatabase(key, databaseId);
+            if (name) {
+              const { data: f } = await sb.from("hd_folders").select("id").eq("name", name).limit(1).maybeSingle();
+              if (f?.id) folderId = f.id as string;
+              else {
+                const { data: created } = await sb.from("hd_folders").insert({ name }).select("id").single();
+                folderId = (created?.id as string) ?? null;
+              }
+            }
+          } catch {
+            folderId = null; // don't fail the batch over foldering
+          }
+        }
+
+        let done = 0;
+        let failed = 0;
+        for (const row of pend || []) {
+          try {
+            const page = await getPage(key, row.page_id as string);
+            const title = pageTitle(page) || "(无标题)";
+            const content = await blocksToMarkdown(key, row.page_id as string);
+
+            const { data: existed } = await sb
+              .from("hd_articles")
+              .select("id")
+              .eq("source", "notion")
+              .eq("source_id", row.page_id)
+              .maybeSingle();
+            if (existed?.id) {
+              await sb
+                .from("hd_articles")
+                .update({ title, content, folder_id: folderId, notion_last_edited: row.page_last_edited })
+                .eq("id", existed.id);
+            } else {
+              await sb.from("hd_articles").insert({
+                title,
+                content,
+                source: "notion",
+                source_id: row.page_id,
+                folder_id: folderId,
+                notion_last_edited: row.page_last_edited,
+                category: "general",
+              });
+            }
+            await sb.from("hd_sync_queue").update({ status: "done", error: null }).eq("id", row.id);
+            done++;
+          } catch (e) {
+            await sb
+              .from("hd_sync_queue")
+              .update({ status: "failed", error: String(e instanceof Error ? e.message : e).slice(0, 500) })
+              .eq("id", row.id);
+            failed++;
+          }
+        }
+
+        const { count: remaining } = await sb
+          .from("hd_sync_queue")
+          .select("id", { count: "exact", head: true })
+          .eq("database_id", databaseId)
+          .eq("status", "pending");
+        const { count: total } = await sb
+          .from("hd_sync_queue")
+          .select("id", { count: "exact", head: true })
+          .eq("database_id", databaseId);
+        return json({ ok: true, batchDone: done, batchFailed: failed, remaining: remaining ?? 0, total: total ?? 0 });
+      }
+
+      case "getNotionSyncStatus": {
+        const databaseId = String(body?.database_id || "").trim();
+        if (!databaseId) return json({ error: "database_id required" }, 400);
+        const counts: Record<string, number> = { pending: 0, done: 0, failed: 0, skipped: 0 };
+        for (const s of Object.keys(counts)) {
+          const { count } = await sb
+            .from("hd_sync_queue")
+            .select("id", { count: "exact", head: true })
+            .eq("database_id", databaseId)
+            .eq("status", s);
+          counts[s] = count ?? 0;
+        }
+        return json({ ok: true, counts });
       }
 
       default:
