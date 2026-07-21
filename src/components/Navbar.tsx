@@ -93,10 +93,8 @@ const Navbar = () => {
               </a>
             )
           ))}
-        </nav>
 
-        <div className="hidden md:flex items-center gap-2">
-          {/* Tools dropdown — groups the product tools (Review Boost now; more at P10). */}
+          {/* Tools dropdown — next to 伙伴; groups the product tools (Review Boost now; more at P10). */}
           <HoverCard openDelay={80} closeDelay={150}>
             <HoverCardTrigger asChild>
               <button className="flex items-center gap-1 text-sm text-muted-foreground hover:text-foreground transition-colors duration-300 px-1">
@@ -104,7 +102,7 @@ const Navbar = () => {
                 <ChevronDown size={14} />
               </button>
             </HoverCardTrigger>
-            <HoverCardContent align="end" sideOffset={12} className="w-52 p-2">
+            <HoverCardContent align="start" sideOffset={12} className="w-52 p-2">
               <div className="flex flex-col">
                 {toolLinks.map((tool) => (
                   <a
@@ -120,7 +118,7 @@ const Navbar = () => {
             </HoverCardContent>
           </HoverCard>
 
-          {/* Guides dropdown — groups the help links; each opens its popout on hover */}
+          {/* Guides dropdown — next to 小工具; groups the help links */}
           <HoverCard openDelay={80} closeDelay={150}>
             <HoverCardTrigger asChild>
               <button className="flex items-center gap-1 text-sm text-muted-foreground hover:text-foreground transition-colors duration-300 px-1">
@@ -128,7 +126,7 @@ const Navbar = () => {
                 <ChevronDown size={14} />
               </button>
             </HoverCardTrigger>
-            <HoverCardContent align="end" sideOffset={12} className="w-60 p-2">
+            <HoverCardContent align="start" sideOffset={12} className="w-60 p-2">
               <div className="flex flex-col">
                 {guideLinks.map((link) => (
                   <HoverCard key={link.en} openDelay={80} closeDelay={150}>
@@ -150,6 +148,9 @@ const Navbar = () => {
               </div>
             </HoverCardContent>
           </HoverCard>
+        </nav>
+
+        <div className="hidden md:flex items-center gap-2">
           <Button
             variant="outline"
             size="sm"

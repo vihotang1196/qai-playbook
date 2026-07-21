@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { BookOpen, LifeBuoy, Megaphone, MessageCircle } from "lucide-react";
+import { BookOpen, Check, Copy, LifeBuoy, Megaphone, MessageCircle } from "lucide-react";
 import { useLang } from "@/i18n/LanguageContext";
 import { resolveLocationId, fetchLocation, type GhlLocation } from "@/lib/ghl";
 import HelpChat from "./HelpChat";
@@ -66,29 +66,8 @@ export default function HelpWidget() {
     setTab("browse");
   }
 
-  // No location_id → the "open from GHL" gate (mirrors RB's no-location state).
-  if (!locationId) {
-    return (
-      <div className="min-h-screen px-4 sm:px-6 pb-16 pt-24 md:pt-28">
-        <div className="max-w-md mx-auto">
-          <div className="glass-card rounded-3xl p-8 sm:p-10 text-center">
-            <div
-              className="w-14 h-14 rounded-2xl flex items-center justify-center mx-auto mb-5 text-white"
-              style={{ background: "linear-gradient(135deg, #FF7E5F, #FF3D6E)" }}
-            >
-              <LifeBuoy className="w-6 h-6" />
-            </div>
-            <h1 className="text-2xl font-display font-bold mb-2">{lang === "cn" ? "帮助中心" : "Help Center"}</h1>
-            <p className="text-sm text-muted-foreground leading-relaxed">
-              {lang === "cn"
-                ? "请从你的 GoHighLevel 后台打开帮助中心。"
-                : "Please open the Help Center from your GoHighLevel dashboard."}
-            </p>
-          </div>
-        </div>
-      </div>
-    );
-  }
+  // No location_id → the "open from QAI" gate (mirrors RB's no-location state).
+  if (!locationId) return <OpenFromQai lang={lang} />;
 
   const businessName = location?.business_name?.trim();
 
@@ -154,6 +133,87 @@ export default function HelpWidget() {
         ) : (
           <HelpUpdates lang={lang} />
         )}
+      </div>
+    </div>
+  );
+}
+
+const QAI_URL = "https://app.qiai.tech/";
+
+/** Shown when there's no identity (not opened from QAI). Customers know the QAI
+ *  brand, not GHL — so this points them to app.qiai.tech with a copyable link. */
+function OpenFromQai({ lang }: { lang: "cn" | "en" }) {
+  const [copied, setCopied] = useState(false);
+  function copy() {
+    const done = () => {
+      setCopied(true);
+      setTimeout(() => setCopied(false), 2000);
+    };
+    // Legacy fallback for when the async Clipboard API is blocked (some embeds /
+    // non-secure contexts). The link is also visible + clickable regardless.
+    const fallback = () => {
+      try {
+        const ta = document.createElement("textarea");
+        ta.value = QAI_URL;
+        ta.style.position = "fixed";
+        ta.style.opacity = "0";
+        document.body.appendChild(ta);
+        ta.select();
+        document.execCommand("copy");
+        document.body.removeChild(ta);
+        done();
+      } catch {
+        /* leave the link for manual copy */
+      }
+    };
+    if (navigator.clipboard?.writeText) {
+      navigator.clipboard.writeText(QAI_URL).then(done, fallback);
+    } else {
+      fallback();
+    }
+  }
+  return (
+    <div className="min-h-screen px-4 sm:px-6 pb-16 pt-24 md:pt-28">
+      <div className="max-w-md mx-auto">
+        <div className="glass-card rounded-3xl p-8 sm:p-10 text-center">
+          <div
+            className="w-14 h-14 rounded-2xl flex items-center justify-center mx-auto mb-5 text-white"
+            style={{ background: "linear-gradient(135deg, #FF7E5F, #FF3D6E)" }}
+          >
+            <LifeBuoy className="w-6 h-6" />
+          </div>
+          <h1 className="text-2xl font-display font-bold mb-2">{lang === "cn" ? "帮助中心" : "Help Center"}</h1>
+          <p className="text-sm text-muted-foreground leading-relaxed">
+            {lang === "cn"
+              ? "请从你的 QAI 后台打开帮助中心，这样才能识别你的账号。"
+              : "Please open the Help Center from your QAI dashboard so we can recognise your account."}
+          </p>
+
+          {/* Copyable QAI link */}
+          <div className="mt-5 flex items-center gap-2 rounded-xl border border-border/60 bg-muted/40 p-1.5 pl-3">
+            <a
+              href={QAI_URL}
+              target="_blank"
+              rel="noreferrer"
+              className="text-sm font-mono truncate flex-1 text-left text-primary hover:underline"
+            >
+              {QAI_URL}
+            </a>
+            <button
+              type="button"
+              onClick={copy}
+              className="flex items-center gap-1.5 rounded-lg bg-primary text-primary-foreground text-xs font-medium px-3 py-1.5 shrink-0 hover:opacity-90 transition-opacity"
+            >
+              {copied ? <Check className="w-3.5 h-3.5" /> : <Copy className="w-3.5 h-3.5" />}
+              {copied ? (lang === "cn" ? "已复制" : "Copied") : (lang === "cn" ? "复制" : "Copy")}
+            </button>
+          </div>
+          <p className="mt-3 text-xs text-muted-foreground">
+            {lang === "cn"
+              ? "打开上面的网址登录 QAI，再从里面进入帮助中心。"
+              : "Open the link above, sign in to QAI, then enter the Help Center from there."}
+          </p>
+        </div>
       </div>
     </div>
   );

@@ -210,7 +210,20 @@ Each phase is committed + pushed to `feat/helpdesk` when done.
   view. Help Center stays a top-level nav item (support, always visible); the
   product tools group under 小工具. Copywriter joins this dropdown after the
   branches merge to main (P10). Verified: 小工具 dropdown shows Review Boost →
-  /review-boost/location/test-verify-001 (id carried). Files: Navbar.tsx. New PUBLIC
+  /review-boost/location/test-verify-001 (id carried). Files: Navbar.tsx.
+  **UPDATE 2026-07-21d (owner): brand + nav polish.** (1) Customer-facing
+  "GoHighLevel / GHL" wording → "QAI" (help-center gate, RB AdminShell prompts,
+  RB Landing). AGENCY-facing GHL text kept (Admin Portal "从 GHL 同步" etc. — the
+  agency really syncs GHL's API) + the homepage CRM-integrations list keeps
+  "GoHighLevel" (factual). Code comments unchanged. (2) The no-identity gate now
+  says "从你的 QAI 后台打开" + shows a copyable https://app.qiai.tech/ link (Copy
+  button; clipboard API + execCommand fallback). (3) Navbar 小工具 + 指南
+  dropdowns moved next to 伙伴 (into the main nav row; right side keeps only the
+  language toggle). Verified in dev. TODO (④, owner reviewing): turn the 指南
+  hover-popouts into full pages (content lives in QuickLinkPopout.tsx as React
+  components — SMSGuidelineContent / WAvsWABAContent / PayexSenangpayContent).
+
+  New PUBLIC
   read fn `helpdesk` (verify_jwt=false, service-role internally, READ-ONLY:
   listFolders / listArticles / getArticle) — the frontend never touches the
   RLS-locked hd_ tables; the requireAdmin `helpdesk-admin` stays the only WRITE
