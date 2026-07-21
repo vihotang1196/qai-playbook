@@ -1,8 +1,8 @@
 /**
- * Offline Event admin — placeholder sections (P0 scaffold).
+ * Offline Event admin — placeholder sections.
  *
- * Each becomes a real page in a later phase:
- *   - Overview   → P2 (live counts via the offline-event-admin fn)
+ * Overview is now a real page (P2, src/pages/admin/offline-event/Overview.tsx).
+ * The rest become real pages in later phases:
  *   - Bookings   → P7 (list/search/change/archive)
  *   - EventDates → P7 (CRUD event dates + per-event price)
  *   - FloorPlans → P8 (visual drag-drop floor-plan editor)
@@ -23,9 +23,6 @@ function Placeholder({ title, desc, phase }: { title: string; desc: string; phas
   );
 }
 
-export function OEOverview(): ReactNode {
-  return <Placeholder title="总览" desc="活动数、报名数、收入、平面图数的实时统计。" phase="P2" />;
-}
 export function OEBookings(): ReactNode {
   return <Placeholder title="报名管理" desc="查看/搜索报名、改期、改座位、归档。" phase="P7" />;
 }

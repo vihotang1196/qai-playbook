@@ -29,8 +29,8 @@ import AdminSubAccounts from "./pages/admin/AdminSubAccounts";
 import AdminStats from "./pages/admin/AdminStats";
 import AdminAudit from "./pages/admin/AdminAudit";
 import OfflineEventAdminShell from "./components/offline-event/OfflineEventAdminShell";
+import OEOverview from "./pages/admin/offline-event/Overview";
 import {
-  OEOverview,
   OEBookings,
   OEEventDates,
   OEFloorPlans,

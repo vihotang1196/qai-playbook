@@ -26,3 +26,9 @@ verify_jwt = false
 # platform_admins allowlist before any privileged work.
 [functions.admin]
 verify_jwt = false
+
+# Offline Event admin (nested in the Admin Portal). Anon-callable at the gateway;
+# the REAL gate is requireAdmin() inside. Runs with the service role internally;
+# the frontend never touches the RLS-locked oe_ tables.
+[functions.offline-event-admin]
+verify_jwt = false

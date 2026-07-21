@@ -9,11 +9,11 @@ the QR to check in** (2-day event: day1/day2). **IN PROGRESS — P0 + P1 done.**
 This file records the owner's locked decisions, the old-version facts, and the
 phased plan so a new session can pick up without re-researching.
 
-_Last updated: 2026-07-21 — P0 (scaffold) + P1 (DB + seed) done, committed +
-pushed to `feat/offline-event`. Next: **P2 (admin login + shell + live
-overview)**. NOTE: P0+P1 code/migration were drafted by the prior session
-(uncommitted) and this session verified them (tsc clean, migration already
-applied to hkqzz + REST-verified, routes render in dev) and committed them._
+_Last updated: 2026-07-21 — P0 + P1 + P2 done, committed + pushed to
+`feat/offline-event`. Next: **P3 (customer identity + event list + seat map,
+read-only)**. NOTE: P0+P1 code/migration were drafted by the prior session
+(uncommitted); this session verified them (tsc clean, migration already applied
+to hkqzz + REST-verified, routes render in dev), committed them, then built P2._
 
 ## Where to build it
 - **Old version (read-only reference):** `C:\Users\chais\Projects\QAI Offline Event`
@@ -136,11 +136,20 @@ e-ticket+check-in → admin+seat editor → polish.
     impossible at the DB level (old `try_book_seats` only checked head-count).
     For seat-selection-disabled events, the booking fn passes synthetic per-booking
     labels so they never collide while capacity is still enforced.
-- [ ] **P2 — Admin login + shell wired + live overview.** `offline-event-admin`
-  edge fn (every action requireAdmin, verify_jwt=false); first action `overview`
-  (counts: events / bookings / confirmed / revenue / floor plans + seed sanity).
-  Frontend adminApi + real Overview page. Verify counts show the seeded 3 events +
-  1 floor plan; anon/bad-token → 403.
+- [x] **P2 — Admin login + shell wired + live overview (2026-07-21).**
+  `offline-event-admin` edge fn (kept separate from the platform `admin` fn,
+  mirrors `helpdesk-admin`): every action gated by `requireAdmin` before any
+  service-role work, `verify_jwt=false` at the gateway. Ships `overview` — live
+  cap-free COUNTs (events total/live, floor plans, bookings total/confirmed/
+  pending, seats claimed) + revenue (sum of confirmed totals; pre-scale TODO:
+  SQL sum RPC). Files: `supabase/functions/offline-event-admin/index.ts` +
+  config.toml, `src/lib/offlineEventAdmin.ts` (session-authed client, adminApi
+  pattern), `src/pages/admin/offline-event/Overview.tsx` (count tiles; replaced
+  the sections.tsx OEOverview placeholder + rewired App.tsx). **Verified live**
+  (deployed to hkqzz): with the owner's admin session the Overview shows the
+  seeded **3 events (3 live) + 1 floor plan**, 0 bookings, RM 0.00 — visible
+  confirmation the P1 seed landed; anon key / garbage token / no token all → 403
+  not_authorized; tsc clean; no console errors.
 - [ ] **P3 — Customer identity + event list + seat map (read-only).** Public `oe`
   edge fn (location-scoped): resolve/auto-register sub-account (via fn, not anon),
   gate on `location_tool_access(offline_event)` + presence of location_id; list
