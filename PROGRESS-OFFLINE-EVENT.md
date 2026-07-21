@@ -1,0 +1,183 @@
+# QAI Offline Event — Rebuild Progress
+
+Rebuild of **Offline Event** (5th migrated tool) into this Playbook project,
+ported from a Lovable export. It is a **line-up event booking system**: pick an
+event date → choose seats on a floor-plan seat map → add lunch → **pay via
+Stripe (MYR + 8% SST)** → get a **QR e-ticket on the web page** → staff **scan
+the QR to check in** (2-day event: day1/day2). **IN PROGRESS — P0 + P1 done.**
+
+This file records the owner's locked decisions, the old-version facts, and the
+phased plan so a new session can pick up without re-researching.
+
+_Last updated: 2026-07-21 — P0 (scaffold) + P1 (DB + seed) done, committed +
+pushed to `feat/offline-event`. Next: **P2 (admin login + shell + live
+overview)**. NOTE: P0+P1 code/migration were drafted by the prior session
+(uncommitted) and this session verified them (tsc clean, migration already
+applied to hkqzz + REST-verified, routes render in dev) and committed them._
+
+## Where to build it
+- **Old version (read-only reference):** `C:\Users\chais\Projects\QAI Offline Event`
+  (a Lovable export; DO NOT edit it, DO NOT copy it wholesale). Source zip was
+  `C:\Users\chais\Downloads\Q.AI Offline Class.zip` ("Offline Class" = this tool).
+  Old Supabase project `fwzkpaznfhjerdvcbpbe` — do NOT reuse.
+- **New branch:** ✅ `feat/offline-event` cut from `feat/admin-portal` — has the
+  reusable Admin Portal auth (requireAdmin + `platform_admins` + light admin
+  shell), shared `ghl_locations` + `sync-ghl-locations` + `location_tool_access`
+  + `tool_usage`, and the `_shared/*` Deno helpers.
+- **Supabase:** reuse the shared **Playbook** project `hkqzzfyigmvisaftdmwh` (hkqzz).
+- **Migration-history note:** this branch (cut from admin-portal) also carries the
+  4 **helpdesk** migration FILES (`20260718*`–`20260720*`), byte-identical to
+  `feat/helpdesk`. They are NOT helpdesk code — they keep the local migration
+  history in sync with the shared hkqzz DB (which already has hd_ applied) so
+  `supabase db push` stays clean, and so a future merge to `main` (after helpdesk
+  merges) reconciles without conflict. Leave them.
+
+## Owner decisions (locked 2026-07-21)
+1. **Full port** — booking + seat selection + payment + e-ticket + check-in.
+   **Email dropped for now** — the web page shows a QR e-ticket instead (customer
+   screenshots it; staff scan on event day). Add email later if wanted.
+2. **Per-event price** — each event carries its OWN `price_per_seat` (on
+   `oe_events`), not hardcoded. Lunch price lives in `oe_settings`.
+3. **SST 8%** on all PAID orders; free tickets add no SST (0 subtotal → 0 SST).
+4. **Max 4 tickets per booking** (kept from old app).
+5. **Default free allowance per Sub Account = 1 slot = 2 free seats** (kept).
+6. **Customer URL = `/events?location_id=xxx`** — inside `<Layout>` (Playbook
+   navbar + footer), identity = trust-the-URL `location_id`, reuse Helpdesk's
+   tab-wide location_id persistence pattern.
+7. **Add-ons = lunch only** (yes/no + qty). The old app's 6 food items are NOT ported.
+8. **Payment = Stripe with a WEBHOOK** — "paid" becomes server-verified &
+   un-fakeable (old app trusted the browser). Owner configures Stripe at P5.
+9. **Security rewrite (must):** admin = Admin Portal `requireAdmin`; ALL
+   booking/change/check-in go through location-scoped Edge Functions; the
+   frontend NEVER touches oe_ tables with the anon key (closes the old app's
+   privacy hole where anon read the whole bookings table).
+10. **Branch `feat/offline-event` from `feat/admin-portal`, prefix `oe_`,
+    register `offline_event` in the tool registry.**
+
+## Old-version facts (from read-only research, so we don't re-dig)
+Product: a **2-day offline class booking + seat-selection + Stripe payment +
+QR check-in** app. Bilingual EN/中文. Customer books via a GHL sub-account link;
+admin manages events/seats/bookings/check-in.
+
+- **Identity (old):** customer via `/book?location_id={{location.id}}` (URL,
+  trust-the-URL, auto-registers the sub-account on first visit). ADMIN was a
+  **broken client-only mock** — `useAdminRole.signIn(email, "")` took ONLY an
+  email (no password), or `?key=qai-admin` in the URL → instant admin; anon key
+  read `admin_users` directly. **Must be replaced** with requireAdmin (decision 9).
+- **Backend (old):** almost none. The frontend wrote `bookings` etc. DIRECTLY via
+  the anon key (`bookingStore.ts`), RLS wide open (privacy hole). No Stripe
+  webhook — the browser created the booking + wrote "paid" itself. Only Stripe
+  (`create-checkout`, `get-receipt`) + a Lovable-hosted email queue were real
+  server code. GHL sub-accounts were live-listed (no shared table).
+- **Old data model** (final schema): `bookings` (email/phone, event_date+end_date,
+  free_seats[]/addon_seats[], lunch_qty, subtotal/sst_amount/total,
+  payment_intent_id/receipt_url, qr_payload, day1_status/day2_status,
+  ghl_location_id, is_archived), `event_dates`, `floor_plans` (layout_data JSON),
+  `ghl_subaccount_settings` (is_enabled + free_tickets/free_seats), `admin_users`,
+  `app_settings` (stripe_payment_mode, capacity_limit:<label>), + email tables.
+  RPCs: `try_book_seats` (aggregate head-count only — did NOT prevent same-seat
+  double-booking) + a pgmq email queue.
+- **Booking flow (old, single page, phased):** list events → seat map (or a
+  quantity stepper if seat-selection disabled) → lunch yes/no + qty → order
+  summary (email) → submit. Free (total ≤ 0) books instantly; paid opens a Stripe
+  Embedded Checkout dialog → `/checkout/return` stashes session_id → the page
+  finalizes the booking from a localStorage draft + fetches the receipt.
+- **Seat model:** `floor_plans.layout_data` = `{columns, rows, stage, door,
+  tables[]}`; each table = `{id,label,shape:"cluster"(4)|"long"(6),col,row,
+  seats[],missingSeats[],disabledSeats[]}`. Seat label = `"G5 Seat 1"`. Default
+  hall = G1–G28 (6 cols × ~5 rows); G17 missing seat 2; G24–G28 disabled by default.
+- **Pricing (old):** RM397/seat, lunch RM39.99/person, SST 8%.
+
+## Phased plan (owner-approved 2026-07-21)
+Each phase is committed + pushed to `feat/offline-event` when done.
+Order: scaffold+DB+security → customer booking+seats → payment webhook →
+e-ticket+check-in → admin+seat editor → polish.
+
+- [x] **P0 — Scaffold (2026-07-21).** Cut branch. Register `offline_event` in the
+  tool registry (`src/lib/admin/tools.ts` ADMIN_TOOLS `live:false` until P3 +
+  `admin` fn `KNOWN_TOOLS`). Customer route `/events` (inside `<Layout>`, navbar+
+  footer) → `EventsPage.tsx` placeholder (reads URL `location_id`). Admin nested
+  in the Admin Portal at `/admin/offline-event/*` via `OfflineEventAdminShell`
+  (sub-tabs: 总览/报名/活动日期/平面图/签到/设置) + placeholder `sections.tsx`.
+  Nav item in `AdminLayout` + card in `AdminHome`. Files:
+  `src/pages/events/EventsPage.tsx`, `src/components/offline-event/
+  OfflineEventAdminShell.tsx`, `src/pages/admin/offline-event/sections.tsx`,
+  routes in `src/App.tsx`, `AdminLayout.tsx`, `AdminHome.tsx`, registry edits.
+  **Verified:** tsc clean; `/events?location_id=…` renders inside Layout with the
+  id shown; `/admin/offline-event` renders the nested shell (owner admin session
+  present in the preview browser) + sub-tab nav works; no console errors.
+- [x] **P1 — DB + seed (2026-07-21).** Migration `20260721120000_offline_event_phase1.sql`
+  (additive; already applied to hkqzz + REST-verified). Tables (all `oe_`, RLS ON
+  + NO policy = service-role only): `oe_floor_plans` (layout_data jsonb +
+  denormalized `physical_seats`, one-default partial unique index), `oe_events`
+  (per-event `price_per_seat`, nullable `capacity` → derive from plan,
+  status live/display/off, floor_plan_id FK, bilingual theme/notice),
+  `oe_bookings` (status pending/confirmed/cancelled, free/addon seats[],
+  subtotal/sst/total, payment_intent_id/stripe_session_id/receipt_url,
+  day1/day2_status, qr_payload, ghl_location_id nullable no-FK, is_archived),
+  `oe_booked_seats` ⭐ (the atomic seat lock), `oe_subaccount_settings`
+  (free_tickets/free_seats default 1/2 — NO is_enabled; tool on/off is owned by
+  `location_tool_access(offline_event)`), `oe_settings` (k/v). NOT ported:
+  `admin_users` (use platform_admins), all email tables (decision 1),
+  capacity_limit app_settings keys (capacity now on oe_events).
+  Seed: default **QAI Hall** floor plan (G1–G28, G17 missing seat 2, G24–G28
+  disabled) + 3 sample live events (25–26 Jul / 29–30 Aug / 26–27 Sep 2026, price
+  397) + settings (stripe_payment_mode=sandbox, sst_rate=0.08, lunch_price=39.99,
+  max_seats_per_booking=4). **Verified:** all 6 oe_ tables → anon `200 []` (exist +
+  RLS blocks seed rows); non-existent table → 404 (control); rb_*/ghl_locations/
+  platform_admins/location_tool_access/tool_usage/admin_audit_log intact.
+  Seed presence guaranteed by the transactional migration (version recorded remote
+  only on full success) — will be VISIBLY confirmed in P2's overview counts.
+  - **KEY DESIGN — atomic seat lock (more robust than the old app):** `oe_booked_seats`
+    has `UNIQUE(event_id, seat_label)`; the `oe_claim_seats(event_id, booking_id,
+    seats[])` RPC (used by the P4 booking fn) checks capacity then INSERTs all
+    requested seats in ONE statement — any duplicate raises `unique_violation`,
+    aborting the whole claim → returns false. Same-seat double-booking is
+    impossible at the DB level (old `try_book_seats` only checked head-count).
+    For seat-selection-disabled events, the booking fn passes synthetic per-booking
+    labels so they never collide while capacity is still enforced.
+- [ ] **P2 — Admin login + shell wired + live overview.** `offline-event-admin`
+  edge fn (every action requireAdmin, verify_jwt=false); first action `overview`
+  (counts: events / bookings / confirmed / revenue / floor plans + seed sanity).
+  Frontend adminApi + real Overview page. Verify counts show the seeded 3 events +
+  1 floor plan; anon/bad-token → 403.
+- [ ] **P3 — Customer identity + event list + seat map (read-only).** Public `oe`
+  edge fn (location-scoped): resolve/auto-register sub-account (via fn, not anon),
+  gate on `location_tool_access(offline_event)` + presence of location_id; list
+  events; get floor plan; get seat availability. Customer page renders event cards
+  + seat map + free-ticket allowance. Flip `offline_event` tool to `live:true`. No
+  booking yet.
+- [ ] **P4 — Booking submit (free + atomic seat claim) ⭐.** `oe` fn `createBooking`:
+  validate location, server-side free-ticket accounting, `oe_claim_seats` atomic
+  lock, write oe_bookings, generate QR payload. Free (total ≤ 0) completes here.
+  RISK: concurrency / seat collisions.
+- [ ] **P5 — Paid booking + Stripe + webhook ⭐.** `oe-checkout` (create session,
+  hold pending booking) + `oe-stripe-webhook` (verify signature → mark paid →
+  confirm seats). `/checkout/return`. SST 8%. Test/live mode via oe_settings.
+  RISK: highest (money, signature verify, edge cases). Owner configures Stripe.
+- [ ] **P6 — E-ticket + QR + check-in.** Ticket page (big QR, screenshot-friendly);
+  admin CheckInScanner (camera → requireAdmin fn → mark day1/day2 attended,
+  idempotent); optional self-check-in.
+- [ ] **P7 — Admin: bookings + event-dates + settings.** List/search/change-date/
+  change-seat/archive bookings; event-date CRUD (per-event price); capacity; Stripe
+  mode toggle; per-Sub-Account free allowance (reconcile with location_tool_access).
+- [ ] **P8 — Admin: floor-plan visual editor.** Full drag-drop `FloorPlanEditor`
+  (add/remove tables, cluster 4 / long 6, disabled seats, rows/cols, stage/door);
+  floor-plan CRUD + set default + link to events; recompute `physical_seats` on save.
+- [ ] **P9 — Polish + merge.** `/tools` cards, copy polish, merge to `main`.
+
+## oe_ table map (old → new; built in P1)
+`event_dates`→`oe_events` (+ per-event price) · `floor_plans`→`oe_floor_plans`
+(+ physical_seats) · `bookings`→`oe_bookings` (+ status, stripe_session_id) ·
+(new) `oe_booked_seats` (atomic seat lock) · `ghl_subaccount_settings`→
+`oe_subaccount_settings` (free allowance only; no is_enabled) · `app_settings`→
+`oe_settings` · `admin_users`→(dropped, use platform_admins) · email tables→(dropped).
+RPC: `try_book_seats`→`oe_claim_seats` (seat-level atomic).
+
+## Rules carried over (same as RB/Admin Portal/Helpdesk)
+- Commit + push after every phase (owner lost unpushed work once).
+- DB: dry-run then apply; only ADD oe_ tables; never touch other tools' tables.
+- Backend keys (Stripe, GHL, Anthropic) only in Supabase Edge secrets (owner sets).
+- Owner is non-technical: explain in Chinese, step by step, surface pros/cons for
+  decisions, plan → confirm → build → verify in dev → commit+push.
+- AI (Claude) is basically unused here (booking system) unless an obvious use appears.

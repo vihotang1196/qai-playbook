@@ -1,5 +1,5 @@
 import { Link, useOutletContext } from "react-router-dom";
-import { Building2, BarChart3, ScrollText } from "lucide-react";
+import { Building2, BarChart3, ScrollText, CalendarDays } from "lucide-react";
 import type { AdminIdentity } from "@/lib/adminAuth";
 
 /**
@@ -12,6 +12,7 @@ export default function AdminHome() {
 
   const cards = [
     { icon: <Building2 className="w-5 h-5" />, title: "Sub Account & 权限", desc: "开/关每个 Sub Account 每个工具的权限", to: "/admin/sub-accounts", soon: null },
+    { icon: <CalendarDays className="w-5 h-5" />, title: "Offline Event", desc: "线下活动报名 · 选座 · 收款 · 电子票 · 签到", to: "/admin/offline-event", soon: null },
     { icon: <ScrollText className="w-5 h-5" />, title: "审计日志", desc: "谁改了谁的权限、谁触发同步", to: "/admin/audit", soon: null },
     { icon: <BarChart3 className="w-5 h-5" />, title: "使用统计", desc: "各 Sub Account 在各工具上的用量总览", to: "/admin/stats", soon: null },
   ];

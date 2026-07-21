@@ -28,6 +28,16 @@ import AdminHome from "./pages/admin/AdminHome";
 import AdminSubAccounts from "./pages/admin/AdminSubAccounts";
 import AdminStats from "./pages/admin/AdminStats";
 import AdminAudit from "./pages/admin/AdminAudit";
+import OfflineEventAdminShell from "./components/offline-event/OfflineEventAdminShell";
+import {
+  OEOverview,
+  OEBookings,
+  OEEventDates,
+  OEFloorPlans,
+  OECheckIn,
+  OESettings,
+} from "./pages/admin/offline-event/sections";
+import EventsPage from "./pages/events/EventsPage";
 
 const ScrollToTop = () => {
   const { pathname } = useLocation();
@@ -60,6 +70,15 @@ const App = () => (
               <Route path="sub-accounts" element={<AdminSubAccounts />} />
               <Route path="stats" element={<AdminStats />} />
               <Route path="audit" element={<AdminAudit />} />
+              {/* Offline Event admin — nested tool (its own sub-tab shell). */}
+              <Route path="offline-event" element={<OfflineEventAdminShell />}>
+                <Route index element={<OEOverview />} />
+                <Route path="bookings" element={<OEBookings />} />
+                <Route path="event-dates" element={<OEEventDates />} />
+                <Route path="floor-plans" element={<OEFloorPlans />} />
+                <Route path="check-in" element={<OECheckIn />} />
+                <Route path="settings" element={<OESettings />} />
+              </Route>
             </Route>
 
             {/* All other routes share the Layout shell (continuous background + Navbar + Footer). */}
@@ -69,6 +88,10 @@ const App = () => (
               <Route path="/credits" element={<Credits />} />
               <Route path="/upgrade" element={<Upgrade />} />
               <Route path="/affiliate" element={<Affiliate />} />
+
+              {/* Offline Event — CUSTOMER booking page. Identity = URL location_id
+                  (trust-the-URL). Entered via a GHL custom menu link. */}
+              <Route path="/events" element={<EventsPage />} />
 
               {/* Review Boost — CUSTOMER (sub-account) app only. Identity = URL
                   location_id. Agency god-view (all sub-accounts / cross-client

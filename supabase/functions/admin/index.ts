@@ -15,7 +15,7 @@ import { requireAdmin } from "../_shared/admin.ts";
 
 // Tool registry (server-side mirror of src/lib/admin/tools.ts). Access can only
 // be set for a known tool_key.
-const KNOWN_TOOLS = new Set(["review_boost", "copywriter"]);
+const KNOWN_TOOLS = new Set(["review_boost", "copywriter", "offline_event"]);
 
 // Keep a PostgREST .or() filter safe from an admin's search string.
 const cleanQuery = (s: string) => s.replace(/[,()%*]/g, " ").trim();
