@@ -219,10 +219,50 @@ serve(async (req) => {
   if (req.method === "OPTIONS") return new Response(null, { headers: corsHeaders });
 
   try {
+    const body = await req.json().catch(() => ({}));
+
+    // ── Public 👍/👎 feedback write (widget) ─────────────────────────────
+    // A separate, cheap action — no Claude call, no message. Idempotent per
+    // (conversation, message_index): re-rating updates the existing row so a
+    // visitor toggling 👍↔👎 never inflates the counts.
+    if (body?.action === "feedback") {
+      const conversationId = String(body?.conversationId || "").trim();
+      const messageIndex = Number(body?.messageIndex);
+      const rating = body?.rating === "up" ? "up" : body?.rating === "down" ? "down" : "";
+      if (!conversationId || !Number.isFinite(messageIndex) || !rating) {
+        return json({ error: "conversationId, messageIndex and rating required" }, 400);
+      }
+      const sbf = serviceClient();
+      const excerpt = String(body?.excerpt || "").slice(0, 200) || null;
+      const locationId = body?.locationId ? String(body.locationId) : null;
+      const visitorId = String(body?.visitorId || "").trim() || null;
+      const { data: existing } = await sbf
+        .from("hd_message_feedback")
+        .select("id")
+        .eq("conversation_id", conversationId)
+        .eq("message_index", messageIndex)
+        .maybeSingle();
+      if (existing) {
+        await sbf
+          .from("hd_message_feedback")
+          .update({ rating, message_excerpt: excerpt, location_id: locationId, visitor_id: visitorId, updated_at: new Date().toISOString() })
+          .eq("id", existing.id);
+      } else {
+        await sbf.from("hd_message_feedback").insert({
+          conversation_id: conversationId,
+          message_index: messageIndex,
+          rating,
+          message_excerpt: excerpt,
+          location_id: locationId,
+          visitor_id: visitorId,
+        });
+      }
+      return json({ ok: true });
+    }
+
     const apiKey = Deno.env.get("ANTHROPIC_API_KEY");
     if (!apiKey) return json({ error: "ANTHROPIC_API_KEY not configured" }, 500);
 
-    const body = await req.json().catch(() => ({}));
     const message = String(body?.message || "").trim();
     if (!message) return json({ error: "message required" }, 400);
     const channel = (String(body?.channel || "web").slice(0, 32)) || "web";
@@ -269,14 +309,19 @@ serve(async (req) => {
 
     await sb.from("hd_messages").insert({ conversation_id: conversationId, role: "assistant", content: recordedAnswer });
     await sb.from("hd_conversations").update({ updated_at: new Date().toISOString() }).eq("id", conversationId);
-    try {
-      await sb.from("hd_support_analytics").insert({
-        question: message,
-        ai_answered: sources.length > 0,
-        location_id: locationId,
-      });
-    } catch {
-      /* analytics is best-effort */
+    // Analytics: skip the internal AI-test channel so the admin dashboard shows
+    // only real (web / widget) usage. Conversations are still recorded (and
+    // filterable) regardless. Best-effort.
+    if (channel !== "admin-test") {
+      try {
+        await sb.from("hd_support_analytics").insert({
+          question: message,
+          ai_answered: sources.length > 0,
+          location_id: locationId,
+        });
+      } catch {
+        /* analytics is best-effort */
+      }
     }
 
     return json({ conversationId, answer: finalAnswer, sources });

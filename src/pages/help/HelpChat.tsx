@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from "react";
-import { Send, Loader2, RotateCcw, Bot, User, FileText, Sparkles } from "lucide-react";
-import { sendChat, type ChatSource } from "@/lib/helpdeskChat";
+import { Send, Loader2, RotateCcw, Bot, User, FileText, Sparkles, ThumbsUp, ThumbsDown } from "lucide-react";
+import { sendChat, sendFeedback, type ChatSource } from "@/lib/helpdeskChat";
 import Markdown from "@/components/helpdesk/Markdown";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -42,8 +42,25 @@ export default function HelpChat({
   const [input, setInput] = useState("");
   const [sending, setSending] = useState(false);
   const [conversationId, setConversationId] = useState<string | null>(null);
+  const [feedback, setFeedback] = useState<Record<number, "up" | "down">>({});
   const visitorId = useRef<string>(getVisitorId());
   const scrollRef = useRef<HTMLDivElement>(null);
+
+  // Record a 👍/👎 on the answer at turn index i. Optimistic; best-effort write.
+  function rate(index: number, rating: "up" | "down", excerpt: string) {
+    if (!conversationId) return;
+    setFeedback((f) => ({ ...f, [index]: rating }));
+    sendFeedback({
+      conversationId,
+      messageIndex: index,
+      rating,
+      excerpt,
+      visitorId: visitorId.current,
+      locationId: locationId || null,
+    }).catch(() => {
+      /* best-effort — leave the optimistic state */
+    });
+  }
 
   useEffect(() => {
     scrollRef.current?.scrollTo({ top: scrollRef.current.scrollHeight, behavior: "smooth" });
@@ -83,6 +100,7 @@ export default function HelpChat({
   function reset() {
     setTurns([]);
     setConversationId(null);
+    setFeedback({});
   }
 
   return (
@@ -106,7 +124,16 @@ export default function HelpChat({
             </p>
           </div>
         ) : (
-          turns.map((t, i) => <Bubble key={i} turn={t} lang={lang} onOpenArticle={onOpenArticle} />)
+          turns.map((t, i) => (
+            <Bubble
+              key={i}
+              turn={t}
+              lang={lang}
+              onOpenArticle={onOpenArticle}
+              rating={feedback[i]}
+              onRate={(r) => rate(i, r, t.content)}
+            />
+          ))
         )}
         {sending && (
           <div className="flex items-center gap-2 text-muted-foreground text-sm">
@@ -142,10 +169,14 @@ function Bubble({
   turn,
   lang,
   onOpenArticle,
+  rating,
+  onRate,
 }: {
   turn: Turn;
   lang: "cn" | "en";
   onOpenArticle: (id: string) => void;
+  rating?: "up" | "down";
+  onRate: (rating: "up" | "down") => void;
 }) {
   const isUser = turn.role === "user";
   const hasSources = !!turn.sources && turn.sources.length > 0;
@@ -189,6 +220,28 @@ function Bubble({
                 <FileText className="w-3.5 h-3.5 shrink-0" /> {s.title}
               </button>
             ))}
+          </div>
+        )}
+        {!isUser && !turn.content.startsWith("⚠️") && (
+          <div className="mt-2 flex items-center gap-1.5">
+            <span className="text-[11px] text-muted-foreground">{lang === "cn" ? "有帮助吗？" : "Helpful?"}</span>
+            <button
+              type="button"
+              aria-label={lang === "cn" ? "有帮助" : "Helpful"}
+              onClick={() => onRate("up")}
+              className={`p-1 rounded-md hover:bg-muted transition-colors ${rating === "up" ? "text-primary" : "text-muted-foreground"}`}
+            >
+              <ThumbsUp className="w-3.5 h-3.5" />
+            </button>
+            <button
+              type="button"
+              aria-label={lang === "cn" ? "没帮助" : "Not helpful"}
+              onClick={() => onRate("down")}
+              className={`p-1 rounded-md hover:bg-muted transition-colors ${rating === "down" ? "text-primary" : "text-muted-foreground"}`}
+            >
+              <ThumbsDown className="w-3.5 h-3.5" />
+            </button>
+            {rating && <span className="text-[11px] text-muted-foreground">{lang === "cn" ? "谢谢反馈" : "Thanks!"}</span>}
           </div>
         )}
       </div>

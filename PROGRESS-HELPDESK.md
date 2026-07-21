@@ -1,8 +1,8 @@
 # QAI Helpdesk — Rebuild Progress
 
 Rebuild of the **Helpdesk** (4th migrated tool) into this Playbook project,
-ported from a Lovable export. **IN PROGRESS — P0–P6 done; P7 (conversations +
-analytics admin) next.**
+ported from a Lovable export. **IN PROGRESS — P0–P7 done; P8 (product updates +
+FAQ) next.**
 This file records the owner's locked decisions, the old-version facts, and the
 phased plan so a new session can pick up without re-researching.
 
@@ -251,7 +251,39 @@ Each phase is committed + pushed to `feat/helpdesk` when done.
     incl. media URLs) — helpdesk-admin is requireAdmin-gated, so add public reads
     (new public `helpdesk` fn, or public actions on helpdesk-chat). Conversations
     are per-visitor (like the old version tagged by location_id for analytics).
-- [ ] **P7 — Conversations + analytics admin.**
+- [x] **P7 — Conversations + analytics admin + 👍/👎 collection (2026-07-20).**
+  Replaced the two admin stubs (`/admin/helpdesk/conversations` + `/analytics`)
+  with real pages, all via the requireAdmin-gated `helpdesk-admin` fn. New
+  actions: `listConversations` ({channel?, includeTest?, query?, limit}; excludes
+  the internal `admin-test` channel by default; first user question + msg count
+  from ONE batched query; business name via ghl_locations), `getConversation`
+  (thread + its 👍/👎 feedback), `getSupportAnalytics` (standard dashboard —
+  tiles [conversations / questions / AI-answered rate / visitors], 👍/👎 +
+  好评率, 30-day question trend, channel breakdown, top Sub Accounts, top
+  questions; cap-free COUNT for totals, capped aggregates for the rest with the
+  same pre-scale note as RB/Admin stats). **👍/👎 collection (owner chose to
+  build it in P7):** the PUBLIC widget answers now carry 👍/👎; a new public
+  `feedback` action on `helpdesk-chat` upserts `hd_message_feedback` (idempotent
+  per conversation+message_index, so toggling doesn't inflate counts). Feedback
+  is collected ONLY on the real widget (NOT the admin AI-test page) so test
+  clicks never pollute it. **Analytics stays clean of test noise WITHOUT a
+  schema change:** `helpdesk-chat` now SKIPS the `hd_support_analytics` insert
+  when channel==='admin-test' (conversations are still recorded + filterable).
+  Files: `supabase/functions/helpdesk-admin/index.ts` (+3 actions) &
+  `helpdesk-chat/index.ts` (feedback action + admin-test analytics skip),
+  `src/lib/helpdeskAdmin.ts` (+3 fns/types) & `helpdeskChat.ts` (sendFeedback),
+  `src/pages/help/HelpChat.tsx` (👍/👎 UI), `src/pages/admin/helpdesk/
+  {Conversations,Analytics}.tsx` (new; stubs removed from sections.tsx),
+  App.tsx routes. **Verified live in dev** (deployed helpdesk-admin +
+  helpdesk-chat to hkqzz; owner's admin session was present in the preview
+  browser): widget 👍→"谢谢反馈", write persists + idempotent toggle 👍↔👎 (no
+  count inflation); Analytics shows conversations 5 / AI-answered 88% / 👍1 👎1
+  好评率50% / trend / 按渠道=帮助中心 only (admin-test excluded ✓) / top questions;
+  Conversations lists real threads (excl test, "含内部测试" toggle) → open one →
+  full thread + the 👎 marker on the rated answer. tsc clean.
+  NOTE: dev test data (location `test-verify-001`, questions like "feedback
+  persistence check") is pre-launch noise in the analytics — safe to ignore.
+  PRE-LAUNCH TODO: public feedback write has no rate limit (same note as chat).
 - [ ] **P8 — Product updates + FAQ.**
 - [ ] **P9 — Widget settings / branding + preview.**
 - [ ] **P10 — Polish + merge** (`/tools` cards, merge to main).

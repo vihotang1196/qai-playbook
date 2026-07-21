@@ -179,3 +179,63 @@ export async function getStorageUsage(): Promise<{ bytes: number; files: number 
   const { bytes, files } = await callHelpdesk<{ bytes: number; files: number }>("getStorageUsage");
   return { bytes: bytes || 0, files: files || 0 };
 }
+
+// ── P7: Conversations + analytics (admin, requireAdmin-gated) ───────────────
+
+export type ConversationRow = {
+  id: string;
+  visitor_id: string;
+  channel: string;
+  location_id: string | null;
+  business_name: string | null;
+  status: string;
+  created_at: string;
+  updated_at: string;
+  question: string | null;
+  messageCount: number;
+};
+
+export type ConversationMessage = { role: string; content: string; created_at: string };
+export type ConversationFeedback = { message_index: number; rating: string };
+export type ConversationDetail = {
+  conversation: ConversationRow & { visitor_name: string | null };
+  messages: ConversationMessage[];
+  feedback: ConversationFeedback[];
+};
+
+/** Recent conversations, most-recent first. Excludes the internal `admin-test`
+ *  channel unless includeTest / an explicit channel is passed. */
+export async function listConversations(opts: {
+  channel?: string;
+  includeTest?: boolean;
+  query?: string;
+  limit?: number;
+} = {}): Promise<ConversationRow[]> {
+  const { conversations } = await callHelpdesk<{ conversations: ConversationRow[] }>("listConversations", opts);
+  return conversations || [];
+}
+
+export async function getConversation(id: string): Promise<ConversationDetail> {
+  return callHelpdesk<ConversationDetail>("getConversation", { id });
+}
+
+export type SupportAnalytics = {
+  totals: {
+    conversations: number;
+    questions: number;
+    aiAnswered: number;
+    aiAnsweredRate: number;
+    visitors: number;
+    feedbackUp: number;
+    feedbackDown: number;
+  };
+  byChannel: { channel: string; count: number }[];
+  topLocations: { location_id: string; business_name: string | null; count: number }[];
+  topQuestions: { question: string; count: number }[];
+  trend: { date: string; count: number }[];
+};
+
+export async function getSupportAnalytics(): Promise<SupportAnalytics> {
+  const { analytics } = await callHelpdesk<{ analytics: SupportAnalytics }>("getSupportAnalytics");
+  return analytics;
+}

@@ -42,3 +42,27 @@ export async function sendChat(params: {
   const d = data as { conversationId: string; answer: string; sources?: ChatSource[] };
   return { conversationId: d.conversationId, answer: d.answer, sources: d.sources || [] };
 }
+
+/** Record a 👍/👎 on one AI answer. Idempotent per (conversation, messageIndex):
+ *  re-rating updates the same row. Best-effort — the caller ignores failures. */
+export async function sendFeedback(params: {
+  conversationId: string;
+  messageIndex: number;
+  rating: "up" | "down";
+  excerpt?: string;
+  visitorId?: string;
+  locationId?: string | null;
+}): Promise<void> {
+  const { error } = await getSupabase().functions.invoke("helpdesk-chat", {
+    body: {
+      action: "feedback",
+      conversationId: params.conversationId,
+      messageIndex: params.messageIndex,
+      rating: params.rating,
+      excerpt: params.excerpt,
+      visitorId: params.visitorId,
+      locationId: params.locationId ?? null,
+    },
+  });
+  if (error) throw error;
+}

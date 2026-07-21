@@ -592,6 +592,198 @@ serve(async (req) => {
         return json({ ok: true, bytes, files });
       }
 
+      // ── P7: Conversations list (most-recent first) ─────────────────────
+      // Real visitor threads. Defaults to excluding the internal `admin-test`
+      // channel (the AI-test page) unless includeTest / an explicit channel is
+      // given. First user question + message count are computed from ONE
+      // batched messages query (no N+1).
+      case "listConversations": {
+        const limit = Math.min(Math.max(Number(body?.limit) || 50, 1), 200);
+        const channel = body?.channel ? String(body.channel) : "";
+        const includeTest = !!body?.includeTest;
+        const query = String(body?.query || "").trim();
+
+        let q = sb
+          .from("hd_conversations")
+          .select("id, visitor_id, visitor_name, status, channel, location_id, created_at, updated_at")
+          .order("updated_at", { ascending: false })
+          .limit(limit);
+        if (channel) q = q.eq("channel", channel);
+        else if (!includeTest) q = q.neq("channel", "admin-test");
+        if (query) q = q.ilike("visitor_id", `%${query}%`);
+        const { data: convs, error } = await q;
+        if (error) throw error;
+        const list = convs || [];
+        const ids = list.map((c) => c.id);
+
+        const qById = new Map<string, string>();
+        const countById = new Map<string, number>();
+        if (ids.length) {
+          const { data: msgs } = await sb
+            .from("hd_messages")
+            .select("conversation_id, role, content, created_at")
+            .in("conversation_id", ids)
+            .order("created_at");
+          for (const m of msgs || []) {
+            countById.set(m.conversation_id, (countById.get(m.conversation_id) || 0) + 1);
+            if (m.role === "user" && !qById.has(m.conversation_id)) qById.set(m.conversation_id, m.content);
+          }
+        }
+
+        const locIds = [...new Set(list.map((c) => c.location_id).filter(Boolean))];
+        const nameByLoc: Record<string, string> = {};
+        if (locIds.length) {
+          const { data: locs } = await sb.from("ghl_locations").select("location_id, business_name").in("location_id", locIds);
+          for (const l of locs || []) nameByLoc[l.location_id as string] = l.business_name as string;
+        }
+
+        const rows = list.map((c) => ({
+          id: c.id,
+          visitor_id: c.visitor_id,
+          channel: c.channel,
+          location_id: c.location_id,
+          business_name: c.location_id ? nameByLoc[c.location_id] || null : null,
+          status: c.status,
+          created_at: c.created_at,
+          updated_at: c.updated_at,
+          question: qById.get(c.id) || null,
+          messageCount: countById.get(c.id) || 0,
+        }));
+        return json({ conversations: rows });
+      }
+
+      // ── P7: One conversation thread + its 👍/👎 feedback ────────────────
+      case "getConversation": {
+        const id = String(body?.id || "").trim();
+        if (!id) return json({ error: "id required" }, 400);
+        const { data: conv, error } = await sb
+          .from("hd_conversations")
+          .select("id, visitor_id, visitor_name, status, channel, location_id, created_at, updated_at")
+          .eq("id", id)
+          .maybeSingle();
+        if (error) throw error;
+        if (!conv) return json({ error: "not_found" }, 404);
+        const { data: messages } = await sb
+          .from("hd_messages")
+          .select("role, content, created_at")
+          .eq("conversation_id", id)
+          .order("created_at");
+        const { data: feedback } = await sb
+          .from("hd_message_feedback")
+          .select("message_index, rating")
+          .eq("conversation_id", id);
+        let business_name: string | null = null;
+        if (conv.location_id) {
+          const { data: loc } = await sb
+            .from("ghl_locations")
+            .select("business_name")
+            .eq("location_id", conv.location_id)
+            .maybeSingle();
+          business_name = (loc?.business_name as string) ?? null;
+        }
+        return json({ conversation: { ...conv, business_name }, messages: messages || [], feedback: feedback || [] });
+      }
+
+      // ── P7: Support analytics (standard; EXCLUDES admin-test) ───────────
+      // PRE-SCALE TODO: channel/location/visitor breakdowns + the trend
+      // aggregate from capped recent rows (2–3k) in the fn — move to SQL
+      // group-by RPCs before high volume (same note as the RB/Admin stats).
+      case "getSupportAnalytics": {
+        const NOT_TEST = "admin-test";
+        const count = (t: string) => sb.from(t).select("id", { count: "exact", head: true });
+
+        const [convRes, qRes, aiRes, upRes, downRes] = await Promise.all([
+          count("hd_conversations").neq("channel", NOT_TEST),
+          count("hd_support_analytics"),
+          count("hd_support_analytics").eq("ai_answered", true),
+          count("hd_message_feedback").eq("rating", "up"),
+          count("hd_message_feedback").eq("rating", "down"),
+        ]);
+        const conversations = convRes.count || 0;
+        const questions = qRes.count || 0;
+        const aiAnswered = aiRes.count || 0;
+        const feedbackUp = upRes.count || 0;
+        const feedbackDown = downRes.count || 0;
+
+        const { data: convRows } = await sb
+          .from("hd_conversations")
+          .select("visitor_id, channel, location_id")
+          .neq("channel", NOT_TEST)
+          .order("created_at", { ascending: false })
+          .limit(3000);
+        const cr = convRows || [];
+        const visitors = new Set(cr.map((c) => c.visitor_id)).size;
+        const channelMap: Record<string, number> = {};
+        const locCount: Record<string, number> = {};
+        for (const c of cr) {
+          channelMap[c.channel as string] = (channelMap[c.channel as string] || 0) + 1;
+          if (c.location_id) locCount[c.location_id as string] = (locCount[c.location_id as string] || 0) + 1;
+        }
+        const byChannel = Object.entries(channelMap)
+          .map(([channel, n]) => ({ channel, count: n }))
+          .sort((a, b) => b.count - a.count);
+        const topLocEntries = Object.entries(locCount).sort((a, b) => b[1] - a[1]).slice(0, 10);
+        const locIds = topLocEntries.map(([id]) => id);
+        const nameByLoc: Record<string, string> = {};
+        if (locIds.length) {
+          const { data: locs } = await sb.from("ghl_locations").select("location_id, business_name").in("location_id", locIds);
+          for (const l of locs || []) nameByLoc[l.location_id as string] = l.business_name as string;
+        }
+        const topLocations = topLocEntries.map(([id, n]) => ({
+          location_id: id,
+          business_name: nameByLoc[id] || null,
+          count: n,
+        }));
+
+        const { data: qRows } = await sb
+          .from("hd_support_analytics")
+          .select("question, ai_answered, created_at")
+          .order("created_at", { ascending: false })
+          .limit(2000);
+        const qr = qRows || [];
+        const freq: Record<string, number> = {};
+        for (const r of qr) {
+          const key = (r.question || "").trim();
+          if (key) freq[key] = (freq[key] || 0) + 1;
+        }
+        const topQuestions = Object.entries(freq)
+          .map(([question, n]) => ({ question, count: n }))
+          .sort((a, b) => b.count - a.count)
+          .slice(0, 15);
+
+        // 30-day questions-per-day trend.
+        const buckets: Record<string, number> = {};
+        const now = new Date();
+        for (let i = 29; i >= 0; i--) {
+          const d = new Date(now);
+          d.setUTCDate(d.getUTCDate() - i);
+          buckets[d.toISOString().slice(0, 10)] = 0;
+        }
+        for (const r of qr) {
+          const k = (r.created_at || "").slice(0, 10);
+          if (k in buckets) buckets[k] += 1;
+        }
+        const trend = Object.entries(buckets).map(([date, n]) => ({ date, count: n }));
+
+        return json({
+          analytics: {
+            totals: {
+              conversations,
+              questions,
+              aiAnswered,
+              aiAnsweredRate: questions ? aiAnswered / questions : 0,
+              visitors,
+              feedbackUp,
+              feedbackDown,
+            },
+            byChannel,
+            topLocations,
+            topQuestions,
+            trend,
+          },
+        });
+      }
+
       default:
         return json({ error: `Unknown action: ${action || "(none)"}` }, 400);
     }

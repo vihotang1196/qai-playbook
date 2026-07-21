@@ -18,12 +18,6 @@ function Stub({ title, desc, phase }: { title: string; desc: string; phase: stri
   );
 }
 
-export const HdConversations = () => (
-  <Stub title="对话" desc="查看访客与 AI 的聊天记录、👍 👎 反馈。" phase="P7" />
-);
-export const HdAnalytics = () => (
-  <Stub title="分析" desc="AI 答题率、热门问题、按 Sub Account 归因。" phase="P7" />
-);
 export const HdUpdates = () => (
   <Stub title="产品更新" desc="发布产品动态与 FAQ，挂件里向用户展示。" phase="P8" />
 );
