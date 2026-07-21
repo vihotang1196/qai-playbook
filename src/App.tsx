@@ -1,6 +1,7 @@
 import { useEffect } from "react";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { BrowserRouter, Route, Routes, useLocation } from "react-router-dom";
+import { rememberLocationId } from "@/lib/ghl";
 import { Toaster as Sonner } from "@/components/ui/sonner";
 import { Toaster } from "@/components/ui/toaster";
 import { TooltipProvider } from "@/components/ui/tooltip";
@@ -45,6 +46,16 @@ const ScrollToTop = () => {
   return null;
 };
 
+// Capture the GHL location_id (from ?location_id= on entry) into sessionStorage
+// on every route, so it survives the shared navbar's plain-<a> navigations that
+// drop the query string. Any tool reached from the navbar (e.g. Helpdesk) can
+// then recover the identity via resolveLocationId / getStoredLocationId.
+const LocationIdKeeper = () => {
+  const { pathname, search } = useLocation();
+  useEffect(() => { rememberLocationId(search, pathname); }, [pathname, search]);
+  return null;
+};
+
 const queryClient = new QueryClient();
 
 const App = () => (
@@ -55,6 +66,7 @@ const App = () => (
         <Sonner />
         <BrowserRouter>
           <ScrollToTop />
+          <LocationIdKeeper />
           <Routes>
             {/* Review Boost public customer flow — full-screen, mobile-first,
                 intentionally OUTSIDE the shared Layout (no site navbar/footer). */}

@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
 import { BookOpen, LifeBuoy, Megaphone, MessageCircle } from "lucide-react";
 import { useLang } from "@/i18n/LanguageContext";
-import { getLocationIdFromUrl, fetchLocation, type GhlLocation } from "@/lib/ghl";
+import { resolveLocationId, fetchLocation, type GhlLocation } from "@/lib/ghl";
 import HelpChat from "./HelpChat";
 import HelpBrowse from "./HelpBrowse";
 import HelpUpdates from "./HelpUpdates";
@@ -29,11 +29,13 @@ import HelpUpdates from "./HelpUpdates";
 
 type Tab = "chat" | "browse" | "updates";
 
-/** Read the URL location_id + best-effort resolve the business name. The gate is
+/** Resolve the location_id (URL first, else the one stashed this tab session by
+ *  LocationIdKeeper — so arriving via the navbar, which drops the query string,
+ *  still keeps identity) + best-effort resolve the business name. The gate is
  *  presence of a location_id; name resolution is best-effort (a help center must
  *  not lock a real GHL user out over a transient lookup failure). */
 function useHelpLocation() {
-  const [locationId] = useState<string>(() => getLocationIdFromUrl());
+  const [locationId] = useState<string>(() => resolveLocationId());
   const [location, setLocation] = useState<GhlLocation | null>(null);
 
   useEffect(() => {

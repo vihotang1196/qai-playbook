@@ -188,7 +188,23 @@ Each phase is committed + pushed to `feat/helpdesk` when done.
   one). Chat tab uses a bounded `h-[68vh]` window (was full-viewport). The
   GHL-only gate is UNCHANGED (URL location_id; no location_id → block). Route
   moved into the Layout group in App.tsx. Verified: navbar + footer show, three
-  tabs work, location_id gate holds, mobile no-overflow. New PUBLIC
+  tabs work, location_id gate holds, mobile no-overflow.
+  **UPDATE 2026-07-21b (owner): navbar Helpdesk entry + tab-wide location_id
+  persistence.** Added a "帮助中心 / Help Center" nav item between 首页 and DFY.
+  Since the shared navbar navigates with plain <a> links that DROP the query
+  string, a new `rememberLocationId`/`getStoredLocationId`/`resolveLocationId`
+  (ghl.ts, sessionStorage `pb_location_id`, mirrors `rememberEmbed`) keeps the
+  GHL location_id for the whole tab session: `<LocationIdKeeper>` in App.tsx
+  stashes `?location_id=` on EVERY route, the navbar appends it to the Helpdesk
+  link (withLocation flag), and useHelpLocation resolves URL→stored. So entering
+  Playbook from GHL with a location_id and clicking Helpdesk keeps identity (was
+  previously LOST → blocked). RB is untouched (still uses getLocationIdFromUrl /
+  useLocationContext, URL/path-based). Verified in dev: home?location_id→stash;
+  navbar 帮助中心 href carries the id; click → not blocked; direct /help with NO
+  query but a stashed id → recovered (not blocked); cleared storage + bare /help
+  → correctly blocked; RB still renders. NOTE: still TODO — expose the tool
+  entries (Review Boost / Helpdesk; copywriter is on feat/copywriter, arrives at
+  P10 merge) in the navbar — owner to confirm which. New PUBLIC
   read fn `helpdesk` (verify_jwt=false, service-role internally, READ-ONLY:
   listFolders / listArticles / getArticle) — the frontend never touches the
   RLS-locked hd_ tables; the requireAdmin `helpdesk-admin` stays the only WRITE

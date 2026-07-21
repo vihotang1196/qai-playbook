@@ -74,6 +74,47 @@ export function isEmbed(
   }
 }
 
+const LOCATION_KEY = "pb_location_id";
+
+/**
+ * Persist the GHL location_id for the whole TAB SESSION the first time it's seen
+ * in the URL. GHL opens Playbook with `?location_id=…` on entry, but the shared
+ * navbar navigates with plain <a> links that DROP the query string — so without
+ * this, clicking from the homepage into a tool (e.g. Helpdesk) would lose the
+ * identity and hit the "open from GHL" block. Stashing it here lets every page
+ * recover it via getStoredLocationId(). sessionStorage = per tab, cleared when
+ * the tab closes (so a fresh manual visit with no id still correctly blocks).
+ */
+export function rememberLocationId(
+  search: string = typeof window !== "undefined" ? window.location.search : "",
+  pathname: string = typeof window !== "undefined" ? window.location.pathname : "",
+): void {
+  try {
+    const id = getLocationIdFromUrl(pathname, search);
+    if (id) sessionStorage.setItem(LOCATION_KEY, id);
+  } catch {
+    /* sessionStorage unavailable (private mode / SSR) — URL-only fallback */
+  }
+}
+
+/** The location_id stashed for this tab session (see rememberLocationId), or "". */
+export function getStoredLocationId(): string {
+  try {
+    return sessionStorage.getItem(LOCATION_KEY) || "";
+  } catch {
+    return "";
+  }
+}
+
+/** URL location_id if present, else the one stashed this tab session. Use this
+ *  for tools reached via the shared navbar (which drops the query string). */
+export function resolveLocationId(
+  pathname: string = typeof window !== "undefined" ? window.location.pathname : "",
+  search: string = typeof window !== "undefined" ? window.location.search : "",
+): string {
+  return getLocationIdFromUrl(pathname, search) || getStoredLocationId();
+}
+
 export type GhlLocation = {
   location_id: string;
   business_name: string | null;
