@@ -784,6 +784,50 @@ serve(async (req) => {
         });
       }
 
+      // ── P8: Product updates (manual publish; newest first) ──────────────
+      case "listUpdates": {
+        const { data, error } = await sb
+          .from("hd_updates")
+          .select("id, title, description, category, image_url, link, created_at, updated_at")
+          .order("created_at", { ascending: false });
+        if (error) throw error;
+        return json({ updates: data || [] });
+      }
+
+      case "saveUpdate": {
+        const id = String(body?.id || "").trim();
+        const title = String(body?.title || "").trim();
+        if (!title) return json({ error: "title required" }, 400);
+        const description = typeof body?.description === "string" ? body.description : "";
+        const image_url = body?.image_url ? String(body.image_url).trim() : null;
+        const link = body?.link ? String(body.link).trim() : null;
+        if (id) {
+          const { data, error } = await sb
+            .from("hd_updates")
+            .update({ title, description, image_url, link })
+            .eq("id", id)
+            .select("id")
+            .single();
+          if (error) throw error;
+          return json({ ok: true, id: data.id });
+        }
+        const { data, error } = await sb
+          .from("hd_updates")
+          .insert({ title, description, image_url, link })
+          .select("id")
+          .single();
+        if (error) throw error;
+        return json({ ok: true, id: data.id });
+      }
+
+      case "deleteUpdate": {
+        const id = String(body?.id || "").trim();
+        if (!id) return json({ error: "id required" }, 400);
+        const { error } = await sb.from("hd_updates").delete().eq("id", id);
+        if (error) throw error;
+        return json({ ok: true });
+      }
+
       default:
         return json({ error: `Unknown action: ${action || "(none)"}` }, 400);
     }

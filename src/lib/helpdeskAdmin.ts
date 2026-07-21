@@ -239,3 +239,37 @@ export async function getSupportAnalytics(): Promise<SupportAnalytics> {
   const { analytics } = await callHelpdesk<{ analytics: SupportAnalytics }>("getSupportAnalytics");
   return analytics;
 }
+
+// ── P8: Product updates (admin, requireAdmin-gated) ─────────────────────────
+
+export type HdUpdate = {
+  id: string;
+  title: string;
+  description: string | null;
+  category: string;
+  image_url: string | null;
+  link: string | null;
+  created_at: string;
+  updated_at: string;
+};
+
+export async function listUpdates(): Promise<HdUpdate[]> {
+  const { updates } = await callHelpdesk<{ updates: HdUpdate[] }>("listUpdates");
+  return updates || [];
+}
+
+/** Create (no id) or update a product-update post. Publishes immediately. */
+export async function saveUpdate(payload: {
+  id?: string;
+  title: string;
+  description?: string;
+  image_url?: string | null;
+  link?: string | null;
+}): Promise<string> {
+  const { id } = await callHelpdesk<{ id: string }>("saveUpdate", payload);
+  return id;
+}
+
+export async function deleteUpdate(id: string): Promise<void> {
+  await callHelpdesk("deleteUpdate", { id });
+}

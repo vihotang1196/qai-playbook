@@ -8,6 +8,7 @@
 //   listFolders  — all category folders
 //   listArticles — article list (no body; light for the list view)
 //   getArticle   — one article's full body (incl. media URLs, for rendering)
+//   listUpdates  — product-update posts (newest first) for the updates tab
 //
 // Read-only by design: no writes, no secrets returned, no per-location scoping
 // (the help center is agency-wide SHARED content — same for every sub-account).
@@ -50,6 +51,17 @@ serve(async (req) => {
           .order("title");
         if (error) throw error;
         return json({ articles: data || [] });
+      }
+
+      // Product updates for the customer help center (newest first).
+      case "listUpdates": {
+        const { data, error } = await sb
+          .from("hd_updates")
+          .select("id, title, description, image_url, link, created_at")
+          .order("created_at", { ascending: false })
+          .limit(100);
+        if (error) throw error;
+        return json({ updates: data || [] });
       }
 
       // One article's full markdown body (incl. permanent media URLs) for reading.

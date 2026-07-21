@@ -1,8 +1,8 @@
 # QAI Helpdesk — Rebuild Progress
 
 Rebuild of the **Helpdesk** (4th migrated tool) into this Playbook project,
-ported from a Lovable export. **IN PROGRESS — P0–P7 done; P8 (product updates +
-FAQ) next.**
+ported from a Lovable export. **IN PROGRESS — P0–P8 done (P8 = product updates
+only; FAQ dropped by owner); P9 (widget settings / branding) next.**
 This file records the owner's locked decisions, the old-version facts, and the
 phased plan so a new session can pick up without re-researching.
 
@@ -338,7 +338,28 @@ Each phase is committed + pushed to `feat/helpdesk` when done.
   NOTE: dev test data (location `test-verify-001`, questions like "feedback
   persistence check") is pre-launch noise in the analytics — safe to ignore.
   PRE-LAUNCH TODO: public feedback write has no rate limit (same note as chat).
-- [ ] **P8 — Product updates + FAQ.**
+- [x] **P8 — Product updates (2026-07-21). FAQ DROPPED (owner's call).**
+  Manual-publish product updates; owner chose NO Notion sync, NO draft flag
+  (publish-on-create, date = created_at), and NO FAQ at all. Zero DB migration
+  (hd_updates already had title/description/category/image_url/link/created_at).
+  Backend: `helpdesk-admin` (requireAdmin) gained listUpdates / saveUpdate
+  (insert or update) / deleteUpdate; the public `helpdesk` fn gained a public
+  `listUpdates` (newest first). Admin: the 产品更新 shell tab
+  (`/admin/helpdesk/updates`) is now a real CRUD page (Updates.tsx) — list +
+  create/edit dialog (title + markdown content w/ live preview + optional image
+  URL + optional link, conditionally-mounted + releaseBodyPointerLock like the
+  KB) + delete confirm. Client: HelpUpdates.tsx (the 产品更新 tab) now renders
+  real posts — card list, newest first, date + markdown body (shared Markdown)
+  + optional image + "了解更多" link. Files: supabase/functions/helpdesk-admin
+  + helpdesk (index.ts), src/lib/{helpdeskAdmin,helpdesk}.ts,
+  src/pages/admin/helpdesk/Updates.tsx (new), src/pages/help/HelpUpdates.tsx,
+  App.tsx (route → Updates; deleted the now-empty sections.tsx stubs).
+  **Verified live in dev** (deployed both fns to hkqzz; owner admin session):
+  created a post via the admin path → shows in the admin list (edit/delete) →
+  the client 产品更新 tab renders it with markdown (bold + list), date, and the
+  了解更多 link. tsc clean. NOTE: a demo post "新增 WhatsApp 群发功能" (→ qiai.tech)
+  is left in the DB from testing — delete it from the 产品更新 admin page anytime.
+  FAQ (hd_faq) stays unused; add it later as its own step if wanted.
 - [ ] **P9 — Widget settings / branding + preview.**
 - [ ] **P10 — Polish + merge** (`/tools` cards, merge to main).
 

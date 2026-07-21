@@ -63,3 +63,17 @@ export async function getArticle(id: string): Promise<HelpArticle> {
   const { article } = await callHelpdesk<{ article: HelpArticle }>("getArticle", { id });
   return article;
 }
+
+export type HelpUpdate = {
+  id: string;
+  title: string;
+  description: string | null;
+  image_url: string | null;
+  link: string | null;
+  created_at: string;
+};
+
+export async function listUpdates(): Promise<HelpUpdate[]> {
+  const { updates } = await callHelpdesk<{ updates: HelpUpdate[] }>("listUpdates");
+  return updates || [];
+}

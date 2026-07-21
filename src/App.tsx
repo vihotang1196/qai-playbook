@@ -37,7 +37,7 @@ import HelpdeskAiTest from "./pages/admin/helpdesk/AiTest";
 import HelpdeskSettings from "./pages/admin/helpdesk/Settings";
 import HelpdeskConversations from "./pages/admin/helpdesk/Conversations";
 import HelpdeskAnalytics from "./pages/admin/helpdesk/Analytics";
-import { HdUpdates } from "./pages/admin/helpdesk/sections";
+import HelpdeskUpdates from "./pages/admin/helpdesk/Updates";
 import HelpWidget from "./pages/help/HelpWidget";
 import GuidePage from "./pages/guides/GuidePage";
 
@@ -94,7 +94,7 @@ const App = () => (
                 <Route path="chat" element={<HelpdeskAiTest />} />
                 <Route path="conversations" element={<HelpdeskConversations />} />
                 <Route path="analytics" element={<HelpdeskAnalytics />} />
-                <Route path="updates" element={<HdUpdates />} />
+                <Route path="updates" element={<HelpdeskUpdates />} />
                 <Route path="settings" element={<HelpdeskSettings />} />
               </Route>
             </Route>
