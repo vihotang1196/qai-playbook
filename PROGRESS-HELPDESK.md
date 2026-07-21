@@ -219,9 +219,20 @@ Each phase is committed + pushed to `feat/helpdesk` when done.
   says "从你的 QAI 后台打开" + shows a copyable https://app.qiai.tech/ link (Copy
   button; clipboard API + execCommand fallback). (3) Navbar 小工具 + 指南
   dropdowns moved next to 伙伴 (into the main nav row; right side keeps only the
-  language toggle). Verified in dev. TODO (④, owner reviewing): turn the 指南
-  hover-popouts into full pages (content lives in QuickLinkPopout.tsx as React
-  components — SMSGuidelineContent / WAvsWABAContent / PayexSenangpayContent).
+  language toggle). Verified in dev.
+  **UPDATE 2026-07-21e (owner): 指南 → full pages.** The three help guides
+  (WhatsApp SMS / WA vs WABA / Payex-Senangpay) were cramped hover-popouts
+  (QuickLinkPopout, capped max-h with inner scroll). Moved their content into
+  `src/pages/guides/guides.tsx` (single source: GUIDES registry keyed by slug;
+  inner max-h scroll boxes removed) + a `GuidePage` at route `/guides/:slug`
+  (inside Layout → navbar+footer, max-w-3xl, public/no gate). Navbar 指南
+  dropdown items now link to /guides/:slug (desktop + mobile) instead of opening
+  popouts. QuickLinkPopout.tsx trimmed to only the (currently-unlinked)
+  whatsapp/virtual cards. Verified in dev: all 3 guide pages render full content
+  (WA-vs-WABA comparison table + pricing; Payex 2 videos + copyable URLs; SMS
+  steps + banned-appeal), 0 inner scroll boxes, navbar+footer present, unknown
+  slug → "指南未找到" with links; tsc clean. Files: src/pages/guides/{guides,
+  GuidePage}.tsx, App.tsx route, Navbar.tsx, QuickLinkPopout.tsx.
 
   New PUBLIC
   read fn `helpdesk` (verify_jwt=false, service-role internally, READ-ONLY:

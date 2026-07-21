@@ -39,6 +39,7 @@ import HelpdeskConversations from "./pages/admin/helpdesk/Conversations";
 import HelpdeskAnalytics from "./pages/admin/helpdesk/Analytics";
 import { HdUpdates } from "./pages/admin/helpdesk/sections";
 import HelpWidget from "./pages/help/HelpWidget";
+import GuidePage from "./pages/guides/GuidePage";
 
 const ScrollToTop = () => {
   const { pathname } = useLocation();
@@ -111,6 +112,10 @@ const App = () => (
                   customer app). Still GHL-only: identity = URL location_id
                   (trust-the-URL); no location_id → a "请从 GHL 打开" block. */}
               <Route path="/help" element={<HelpWidget />} />
+
+              {/* Guides — full-page help guides (from the navbar 指南 dropdown),
+                  replacing the old cramped hover-popouts. Public (no gate). */}
+              <Route path="/guides/:slug" element={<GuidePage />} />
 
               {/* Review Boost — CUSTOMER (sub-account) app only. Identity = URL
                   location_id. Agency god-view (all sub-accounts / cross-client

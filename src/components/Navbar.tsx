@@ -6,19 +6,18 @@ import { useLang } from "@/i18n/LanguageContext";
 import { t } from "@/i18n/translations";
 import { resolveLocationId } from "@/lib/ghl";
 import logo from "@/assets/logo.png";
-import QuickLinkPopout from "./QuickLinkPopout";
 import {
   HoverCard,
   HoverCardContent,
   HoverCardTrigger,
 } from "@/components/ui/hover-card";
 
-// Help/guide links — shown under the navbar "Guides" dropdown; each opens
-// its QuickLinkPopout on hover (moved here from the homepage hero).
+// Help/guide links — shown under the navbar "指南 / Guides" dropdown; each opens
+// its own full page at /guides/:slug (GuidePage), not a hover-popout.
 const guideLinks = [
-  { en: "WhatsApp SMS Guideline", cn: "WhatsApp SMS Guideline", href: "https://support.qiai.tech/whatsapp-onboarding", popout: "sms-guideline" as const },
-  { en: "WhatsApp vs WABA", cn: "WhatsApp vs WABA", href: "https://support.qiai.tech/whatsapp-waba", popout: "wa-vs-waba" as const },
-  { en: "Payex/Senangpay Guideline", cn: "Payex/Senangpay Guideline", href: "https://support.qiai.tech/payex/senangpay", popout: "payex-senangpay" as const },
+  { en: "WhatsApp SMS Guideline", cn: "WhatsApp SMS Guideline", slug: "whatsapp-sms" },
+  { en: "WhatsApp vs WABA", cn: "WhatsApp vs WABA", slug: "wa-vs-waba" },
+  { en: "Payex/Senangpay Guideline", cn: "Payex/Senangpay Guideline", slug: "payex-senangpay" },
 ];
 
 const navLinks = [
@@ -129,21 +128,14 @@ const Navbar = () => {
             <HoverCardContent align="start" sideOffset={12} className="w-60 p-2">
               <div className="flex flex-col">
                 {guideLinks.map((link) => (
-                  <HoverCard key={link.en} openDelay={80} closeDelay={150}>
-                    <HoverCardTrigger asChild>
-                      <a
-                        href={link.href}
-                        onClick={(e) => e.preventDefault()}
-                        className="flex items-center justify-between gap-2 rounded-lg px-3 py-2 text-sm text-foreground hover:bg-accent/10 cursor-pointer transition-colors"
-                      >
-                        <span>{lang === "cn" ? link.cn : link.en}</span>
-                        <ChevronRight size={14} className="text-muted-foreground shrink-0" />
-                      </a>
-                    </HoverCardTrigger>
-                    <HoverCardContent side="left" align="start" sideOffset={12} className="w-auto p-0 border-0 bg-transparent shadow-none">
-                      <QuickLinkPopout type={link.popout} lang={lang} />
-                    </HoverCardContent>
-                  </HoverCard>
+                  <a
+                    key={link.en}
+                    href={`/guides/${link.slug}`}
+                    className="flex items-center justify-between gap-2 rounded-lg px-3 py-2 text-sm text-foreground hover:bg-accent/10 cursor-pointer transition-colors"
+                  >
+                    <span>{lang === "cn" ? link.cn : link.en}</span>
+                    <ChevronRight size={14} className="text-muted-foreground shrink-0" />
+                  </a>
                 ))}
               </div>
             </HoverCardContent>
@@ -209,9 +201,7 @@ const Navbar = () => {
             {guideLinks.map((link) => (
               <a
                 key={link.en}
-                href={link.href}
-                target="_blank"
-                rel="noopener noreferrer"
+                href={`/guides/${link.slug}`}
                 className="block text-sm text-muted-foreground hover:text-foreground py-1.5 transition-colors"
                 onClick={() => setMobileOpen(false)}
               >
