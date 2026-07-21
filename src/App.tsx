@@ -38,10 +38,20 @@ import {
   OESettings,
 } from "./pages/admin/offline-event/sections";
 import EventsPage from "./pages/events/EventsPage";
+import { rememberLocationId } from "@/lib/ghl";
 
 const ScrollToTop = () => {
   const { pathname } = useLocation();
   useEffect(() => { window.scrollTo(0, 0); }, [pathname]);
+  return null;
+};
+
+/** Stash the GHL location_id on EVERY route so tools reached via the shared
+ *  navbar (which drops the query string) still recover identity. Mirrors
+ *  feat/helpdesk — shared, tool-neutral. */
+const LocationIdKeeper = () => {
+  const { pathname, search } = useLocation();
+  useEffect(() => { rememberLocationId(search, pathname); }, [pathname, search]);
   return null;
 };
 
@@ -55,6 +65,7 @@ const App = () => (
         <Sonner />
         <BrowserRouter>
           <ScrollToTop />
+          <LocationIdKeeper />
           <Routes>
             {/* Review Boost public customer flow — full-screen, mobile-first,
                 intentionally OUTSIDE the shared Layout (no site navbar/footer). */}

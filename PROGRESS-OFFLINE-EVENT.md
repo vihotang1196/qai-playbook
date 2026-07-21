@@ -9,11 +9,10 @@ the QR to check in** (2-day event: day1/day2). **IN PROGRESS — P0 + P1 done.**
 This file records the owner's locked decisions, the old-version facts, and the
 phased plan so a new session can pick up without re-researching.
 
-_Last updated: 2026-07-21 — P0 + P1 + P2 done, committed + pushed to
-`feat/offline-event`. Next: **P3 (customer identity + event list + seat map,
-read-only)**. NOTE: P0+P1 code/migration were drafted by the prior session
-(uncommitted); this session verified them (tsc clean, migration already applied
-to hkqzz + REST-verified, routes render in dev), committed them, then built P2._
+_Last updated: 2026-07-21 — P0 + P1 + P2 + P3 done, committed + pushed to
+`feat/offline-event`. Next: **P4 (booking submit — free + atomic seat claim)**.
+NOTE: P0+P1 code/migration were drafted by the prior session (uncommitted); this
+session verified them, committed them, then built P2 + P3._
 
 ## Where to build it
 - **Old version (read-only reference):** `C:\Users\chais\Projects\QAI Offline Event`
@@ -150,12 +149,33 @@ e-ticket+check-in → admin+seat editor → polish.
   seeded **3 events (3 live) + 1 floor plan**, 0 bookings, RM 0.00 — visible
   confirmation the P1 seed landed; anon key / garbage token / no token all → 403
   not_authorized; tsc clean; no console errors.
-- [ ] **P3 — Customer identity + event list + seat map (read-only).** Public `oe`
-  edge fn (location-scoped): resolve/auto-register sub-account (via fn, not anon),
-  gate on `location_tool_access(offline_event)` + presence of location_id; list
-  events; get floor plan; get seat availability. Customer page renders event cards
-  + seat map + free-ticket allowance. Flip `offline_event` tool to `live:true`. No
-  booking yet.
+- [x] **P3 — Customer identity + event list + seat map (read-only) (2026-07-21).**
+  Public `oe` edge fn (location-scoped, verify_jwt=false, service-role internally;
+  mirrors `rb`): `resolveContext` (auto-registers the sub-account via the SERVICE
+  ROLE — not anon; gates on `hasToolAccess(offline_event)`; returns free-ticket
+  balance + best-effort business name), `listEvents` (live/display + per-event
+  effective capacity + seats-left), `getEvent` (event + floor plan + claimed seat
+  labels). Frontend: ported the 3 tool-neutral location helpers from feat/helpdesk
+  into `src/lib/ghl.ts` (`rememberLocationId`/`getStoredLocationId`/
+  `resolveLocationId`, sessionStorage `pb_location_id`) + a `<LocationIdKeeper>` in
+  App.tsx (stash on every route). `src/lib/offlineEvent.ts` (oe client + seat-map
+  types + `layoutToSeatGroups`). `src/components/offline-event/SeatMap.tsx` (ported
+  VERBATIM visual from the old app; only change = the old `t("seat.*")` i18n keys,
+  absent here, inlined as `lang === "cn" ? … : …`; read-only). `EventsPage.tsx`
+  rewritten: no location_id → `OpenFromQai` gate (QAI-worded, app.qiai.tech copy
+  link, NO "GHL"); tool off → `ToolDisabled` notice; else event cards + expandable
+  read-only seat map + free-ticket balance. Flipped `offline_event` to `live:true`
+  (tools.ts). **Redeployed `admin` fn** so its KNOWN_TOOLS (offline_event, added in
+  P0 source) is live — needed for the sub-accounts offline_event toggle + the
+  tool-access gate. **Verified live** (deployed `oe`; tsc clean; no console errors):
+  `?location_id=test-verify-001` → 3 seeded events (RM397, 剩91座) + free balance
+  "你还有 2 张免费票" + the QAI-hall seat map renders (舞台 + G1–G23 cluster tables,
+  G24–G28 correctly hidden, legend); bare `/events` (sessionStorage cleared) → QAI
+  gate; toggling offline_event OFF for a real location (Ong pei shirl) via the admin
+  fn → `oe` returns `{enabled:false}` (→ ToolDisabled) → toggled back ON restores;
+  two different location_ids resolve independent context; anon still can't read the
+  oe_ tables (P1 RLS). NOTE: events + hall are SHARED across sub-accounts by design
+  (one bootcamp, one hall); per-location = free allowance + (from P4) bookings.
 - [ ] **P4 — Booking submit (free + atomic seat claim) ⭐.** `oe` fn `createBooking`:
   validate location, server-side free-ticket accounting, `oe_claim_seats` atomic
   lock, write oe_bookings, generate QR payload. Free (total ≤ 0) completes here.

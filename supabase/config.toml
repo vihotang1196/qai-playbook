@@ -32,3 +32,9 @@ verify_jwt = false
 # the frontend never touches the RLS-locked oe_ tables.
 [functions.offline-event-admin]
 verify_jwt = false
+
+# Offline Event customer-scoped data (events / seat map for the caller's OWN
+# location_id). Anon-callable; every action requires + is scoped by location_id
+# and gated by location_tool_access(offline_event).
+[functions.oe]
+verify_jwt = false

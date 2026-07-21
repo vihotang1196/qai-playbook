@@ -17,7 +17,7 @@ export type AdminTool = {
 export const ADMIN_TOOLS: AdminTool[] = [
   { key: "review_boost", name: { cn: "Review Boost", en: "Review Boost" }, live: true },
   { key: "copywriter", name: { cn: "文案生成器", en: "Copywriter" }, live: false },
-  // Registered now (P0). Flip to live:true in P3 when per-location access is
-  // actually enforced (hasToolAccess) in the customer booking flow.
-  { key: "offline_event", name: { cn: "Offline Event", en: "Offline Event" }, live: false },
+  // Live from P3: the customer /events flow enforces per-location access
+  // (hasToolAccess) server-side in the `oe` edge fn.
+  { key: "offline_event", name: { cn: "Offline Event", en: "Offline Event" }, live: true },
 ];
