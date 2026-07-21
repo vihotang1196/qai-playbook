@@ -61,11 +61,6 @@ const App = () => (
             <Route path="/scan/:code" element={<RBScanPage />} />
             <Route path="/thank-you/:generationId" element={<RBThankYouPage />} />
 
-            {/* Helpdesk — public embeddable AI support widget. Chrome-less,
-                full-screen, OUTSIDE the shared Layout (embeds as an iframe on any
-                site, like /scan). QAI's SHARED help center — no per-client scoping. */}
-            <Route path="/help" element={<HelpWidget />} />
-
             {/* Admin Portal — platform-wide, real-login-guarded, OUTSIDE the
                 customer Layout (its own dark chrome; zero customer capability).
                 AdminLayout guards; every admin edge-fn action re-checks server-side. */}
@@ -98,6 +93,12 @@ const App = () => (
               <Route path="/credits" element={<Credits />} />
               <Route path="/upgrade" element={<Upgrade />} />
               <Route path="/affiliate" element={<Affiliate />} />
+
+              {/* Helpdesk — customer help center. INSIDE Layout so it wears the
+                  Playbook navbar/footer (feels part of Playbook, like the RB
+                  customer app). Still GHL-only: identity = URL location_id
+                  (trust-the-URL); no location_id → a "请从 GHL 打开" block. */}
+              <Route path="/help" element={<HelpWidget />} />
 
               {/* Review Boost — CUSTOMER (sub-account) app only. Identity = URL
                   location_id. Agency god-view (all sub-accounts / cross-client

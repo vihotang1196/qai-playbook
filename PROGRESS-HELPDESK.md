@@ -178,9 +178,17 @@ Each phase is committed + pushed to `feat/helpdesk` when done.
   page works in-browser. Files: `supabase/functions/helpdesk-chat/index.ts` +
   config.toml, `src/lib/helpdeskChat.ts`, `src/pages/admin/helpdesk/AiTest.tsx`,
   shell tab + route. PRE-LAUNCH TODO: public chat has no rate limit yet (like RB scan).
-- [x] **P6 — The help-center PAGE (2026-07-20).** Full-screen customer help
-  center at `/help`, OUTSIDE `<Layout>` (chrome-less, embeds as a GHL iframe),
-  coral-glass, mobile-first, THREE top tabs (defaults to AI 问答). New PUBLIC
+- [x] **P6 — The help-center PAGE (2026-07-20).** Customer help center at
+  `/help`, coral-glass, mobile-first, THREE top tabs (defaults to AI 问答).
+  **UPDATE 2026-07-21 (owner):** MOVED from OUTSIDE `<Layout>` to INSIDE it, so
+  it now wears the Playbook navbar + footer and feels part of Playbook (same as
+  the RB customer app — the "embed reversal" decision). HelpWidget renders no
+  bg/chrome of its own now; it only adds `pt-24 md:pt-28` to clear the fixed
+  navbar + a `max-w-3xl` container. Dropped its own lang toggle (the navbar has
+  one). Chat tab uses a bounded `h-[68vh]` window (was full-viewport). The
+  GHL-only gate is UNCHANGED (URL location_id; no location_id → block). Route
+  moved into the Layout group in App.tsx. Verified: navbar + footer show, three
+  tabs work, location_id gate holds, mobile no-overflow. New PUBLIC
   read fn `helpdesk` (verify_jwt=false, service-role internally, READ-ONLY:
   listFolders / listArticles / getArticle) — the frontend never touches the
   RLS-locked hd_ tables; the requireAdmin `helpdesk-admin` stays the only WRITE
