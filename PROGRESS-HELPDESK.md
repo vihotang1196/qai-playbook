@@ -202,9 +202,15 @@ Each phase is committed + pushed to `feat/helpdesk` when done.
   useLocationContext, URL/path-based). Verified in dev: home?location_id→stash;
   navbar 帮助中心 href carries the id; click → not blocked; direct /help with NO
   query but a stashed id → recovered (not blocked); cleared storage + bare /help
-  → correctly blocked; RB still renders. NOTE: still TODO — expose the tool
-  entries (Review Boost / Helpdesk; copywriter is on feat/copywriter, arrives at
-  P10 merge) in the navbar — owner to confirm which. New PUBLIC
+  → correctly blocked; RB still renders.
+  **UPDATE 2026-07-21c (owner): navbar "小工具 / Tools" dropdown.** Product tools
+  now live under a new "小工具" HoverCard dropdown (mirrors the existing "指南"
+  one), desktop + mobile. Review Boost is the first entry; its link carries the
+  location_id as a PATH (/review-boost/location/<id>) → straight to the customer
+  view. Help Center stays a top-level nav item (support, always visible); the
+  product tools group under 小工具. Copywriter joins this dropdown after the
+  branches merge to main (P10). Verified: 小工具 dropdown shows Review Boost →
+  /review-boost/location/test-verify-001 (id carried). Files: Navbar.tsx. New PUBLIC
   read fn `helpdesk` (verify_jwt=false, service-role internally, READ-ONLY:
   listFolders / listArticles / getArticle) — the frontend never touches the
   RLS-locked hd_ tables; the requireAdmin `helpdesk-admin` stays the only WRITE

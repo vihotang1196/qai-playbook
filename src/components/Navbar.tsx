@@ -32,6 +32,14 @@ const navLinks = [
   { label: { en: "Affiliate", cn: "伙伴" }, href: "/affiliate", isRoute: true, noSemibold: true },
 ];
 
+// Product tools — grouped under the navbar "小工具 / Tools" dropdown. withLocationPath
+// sends a customer straight to their own view (/review-boost/location/<id>) using
+// the stashed GHL location_id. More tools (e.g. the copywriter) join here after
+// the branches merge to main (P10).
+const toolLinks = [
+  { label: { en: "Review Boost", cn: "Review Boost" }, base: "/review-boost", withLocationPath: true },
+];
+
 const Navbar = () => {
   const [mobileOpen, setMobileOpen] = useState(false);
   const { lang, toggleLang } = useLang();
@@ -44,6 +52,8 @@ const Navbar = () => {
   const locId = resolveLocationId(location.pathname, location.search);
   const routeHref = (link: typeof navLinks[number]) =>
     link.withLocation && locId ? `${link.href}?location_id=${encodeURIComponent(locId)}` : link.href;
+  const toolHref = (tool: typeof toolLinks[number]) =>
+    tool.withLocationPath && locId ? `${tool.base}/location/${encodeURIComponent(locId)}` : tool.base;
 
   const handleNavClick = (e: React.MouseEvent<HTMLAnchorElement>, link: typeof navLinks[0]) => {
     if (link.isRoute) return; // normal navigation for route links
@@ -86,6 +96,30 @@ const Navbar = () => {
         </nav>
 
         <div className="hidden md:flex items-center gap-2">
+          {/* Tools dropdown — groups the product tools (Review Boost now; more at P10). */}
+          <HoverCard openDelay={80} closeDelay={150}>
+            <HoverCardTrigger asChild>
+              <button className="flex items-center gap-1 text-sm text-muted-foreground hover:text-foreground transition-colors duration-300 px-1">
+                {lang === "cn" ? "小工具" : "Tools"}
+                <ChevronDown size={14} />
+              </button>
+            </HoverCardTrigger>
+            <HoverCardContent align="end" sideOffset={12} className="w-52 p-2">
+              <div className="flex flex-col">
+                {toolLinks.map((tool) => (
+                  <a
+                    key={tool.label.en}
+                    href={toolHref(tool)}
+                    className="flex items-center justify-between gap-2 rounded-lg px-3 py-2 text-sm text-foreground hover:bg-accent/10 cursor-pointer transition-colors"
+                  >
+                    <span>{tool.label[lang]}</span>
+                    <ChevronRight size={14} className="text-muted-foreground shrink-0" />
+                  </a>
+                ))}
+              </div>
+            </HoverCardContent>
+          </HoverCard>
+
           {/* Guides dropdown — groups the help links; each opens its popout on hover */}
           <HoverCard openDelay={80} closeDelay={150}>
             <HoverCardTrigger asChild>
@@ -148,6 +182,23 @@ const Navbar = () => {
               {link.label[lang]}
             </a>
           ))}
+
+          {/* Tools group */}
+          <div className="pt-3 border-t border-border">
+            <p className="text-[11px] font-semibold uppercase tracking-widest text-muted-foreground mb-2">
+              {lang === "cn" ? "小工具" : "Tools"}
+            </p>
+            {toolLinks.map((tool) => (
+              <a
+                key={tool.label.en}
+                href={toolHref(tool)}
+                className="block text-sm text-muted-foreground hover:text-foreground py-1.5 transition-colors"
+                onClick={() => setMobileOpen(false)}
+              >
+                {tool.label[lang]}
+              </a>
+            ))}
+          </div>
 
           {/* Guides group */}
           <div className="pt-3 border-t border-border">
