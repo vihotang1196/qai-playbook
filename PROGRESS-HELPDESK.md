@@ -2,7 +2,9 @@
 
 Rebuild of the **Helpdesk** (4th migrated tool) into this Playbook project,
 ported from a Lovable export. **IN PROGRESS — P0–P8 done (P8 = product updates
-only; FAQ dropped by owner); P9 (widget settings / branding) next.**
+only; FAQ dropped by owner). P9 (branding config) DEFERRED — owner will do a
+unified branding/design pass later. P10 (polish + merge to main) is the only
+remaining phase.**
 This file records the owner's locked decisions, the old-version facts, and the
 phased plan so a new session can pick up without re-researching.
 
@@ -360,7 +362,21 @@ Each phase is committed + pushed to `feat/helpdesk` when done.
   了解更多 link. tsc clean. NOTE: a demo post "新增 WhatsApp 群发功能" (→ qiai.tech)
   is left in the DB from testing — delete it from the 产品更新 admin page anytime.
   FAQ (hd_faq) stays unused; add it later as its own step if wanted.
-- [ ] **P9 — Widget settings / branding + preview.**
+- [~] **P9 — Widget settings / branding — DEFERRED / mostly SKIPPED (2026-07-21).**
+  Owner's call: don't build branding config now; owner will do a unified
+  branding/design pass later, all at once. Assessment (why it's skipped): the
+  `hd_widget_settings` fields are multi-tenant / popup-widget legacy that don't
+  apply to a SINGLE agency-wide QAI help center —
+  `widget_size` (small/standard/large) is dead (the help center is a full PAGE
+  now, not a bottom-right popup); `primary_color` (coral #FF3D6E) is already the
+  QAI/Playbook brand; `logo_url` is redundant (the page wears the Playbook navbar
+  logo + footer); `header_title` / `header_description` are marginal (the header
+  is hardcoded bilingual "帮助中心 / Help Center"). The one thing with real value
+  is NOT in the table: an editable AI-chat welcome + tappable starter questions
+  (reduces the blank-page problem) — offered but owner chose to fold it into the
+  later design pass. The current help center is already correctly QAI-branded
+  (coral-glass + Playbook chrome), all hardcoded. `hd_widget_settings` stays
+  seeded-but-unused (harmless; available if branding config is ever wanted).
 - [ ] **P10 — Polish + merge** (`/tools` cards, merge to main).
 
 ### hd_ table map (old → new; built in P1)
