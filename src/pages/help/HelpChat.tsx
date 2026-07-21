@@ -148,6 +148,16 @@ function Bubble({
   onOpenArticle: (id: string) => void;
 }) {
   const isUser = turn.role === "user";
+  const hasSources = !!turn.sources && turn.sources.length > 0;
+  // B-guard: never show a blank/"not found" answer alongside source guides. If
+  // the model read article(s) but returned no prose, show a localized pointer.
+  const content =
+    turn.content?.trim() ||
+    (hasSources
+      ? lang === "cn"
+        ? "我找到几篇相关的指南 👇 点开下方链接查看完整的图文步骤。"
+        : "I found some related guides 👇 open the links below for the full step-by-step."
+      : turn.content);
   return (
     <div className={`flex gap-2.5 ${isUser ? "flex-row-reverse" : ""}`}>
       <div
@@ -164,7 +174,7 @@ function Bubble({
             isUser ? "bg-primary text-primary-foreground" : "bg-muted/60"
           }`}
         >
-          {isUser ? <p className="text-sm whitespace-pre-wrap">{turn.content}</p> : <Markdown>{turn.content}</Markdown>}
+          {isUser ? <p className="text-sm whitespace-pre-wrap">{content}</p> : <Markdown>{content}</Markdown>}
         </div>
         {turn.sources && turn.sources.length > 0 && (
           <div className="mt-2 flex flex-col gap-1 items-start">

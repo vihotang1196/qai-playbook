@@ -21,6 +21,15 @@ const MODEL = "claude-sonnet-4-5";
 const ANTHROPIC_URL = "https://api.anthropic.com/v1/messages";
 const MAX_TOOL_ROUNDS = 6;
 
+// Shown only on a GENUINE miss (the model read no article at all).
+const NOT_FOUND_MSG =
+  "抱歉，我在帮助中心里没找到相关内容。你可以换个说法再问，或联系我们的支持团队。";
+// Conversation-record placeholder for the rare case where the model read an
+// article but returned no prose. The API returns answer:"" for this case so the
+// client can render a language-appropriate "open the guides below" line — we
+// never pair the not-found message with source links.
+const GUIDES_ONLY_RECORD = "（找到相关指南，请查看下方链接。）";
+
 const SYSTEM_PROMPT = `You are "Angel AI", QAI's friendly help-center assistant. You help users by finding the right guide in the knowledge base and pointing them to it.
 
 Use the tools:
@@ -36,7 +45,8 @@ Your answer must:
 
 Rules:
 - Answer ONLY from the knowledge base. Do NOT invent steps that aren't in the articles.
-- Many guides are mostly screenshots/video with little text — that's expected. In that case, give what you can from the title and any text, and clearly say the full step-by-step (with images/video) is in the linked article. Never fabricate the visual steps.
+- ALWAYS write at least one sentence of text — NEVER return an empty message. If you read/found a relevant guide, you MUST give the user a short text reply, even when the guide is mostly screenshots/video with little text. In that case, name the guide and say something like 「这篇指南主要是图文步骤，请打开《标题》查看完整操作。」("This guide is mostly step-by-step screenshots — open 《Title》 for the full walkthrough.") in the user's language. Never fabricate the visual steps, but never stay silent either.
+- Many guides are mostly screenshots/video with little text — that's expected. Give what you can from the title and any text, and clearly say the full step-by-step (with images/video) is in the linked article.
 - If nothing relevant is found, say so politely and suggest contacting the support team. Don't make up an answer.
 - Reply in the SAME language as the user's question (Chinese / English / Malay).
 - Be concise and friendly. Mention the guide you're pointing to BY NAME.
@@ -247,11 +257,17 @@ serve(async (req) => {
     await sb.from("hd_messages").insert({ conversation_id: conversationId, role: "user", content: message });
 
     const { answer, sources } = await runChat(sb, apiKey, history, message);
-    const finalAnswer =
-      answer ||
-      "抱歉，我在帮助中心里没找到相关内容。你可以换个说法再问，或联系我们的支持团队。";
+    const hasSources = sources.length > 0;
+    // The model should always emit a short text answer when it read an article
+    // (system prompt). If it still returns nothing but DID read article(s),
+    // return an empty answer + the sources so the client renders a localized
+    // "open the guides below" line — we never show "not found" next to source
+    // links. Only a genuine miss (no sources read) gets the not-found message.
+    const finalAnswer = answer || (hasSources ? "" : NOT_FOUND_MSG);
+    // Always persist non-empty content for the conversation record / history.
+    const recordedAnswer = finalAnswer || GUIDES_ONLY_RECORD;
 
-    await sb.from("hd_messages").insert({ conversation_id: conversationId, role: "assistant", content: finalAnswer });
+    await sb.from("hd_messages").insert({ conversation_id: conversationId, role: "assistant", content: recordedAnswer });
     await sb.from("hd_conversations").update({ updated_at: new Date().toISOString() }).eq("id", conversationId);
     try {
       await sb.from("hd_support_analytics").insert({

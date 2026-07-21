@@ -208,13 +208,22 @@ Each phase is committed + pushed to `feat/helpdesk` when done.
   toggle (帮助中心↔Help Center); mobile 375px has no horizontal overflow; tsc
   clean; no console errors. PRE-LAUNCH TODO: public reads + chat have no rate
   limit yet (same note as RB /scan + P5).
-  **⚠️ FOUND (P5 chat, not P6) — empty-answer-with-sources.** For
-  screenshot-heavy guides the model sometimes reads articles (so `sources`
-  populate) but returns NO final text → `helpdesk-chat`'s `answer || fallback`
-  shows "抱歉…没找到相关内容" WHILE listing "相关指南: X, Y" below — contradictory
-  UX. Fix is a small P5 tweak (prompt the model to always emit a short text
-  answer when it read an article, and/or in the widget suppress the "not found"
-  fallback when sources exist). Deferred — owner to decide.
+  **✅ FIXED (2026-07-20) — empty-answer-with-sources contradiction.** For
+  screenshot-heavy guides the model used to read articles (so `sources`
+  populate) but return NO final text → the old `answer || fallback` showed
+  "抱歉…没找到相关内容" WHILE listing "相关指南: X, Y" below. Fix = A+B:
+  **A (backend, helpdesk-chat, deployed to hkqzz):** system prompt now REQUIRES
+  at least one sentence of text — if the model read a guide it must reply (even
+  「这篇主要是图文步骤，打开《标题》看完整操作」), never stay silent; and the fallback is
+  source-aware — the not-found message is used ONLY on a genuine miss (no
+  article read); when article(s) were read but prose is empty it returns
+  answer:"" + the sources (a placeholder is persisted for the record).
+  **B (frontend, HelpChat.tsx + admin AiTest.tsx):** a guard renders a
+  language-appropriate 「我找到几篇相关的指南 👇」 line instead of a blank/"not found"
+  answer whenever sources exist. **Verified live in dev:** asking about the
+  screenshot+video-heavy 《How to Setting Your WhatsApp Campaign (Non-official)》
+  now returns a proper short CN answer naming the guide + saying it's mostly
+  visual steps, with the source link — no more "没找到" contradiction.
 
   Original P6 spec (kept for reference):
   It is a **full help-center page** at `/help` (NOT a bottom-right popup widget),

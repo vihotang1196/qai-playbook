@@ -108,6 +108,11 @@ export default function HelpdeskAiTest() {
 
 function Bubble({ turn }: { turn: Turn }) {
   const isUser = turn.role === "user";
+  const hasSources = !!turn.sources && turn.sources.length > 0;
+  // Never show a blank/"not found" answer next to source guides (see the
+  // helpdesk-chat source-aware fallback).
+  const content =
+    turn.content?.trim() || (hasSources ? "我找到几篇相关的指南 👇 点开下方链接查看完整的图文步骤。" : turn.content);
   return (
     <div className={`flex gap-2.5 ${isUser ? "flex-row-reverse" : ""}`}>
       <div
@@ -124,7 +129,7 @@ function Bubble({ turn }: { turn: Turn }) {
             isUser ? "bg-primary text-primary-foreground" : "bg-muted/60"
           }`}
         >
-          {isUser ? <p className="text-sm whitespace-pre-wrap">{turn.content}</p> : <Markdown>{turn.content}</Markdown>}
+          {isUser ? <p className="text-sm whitespace-pre-wrap">{content}</p> : <Markdown>{content}</Markdown>}
         </div>
         {turn.sources && turn.sources.length > 0 && (
           <div className="mt-2 flex flex-col gap-1 items-start">
