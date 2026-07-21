@@ -9,10 +9,10 @@ the QR to check in** (2-day event: day1/day2). **IN PROGRESS — P0 + P1 done.**
 This file records the owner's locked decisions, the old-version facts, and the
 phased plan so a new session can pick up without re-researching.
 
-_Last updated: 2026-07-21 — P0 + P1 + P2 + P3 done, committed + pushed to
-`feat/offline-event`. Next: **P4 (booking submit — free + atomic seat claim)**.
-NOTE: P0+P1 code/migration were drafted by the prior session (uncommitted); this
-session verified them, committed them, then built P2 + P3._
+_Last updated: 2026-07-21 — P0–P4 done, committed + pushed to `feat/offline-event`.
+Next: **P5 (paid booking + Stripe + webhook)** — owner configures Stripe. NOTE:
+P0+P1 code/migration were drafted by the prior session (uncommitted); this session
+verified them, committed them, then built P2 + P3 + P4._
 
 ## Where to build it
 - **Old version (read-only reference):** `C:\Users\chais\Projects\QAI Offline Event`
@@ -176,10 +176,39 @@ e-ticket+check-in → admin+seat editor → polish.
   two different location_ids resolve independent context; anon still can't read the
   oe_ tables (P1 RLS). NOTE: events + hall are SHARED across sub-accounts by design
   (one bootcamp, one hall); per-location = free allowance + (from P4) bookings.
-- [ ] **P4 — Booking submit (free + atomic seat claim) ⭐.** `oe` fn `createBooking`:
-  validate location, server-side free-ticket accounting, `oe_claim_seats` atomic
-  lock, write oe_bookings, generate QR payload. Free (total ≤ 0) completes here.
-  RISK: concurrency / seat collisions.
+- [x] **P4 — Booking submit (free + atomic seat claim) ⭐ (2026-07-21).** `oe` fn
+  `createBooking` — everything validated + priced SERVER-SIDE (never trust the
+  frontend): tool access, event bookable (status=live), seat count 1..maxSeats
+  (oe_settings.max_seats_per_booking=4), per-location free-ticket accounting
+  (free_seats − used across the location's active bookings), pricing
+  (paidSeats×price + lunch×lunch_price, +8% SST when subtotal>0). **total > 0 →
+  returns `{requiresPayment, breakdown}` and writes NOTHING** (Stripe = P5). **total
+  ≤ 0 (free) → inserts oe_bookings (status confirmed) then calls the atomic
+  `oe_claim_seats` RPC**; a UNIQUE(event_id,seat_label) collision OR capacity
+  overflow returns false → the just-created booking row is rolled back (deleted) →
+  `{error:"seats_unavailable"}` (409). Generates the QR payload (JSON). Also
+  extended `resolveContext` to return settings (maxSeats/lunchPrice/sstRate) so the
+  client can preview pricing + cap selection. Frontend (`EventsPage.tsx`): the seat
+  map is now SELECTABLE (cap = min(4, seats_left)); a booking panel (selected
+  seats + optional lunch stepper + email + live price preview) → 确认免费报名; free
+  success shows a QR ticket (`qrcode.react` QRCodeSVG) + booking id + seats; paid
+  shows a "付款即将开放 (P5)" breakdown; `seats_unavailable` → toast + reloads the
+  map. `src/lib/offlineEvent.ts` gained createBooking + types. **Verified live**
+  (deployed `oe`; tsc clean; no console errors): (1) FREE booking via curl → ok +
+  qr; (2) **CONCURRENCY — two locations grabbing the SAME seat in parallel → exactly
+  ONE ok, one `seats_unavailable`** (atomic claim proven); (3) free used up → 2 seats
+  = 1 free + 1 paid → `requiresPayment` total RM428.76 (397 + 8% SST 31.76), no
+  write; (4) 5 seats → `too_many_seats`; (5) full UI booking (oe-ui-demo, G5 Seat
+  1+2) → 报名成功 + real QR (BK-W4ZJ-NE3RDY); then that location's freeSeatsRemaining
+  0 / used 2, Sept bookedSeats grew to 4, seats_left 91→87. Per-location isolation:
+  free allowance + bookings tagged by ghl_location_id; events + hall shared by design.
+  RESIDUAL (P5/hardening): the free-allowance check isn't itself concurrency-atomic
+  (two simultaneous free bookings for the SAME location could each pass the check and
+  slightly overspend the free allotment) — low-harm vs seat double-booking (which IS
+  atomic); tighten later if needed. NOTE (pre-launch test data): the **September**
+  event now holds 4 test booked seats (G1S1/G10S1/G5S1/G5S2) + 3 confirmed test
+  bookings on test locations (test-verify-001 / oe-conc-b / oe-ui-demo) — July +
+  August are pristine. Remove the test rows via the P7 bookings admin.
 - [ ] **P5 — Paid booking + Stripe + webhook ⭐.** `oe-checkout` (create session,
   hold pending booking) + `oe-stripe-webhook` (verify signature → mark paid →
   confirm seats). `/checkout/return`. SST 8%. Test/live mode via oe_settings.

@@ -28,6 +28,8 @@ async function callOe<T>(action: string, locationId: string, payload: Record<str
 }
 
 // ── Types ─────────────────────────────────────────────────────────────────
+export type OeSettings = { maxSeats: number; lunchPrice: number; sstRate: number };
+
 export type OeContext = {
   enabled: boolean;
   businessName?: string | null;
@@ -35,7 +37,36 @@ export type OeContext = {
   freeSeats?: number;
   freeSeatsUsed?: number;
   freeSeatsRemaining?: number;
+  settings?: OeSettings;
 };
+
+export type OePriceBreakdown = {
+  seatCount: number;
+  freeUsedNow: number;
+  paidSeats: number;
+  pricePerSeat: number;
+  lunchQty: number;
+  lunchPrice: number;
+  subtotal: number;
+  sst: number;
+  total: number;
+};
+
+export type OeBooking = {
+  booking_id: string;
+  qr_payload: string;
+  seats: string[];
+  event_label: string;
+  email: string;
+  total: number;
+  free_used: number;
+};
+
+/** createBooking result: free bookings complete (ok+booking); paid ones return
+ *  requiresPayment + the breakdown (payment lands in P5). */
+export type OeBookingResult =
+  | { ok: true; booking: OeBooking }
+  | { requiresPayment: true; breakdown: OePriceBreakdown };
 
 export type OeEvent = {
   id: string;
@@ -113,6 +144,16 @@ export async function getEvent(
   bookedSeats: string[];
 }> {
   return callOe("getEvent", locationId, { event_id: eventId });
+}
+
+/** Create a booking. FREE (total ≤ 0) completes immediately with a QR ticket;
+ *  paid returns { requiresPayment } (Stripe flow is P5). Everything is validated
+ *  + priced server-side; seats are claimed atomically (no same-seat double-book). */
+export async function createBooking(
+  locationId: string,
+  input: { event_id: string; email: string; phone?: string; seats?: string[]; quantity?: number; lunch_qty?: number },
+): Promise<OeBookingResult> {
+  return callOe<OeBookingResult>("createBooking", locationId, input);
 }
 
 // ── Layout → seat-map conversion (ported from the old floorPlans.ts) ──────
