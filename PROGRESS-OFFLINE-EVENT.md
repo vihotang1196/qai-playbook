@@ -347,9 +347,20 @@ e-ticket+check-in → admin+seat editor → polish.
     manual-add modal renders 911-location picker + 182-seat map; 改座 modal enforces "需选 4" +
     91-seat map + 确认改座. tsc clean (only the pre-existing review-boost error). Left test
     rows for P7d.
-  - [ ] **P7b — Event-date CRUD.** create/update/delete (per-event price, capacity, status
-    live/display/off, floor plan, seat_selection, theme/notice); block delete when bookings
-    exist (force off/archive).
+  - [x] **P7b — Event-date CRUD (DONE 2026-07-22).** admin fn `listEventsAdmin` (all
+    statuses + per-event claimed-seat + active-booking counts + floor-plan options),
+    `createEvent`, `updateEvent`, `deleteEvent`. Fields: label, start/end dates, time_slot,
+    theme zh/en, notice zh/en, price_per_seat, capacity (blank→derive from plan), floor_plan_id,
+    seat_selection_enabled, status live/display/off, sort_order. **Guards (server-side):**
+    delete blocked when active (non-cancelled) bookings exist → `has_bookings` (close via off
+    instead); capacity can't drop below claimed → `capacity_below_claimed`; floor plan can't
+    change once seats claimed → `cannot_change_plan_with_bookings`. All write audit. Front
+    `EventDates.tsx` (list cards + create/edit form modal, all fields) replaces the placeholder;
+    App.tsx rewired. **Verified live** (owner session): create ok; update price 500→600 +
+    capacity→50 took effect; new live event appeared on customer `/events` (top, RM 250) then
+    deleted; guard_delete July→has_bookings(2); guard_capacity July cap=1→capacity_below_claimed
+    (claimed 5); guard_plan July→cannot_change_plan_with_bookings; admin list + 12-field form
+    render; tsc clean.
   - [ ] **P7c — Settings.** Stripe mode toggle (server reads oe_settings.stripe_payment_mode
     at booking time → flip = next order uses that mode; strong confirm + live-key precheck +
     warn if pending in flight + prominent mode badge) · SST · lunch price · max seats ·

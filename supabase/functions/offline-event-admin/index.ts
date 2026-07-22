@@ -58,6 +58,49 @@ function buildQrPayload(o: {
   });
 }
 
+/** Sanitize an event payload from the admin form into an oe_events row.
+ *  capacity: blank/null → NULL (derive from floor plan). */
+// deno-lint-ignore no-explicit-any
+function buildEventRow(p: any): Record<string, unknown> {
+  const num = (v: unknown) => {
+    const n = Number(v);
+    return Number.isFinite(n) ? n : 0;
+  };
+  const capRaw = p?.capacity;
+  const capacity =
+    capRaw === null || capRaw === undefined || String(capRaw).trim() === ""
+      ? null
+      : Math.max(0, Math.floor(Number(capRaw)) || 0);
+  const status = ["live", "display", "off"].includes(p?.status) ? p.status : "live";
+  return {
+    display_label: String(p?.display_label || "").trim(),
+    start_date: String(p?.start_date || "").trim(),
+    end_date: String(p?.end_date || "").trim(),
+    time_slot: String(p?.time_slot || "").trim(),
+    theme_zh: p?.theme_zh ? String(p.theme_zh) : null,
+    theme_en: p?.theme_en ? String(p.theme_en) : null,
+    notice_zh: p?.notice_zh ? String(p.notice_zh) : null,
+    notice_en: p?.notice_en ? String(p.notice_en) : null,
+    price_per_seat: Math.max(0, num(p?.price_per_seat)),
+    capacity,
+    floor_plan_id: p?.floor_plan_id ? String(p.floor_plan_id) : null,
+    seat_selection_enabled: p?.seat_selection_enabled !== false,
+    status,
+    sort_order: Math.floor(num(p?.sort_order)),
+  };
+}
+
+/** Shared validation for create/update event. Returns an error key or null. */
+// deno-lint-ignore no-explicit-any
+function validateEvent(p: any): string | null {
+  if (!String(p?.display_label || "").trim()) return "label_required";
+  const s = String(p?.start_date || "").trim();
+  const e = String(p?.end_date || "").trim();
+  if (!s || !e) return "dates_required";
+  if (e < s) return "end_before_start";
+  return null;
+}
+
 serve(async (req) => {
   if (req.method === "OPTIONS") return new Response(null, { headers: corsHeaders });
 
@@ -545,6 +588,98 @@ serve(async (req) => {
           })
           .eq("id", b.id);
         await logAudit(sb, admin, "oe_change_event", { booking_id: code, from: b.event_id, to: newEventId, seats: uniqSeats }, b.ghl_location_id);
+        return json({ ok: true });
+      }
+
+      // ═══ P7b — Event-date management ═══════════════════════════════════════
+
+      // ── List ALL events (any status) + claimed/booking counts + plans ────
+      case "listEventsAdmin": {
+        const { data: events, error } = await sb
+          .from("oe_events")
+          .select("*")
+          .order("sort_order", { ascending: true })
+          .order("start_date", { ascending: true });
+        if (error) throw error;
+        const evs = events ?? [];
+        const ids = evs.map((e) => e.id as string);
+
+        const claimed: Record<string, number> = {};
+        const bookings: Record<string, number> = {};
+        if (ids.length) {
+          const { data: seats } = await sb.from("oe_booked_seats").select("event_id").in("event_id", ids);
+          for (const s of seats ?? []) claimed[s.event_id as string] = (claimed[s.event_id as string] || 0) + 1;
+          const { data: bks } = await sb.from("oe_bookings").select("event_id, status").in("event_id", ids).neq("status", "cancelled");
+          for (const b of bks ?? []) if (b.event_id) bookings[b.event_id as string] = (bookings[b.event_id as string] || 0) + 1;
+        }
+
+        const { data: plans } = await sb.from("oe_floor_plans").select("id, name, physical_seats").order("name", { ascending: true });
+        const planName: Record<string, string> = {};
+        for (const p of plans ?? []) planName[p.id as string] = p.name as string;
+
+        const out = evs.map((e) => ({
+          ...e,
+          claimed_seats: claimed[e.id as string] || 0,
+          booking_count: bookings[e.id as string] || 0,
+          floor_plan_name: e.floor_plan_id ? planName[e.floor_plan_id as string] ?? null : null,
+        }));
+        return json({ events: out, floorPlans: plans ?? [] });
+      }
+
+      // ── Create an event ──────────────────────────────────────────────────
+      case "createEvent": {
+        const p = body?.event ?? {};
+        const invalid = validateEvent(p);
+        if (invalid) return json({ error: invalid }, 400);
+        const { data, error } = await sb.from("oe_events").insert(buildEventRow(p)).select("id").single();
+        if (error) throw error;
+        await logAudit(sb, admin, "oe_create_event", { event_id: data.id, label: String(p.display_label) });
+        return json({ ok: true, id: data.id });
+      }
+
+      // ── Update an event (with capacity / floor-plan guards) ──────────────
+      case "updateEvent": {
+        const id = String(body?.id || "").trim();
+        const p = body?.event ?? {};
+        if (!id) return json({ error: "id_required" }, 400);
+        const invalid = validateEvent(p);
+        if (invalid) return json({ error: invalid }, 400);
+
+        const { data: cur } = await sb.from("oe_events").select("id, floor_plan_id").eq("id", id).maybeSingle();
+        if (!cur) return json({ error: "not_found" }, 404);
+
+        const { count: claimedCount } = await sb
+          .from("oe_booked_seats").select("id", { count: "exact", head: true }).eq("event_id", id);
+        const claimedN = claimedCount ?? 0;
+
+        // Capacity can't drop below seats already claimed.
+        const capRaw = p.capacity;
+        if (capRaw !== null && capRaw !== undefined && String(capRaw).trim() !== "") {
+          const capN = Math.floor(Number(capRaw));
+          if (Number.isFinite(capN) && capN < claimedN) return json({ error: "capacity_below_claimed", claimed: claimedN }, 400);
+        }
+        // Can't swap the floor plan out from under existing seat claims.
+        const newPlan = p.floor_plan_id ? String(p.floor_plan_id) : null;
+        if (claimedN > 0 && newPlan !== (cur.floor_plan_id ?? null)) {
+          return json({ error: "cannot_change_plan_with_bookings", claimed: claimedN }, 400);
+        }
+
+        const { error } = await sb.from("oe_events").update({ ...buildEventRow(p), updated_at: new Date().toISOString() }).eq("id", id);
+        if (error) throw error;
+        await logAudit(sb, admin, "oe_update_event", { event_id: id });
+        return json({ ok: true });
+      }
+
+      // ── Delete an event (blocked when it has active bookings) ────────────
+      case "deleteEvent": {
+        const id = String(body?.id || "").trim();
+        if (!id) return json({ error: "id_required" }, 400);
+        const { count } = await sb
+          .from("oe_bookings").select("id", { count: "exact", head: true }).eq("event_id", id).neq("status", "cancelled");
+        if ((count ?? 0) > 0) return json({ error: "has_bookings", count: count ?? 0 }, 400);
+        const { error } = await sb.from("oe_events").delete().eq("id", id);
+        if (error) throw error;
+        await logAudit(sb, admin, "oe_delete_event", { event_id: id });
         return json({ ok: true });
       }
 

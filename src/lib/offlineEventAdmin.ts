@@ -240,3 +240,66 @@ export async function changeSeats(bookingId: string, seats: string[]): Promise<{
 export async function changeEvent(bookingId: string, newEventId: string, seats: string[]): Promise<{ ok: boolean }> {
   return await callOeAdmin("changeEvent", { bookingId, newEventId, seats });
 }
+
+// ── P7b event-date management ───────────────────────────────────────────────
+
+export type OeEventStatus = "live" | "display" | "off";
+
+export type OeAdminEvent = {
+  id: string;
+  display_label: string;
+  start_date: string;
+  end_date: string;
+  time_slot: string;
+  theme_zh: string | null;
+  theme_en: string | null;
+  notice_zh: string | null;
+  notice_en: string | null;
+  price_per_seat: number;
+  capacity: number | null;
+  floor_plan_id: string | null;
+  seat_selection_enabled: boolean;
+  status: OeEventStatus;
+  sort_order: number;
+  // computed
+  claimed_seats: number;
+  booking_count: number;
+  floor_plan_name: string | null;
+};
+
+export type OeFloorPlanOption = { id: string; name: string; physical_seats: number };
+
+/** Event form payload (create/update). capacity: "" or null → derive from plan. */
+export type OeEventInput = {
+  display_label: string;
+  start_date: string;
+  end_date: string;
+  time_slot: string;
+  theme_zh: string;
+  theme_en: string;
+  notice_zh: string;
+  notice_en: string;
+  price_per_seat: number | string;
+  capacity: number | string | null;
+  floor_plan_id: string | null;
+  seat_selection_enabled: boolean;
+  status: OeEventStatus;
+  sort_order: number | string;
+};
+
+/** All events (any status) + claimed/booking counts + the floor-plan options. */
+export async function listEventsAdmin(): Promise<{ events: OeAdminEvent[]; floorPlans: OeFloorPlanOption[] }> {
+  return await callOeAdmin("listEventsAdmin");
+}
+
+export async function createEvent(event: OeEventInput): Promise<{ ok: boolean; id: string }> {
+  return await callOeAdmin("createEvent", { event });
+}
+
+export async function updateEvent(id: string, event: OeEventInput): Promise<{ ok: boolean }> {
+  return await callOeAdmin("updateEvent", { id, event });
+}
+
+export async function deleteEvent(id: string): Promise<{ ok: boolean }> {
+  return await callOeAdmin("deleteEvent", { id });
+}

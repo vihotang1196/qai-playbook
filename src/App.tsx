@@ -32,8 +32,8 @@ import OfflineEventAdminShell from "./components/offline-event/OfflineEventAdmin
 import OEOverview from "./pages/admin/offline-event/Overview";
 import OECheckIn from "./pages/admin/offline-event/CheckIn";
 import OEBookings from "./pages/admin/offline-event/Bookings";
+import OEEventDates from "./pages/admin/offline-event/EventDates";
 import {
-  OEEventDates,
   OEFloorPlans,
   OESettings,
 } from "./pages/admin/offline-event/sections";
