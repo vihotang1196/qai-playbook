@@ -1,12 +1,11 @@
 /**
  * Offline Event admin — placeholder sections.
  *
- * Overview is now a real page (P2, src/pages/admin/offline-event/Overview.tsx).
- * The rest become real pages in later phases:
+ * Overview is a real page (P2, Overview.tsx); CheckIn is a real page (P6,
+ * CheckIn.tsx). The rest become real pages in later phases:
  *   - Bookings   → P7 (list/search/change/archive)
  *   - EventDates → P7 (CRUD event dates + per-event price)
  *   - FloorPlans → P8 (visual drag-drop floor-plan editor)
- *   - CheckIn    → P6 (QR scanner → mark day1/day2 attendance)
  *   - Settings   → P7 (Stripe mode, SST, lunch price, per-subaccount free allowance)
  */
 import type { ReactNode } from "react";
@@ -31,9 +30,6 @@ export function OEEventDates(): ReactNode {
 }
 export function OEFloorPlans(): ReactNode {
   return <Placeholder title="平面图" desc="可视化拖拽编辑会场座位布局（含禁用座位）。" phase="P8" />;
-}
-export function OECheckIn(): ReactNode {
-  return <Placeholder title="签到" desc="摄像头扫二维码，标记 day1 / day2 到场。" phase="P6" />;
 }
 export function OESettings(): ReactNode {
   return <Placeholder title="设置" desc="Stripe 测试/正式模式、SST 税率、午餐价、每子账号免费额度。" phase="P7" />;

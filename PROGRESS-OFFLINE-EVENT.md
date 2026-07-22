@@ -4,14 +4,26 @@ Rebuild of **Offline Event** (5th migrated tool) into this Playbook project,
 ported from a Lovable export. It is a **line-up event booking system**: pick an
 event date → choose seats on a floor-plan seat map → add lunch → **pay via
 Stripe (MYR + 8% SST)** → get a **QR e-ticket on the web page** → staff **scan
-the QR to check in** (2-day event: day1/day2). **IN PROGRESS — P0–P5 + P6a (customer
-"我的报名") DONE; P6 admin scan-checkin is next.**
+the QR to check in** (2-day event: day1/day2). **IN PROGRESS — P0–P6 DONE (booking +
+payment + e-ticket + BOTH check-in halves); P7 admin (bookings/event-dates/settings) is next.**
 
 This file records the owner's locked decisions, the old-version facts, and the
 phased plan so a new session can pick up without re-researching.
 
-_Last updated: 2026-07-22 — **P0–P5 DONE + P6a DONE, ALL committed + pushed to
-`feat/offline-event` (HEAD fc16141).** P5 = paid booking via Stripe **Hosted Checkout**
+_Last updated: 2026-07-22 — **P0–P6 DONE (P6 admin check-in landed), ALL committed +
+pushed to `feat/offline-event`.** P6 admin half = QR check-in: admin picks the active
+event + Day 1/2, opens the scanner (native BarcodeDetector + `jsqr` fallback + manual
+BK-code entry), scans the customer's ticket QR → requireAdmin-gated `offline-event-admin`
+fn `checkIn` action marks day1/day2 attended, **IDEMPOTENT** (guarded `.eq(dayCol,'pending')`
+so a re-scan reports "already" and never double-counts) and **LOCKED to the chosen event**
+(a ticket for another event is refused). Live board "已签 X/Y" + recent list + check-in
+time (new additive migration `20260722160000` added `day1_checked_in_at`/`day2_checked_in_at`
+to oe_bookings). **Verified live** (owner admin session in preview): happy path
+(BK-1QUH-ZB6UPG → 签到成功, board 0/1→1/1, 02:28 PM), re-scan → "已签到" (no double-count),
+Sept ticket on July door → "不是本场活动的票", bogus code → "查无此票"; curl anon/garbage/
+no-token → 403; tsc (offline-event) + vite build clean. NOTE: the July test booking
+BK-1QUH-ZB6UPG is now day1=attended from that live test (test data, cleared in P7). P5 =
+paid booking via Stripe **Hosted Checkout**
 (owner chose redirect over embedded), DIRECT Stripe (no Lovable gateway), dual-key
 (sandbox→_TEST / live→_LIVE from oe_settings.stripe_payment_mode). **NO webhook (owner
 pivot):** /checkout/return hands the session_id to the `confirmBooking` oe action →
@@ -22,8 +34,8 @@ server RETRIEVES the session with the secret key → confirms ONLY if Stripe say
 OE_STRIPE_SECRET_KEY_TEST + _LIVE (webhook secrets not needed). **Full pay test
 PASSED** (card 4242 → BK-1QUH-ZB6UPG confirmed, RM 857.52, server-verified). P6a =
 customer "我的报名" = **team view** (lists ALL confirmed tickets under the location_id,
-no email step, colleagues share, location-isolated server-side). **NEXT = P6 admin
-CheckInScanner** (scan QR → requireAdmin fn → mark day1/day2 attended, idempotent).
+no email step, colleagues share, location-isolated server-side). **NEXT = P7 admin**
+(bookings list/search/change/archive · event-date CRUD · Stripe mode/SST/lunch/free-allowance settings).
 **TEST DATA TO CLEAN IN P7:** **July** event = BK-1QUH-ZB6UPG (4 confirmed seats G16
 Seat 1–4, loc oe-mytest-1, the real pay test); **September** event = the P4 seed-test
 seats (G1S1/G5S1/G5S2/G10S1 + 3 confirmed test bookings on test-verify-001/oe-conc-b/
@@ -256,7 +268,8 @@ e-ticket+check-in → admin+seat editor → polish.
   oe-p5-stripe-check) + the browser-test hold G14 Seat 1 (loc oe-e2e-001, self-sweeps
   ~35min if unpaid). **Full pay test PASSED** (4242 → BK-1QUH-ZB6UPG confirmed,
   RM 857.52, server-verified: pending→confirmed + QR). Optional future: add webhook backstop.
-- [~] **P6 — E-ticket + QR + check-in.** **CUSTOMER HALF DONE (2026-07-22): "我的报名"
+- [x] **P6 — E-ticket + QR + check-in (DONE 2026-07-22 — both halves).**
+  **CUSTOMER HALF: "我的报名"
   / My bookings — TEAM VIEW (owner changed scope A→team on 2026-07-22).** A location =
   one team/company, so it lists EVERY confirmed ticket under the location_id (colleagues
   share; NO email step). `oe` fn `listMyBookings` action: scoped SERVER-SIDE by
@@ -271,8 +284,28 @@ e-ticket+check-in → admin+seat editor → polish.
   email arg), other-location→[]; browser — button→modal shows the team ticket
   (chaishaofeng3@gmail.com, G16 1-4) directly + QR, and a different location shows
   "没有报名" (isolation); no console errors (the getStoredBookingEmail errors seen mid-
-  edit were stale HMR residue). REMAINING (admin half, next): CheckInScanner (camera →
-  requireAdmin fn → mark day1/day2 attended, idempotent); optional self-check-in.
+  edit were stale HMR residue).
+  **ADMIN HALF DONE (2026-07-22): QR check-in.** New page `src/pages/admin/offline-event/
+  CheckIn.tsx` (replaces the sections.tsx OECheckIn placeholder; rewired App.tsx) — admin
+  picks the active event (smart default = ongoing today → nearest upcoming → last) + Day 1/2
+  (smart default by today's date), opens `src/components/offline-event/CheckInScanner.tsx`
+  (self-contained modal, no shadcn; native `BarcodeDetector` + `jsqr` canvas fallback +
+  always-on manual BK-code entry). Scan → parse QR JSON `{bookingId,…}` (or raw code) →
+  `offline-event-admin` fn `checkIn` action. Server: requireAdmin → find CONFIRMED booking
+  by code → **wrong-event guard** (b.event_id !== chosen eventId → refused, 锁定本场) →
+  flip dayN pending→attended **guarded `.eq(dayCol,'pending')` = IDEMPOTENT** (re-scan or a
+  race → "already", never double-counts) + stamp `dayN_checked_in_at`. Also `checkinEvents`
+  (event picker) + `checkinBoard` (live 已签 X/Y + last-20 recent, refreshed after each ok).
+  Client fns in `offlineEventAdmin.ts`. Additive migration `20260722160000_offline_event_
+  p6_checkin.sql` added the two timestamp columns (dry-run→push; local==remote). Added dep
+  `jsqr@^1.4.0`. **Verified live** (owner admin session in preview, offline-event-admin
+  redeployed): happy path BK-1QUH-ZB6UPG Day 1 → 签到成功, board 0/1→1/1 100% + 02:28 PM +
+  recent list; re-enter same → amber "已签到 (02:28 PM)", board stays 1/1 (no double-count);
+  Sept ticket BK-W4ZJ-NE3RDY on July door → red "不是本场活动的票 · 属于 26–27 Sept"; bogus
+  code → "查无此票"; curl anon/garbage/no-token → 403 not_authorized; vite build + tsc
+  (offline-event files) clean; no console errors. Self-check-in (old app had it) DROPPED for
+  now (not needed for MVP; add later if wanted). Note: BK-1QUH-ZB6UPG is now day1=attended
+  from the live test (July test data, wiped in P7).
 - [ ] **P7 — Admin: bookings + event-dates + settings.** List/search/change-date/
   change-seat/archive bookings; event-date CRUD (per-event price); capacity; Stripe
   mode toggle; per-Sub-Account free allowance (reconcile with location_tool_access).

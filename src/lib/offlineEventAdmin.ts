@@ -48,3 +48,63 @@ export async function getOverview(): Promise<OfflineEventOverview> {
   const { overview } = await callOeAdmin<{ overview: OfflineEventOverview }>("overview");
   return overview;
 }
+
+// ── P6 check-in ───────────────────────────────────────────────────────────
+
+export type OeCheckinEvent = {
+  id: string;
+  display_label: string;
+  start_date: string;
+  end_date: string;
+  time_slot: string;
+  theme_zh: string | null;
+  theme_en: string | null;
+  status: string;
+};
+
+/** Events the admin can pick as the "active" door to check people into. */
+export async function getCheckinEvents(): Promise<OeCheckinEvent[]> {
+  const { events } = await callOeAdmin<{ events: OeCheckinEvent[] }>("checkinEvents");
+  return events ?? [];
+}
+
+export type OeCheckinRecent = {
+  booking_id: string;
+  email: string;
+  seats: string[];
+  checkedInAt: string | null;
+};
+
+export type OeCheckinBoard = {
+  total: number; // confirmed tickets for the event
+  attended: number; // checked in that day
+  recent: OeCheckinRecent[];
+};
+
+/** Live "已签 X / 共 Y" board + recent check-ins for a chosen event + day. */
+export async function getCheckinBoard(eventId: string, day: 1 | 2): Promise<OeCheckinBoard> {
+  const { board } = await callOeAdmin<{ board: OeCheckinBoard }>("checkinBoard", { eventId, day });
+  return board;
+}
+
+export type OeCheckinResult = {
+  result: "ok" | "already" | "not_found" | "wrong_event";
+  code?: string;
+  booking?: {
+    booking_id: string;
+    email: string;
+    seats: string[];
+    event_label: string;
+    day: 1 | 2;
+    checkedInAt?: string | null;
+  };
+  scannedEventLabel?: string;
+};
+
+/**
+ * Mark a scanned booking attended for day 1 / 2, locked to `eventId`.
+ * Idempotent server-side — a re-scan returns `already` and never double-counts.
+ */
+export async function checkIn(bookingId: string, eventId: string, day: 1 | 2): Promise<OeCheckinResult> {
+  return await callOeAdmin<OeCheckinResult>("checkIn", { bookingId, eventId, day });
+}
