@@ -1,5 +1,7 @@
+import { useEffect, useState } from "react";
 import { NavLink, Outlet } from "react-router-dom";
 import { CalendarDays } from "lucide-react";
+import { getSettings } from "@/lib/offlineEventAdmin";
 
 /**
  * Offline Event admin — nested INSIDE the Admin Portal at `/admin/offline-event/*`.
@@ -21,6 +23,17 @@ const SUBNAV = [
 ];
 
 export default function OfflineEventAdminShell() {
+  // Always-on Stripe mode badge — one glance tells you test vs. live everywhere
+  // in the Offline Event admin. Re-fetched when the route re-mounts the shell.
+  const [mode, setMode] = useState<"sandbox" | "live" | null>(null);
+  useEffect(() => {
+    let cancelled = false;
+    getSettings()
+      .then((r) => !cancelled && setMode(r.settings.stripe_payment_mode))
+      .catch(() => {/* badge is best-effort */});
+    return () => { cancelled = true; };
+  }, []);
+
   return (
     <div>
       <div className="flex items-center gap-2 mb-4">
@@ -31,6 +44,16 @@ export default function OfflineEventAdminShell() {
           <CalendarDays className="w-4 h-4" />
         </div>
         <h1 className="font-display font-bold text-lg">Offline Event</h1>
+        {mode && (
+          <span
+            className={`ml-1 rounded-full px-2.5 py-1 text-[11px] font-semibold ${
+              mode === "live" ? "bg-red-100 text-red-700" : "bg-emerald-100 text-emerald-700"
+            }`}
+            title="Stripe 付款模式"
+          >
+            {mode === "live" ? "● 正式模式 Live" : "● 测试模式 Sandbox"}
+          </span>
+        )}
       </div>
 
       <nav className="flex flex-wrap items-center gap-1 mb-6 border-b border-border/50 pb-2">

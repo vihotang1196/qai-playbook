@@ -1,0 +1,254 @@
+import { useEffect, useState } from "react";
+import { Loader2, AlertCircle, CreditCard, ShieldCheck, ShieldAlert, Save, Check } from "lucide-react";
+import {
+  getSettings,
+  updateSettings,
+  setStripeMode,
+  listSubaccountSettings,
+  updateSubaccountSettings,
+  type OeSettingsResponse,
+  type OeStripeMode,
+  type OeSubaccountRow,
+} from "@/lib/offlineEventAdmin";
+
+/**
+ * Offline Event admin — P7c settings (`/admin/offline-event/settings`).
+ * SST rate, lunch price, max seats, free-allowance default + per-sub-account
+ * overrides, and the Stripe test/live mode switch (the money switch — three
+ * safeguards: live-key precheck, typed confirmation, pending warning + a
+ * prominent current-mode badge). Every write goes through requireAdmin; the
+ * mode switch is audited.
+ */
+
+const LIVE_CONFIRM = "正式";
+
+export default function OfflineEventSettings() {
+  const [resp, setResp] = useState<OeSettingsResponse | null>(null);
+  const [subs, setSubs] = useState<OeSubaccountRow[]>([]);
+  const [err, setErr] = useState<string | null>(null);
+
+  // charge settings form
+  const [sstPercent, setSstPercent] = useState("");
+  const [lunchPrice, setLunchPrice] = useState("");
+  const [maxSeats, setMaxSeats] = useState("");
+  const [defTickets, setDefTickets] = useState("");
+  const [defSeats, setDefSeats] = useState("");
+  const [savedFlag, setSavedFlag] = useState(false);
+  const [saving, setSaving] = useState(false);
+
+  // stripe switch
+  const [confirmText, setConfirmText] = useState("");
+  const [switching, setSwitching] = useState(false);
+  const [switchErr, setSwitchErr] = useState<string | null>(null);
+
+  const load = () => {
+    setErr(null);
+    Promise.all([getSettings(), listSubaccountSettings()])
+      .then(([r, s]) => {
+        setResp(r);
+        setSubs(s);
+        setSstPercent(String(Math.round(Number(r.settings.sst_rate) * 10000) / 100));
+        setLunchPrice(r.settings.lunch_price);
+        setMaxSeats(r.settings.max_seats_per_booking);
+        setDefTickets(r.settings.default_free_tickets);
+        setDefSeats(r.settings.default_free_seats);
+      })
+      .catch((e) => setErr(e instanceof Error ? e.message : "加载失败"));
+  };
+  useEffect(load, []);
+
+  const saveCharges = async () => {
+    setSaving(true);
+    setSavedFlag(false);
+    try {
+      await updateSettings({
+        sst_rate: Number(sstPercent) / 100,
+        lunch_price: lunchPrice,
+        max_seats_per_booking: maxSeats,
+        default_free_tickets: defTickets,
+        default_free_seats: defSeats,
+      });
+      setSavedFlag(true);
+      setTimeout(() => setSavedFlag(false), 2500);
+      load();
+    } catch (e) {
+      setErr(e instanceof Error ? e.message : "保存失败");
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const doSwitch = async (mode: OeStripeMode) => {
+    setSwitching(true);
+    setSwitchErr(null);
+    try {
+      await setStripeMode(mode);
+      setConfirmText("");
+      load();
+    } catch (e) {
+      const msg = e instanceof Error ? e.message : "切换失败";
+      setSwitchErr(msg === "live_key_missing" ? "正式密钥未配置，无法切换。" : msg);
+    } finally {
+      setSwitching(false);
+    }
+  };
+
+  const saveSub = async (row: OeSubaccountRow, ft: number, fs: number) => {
+    try {
+      await updateSubaccountSettings(row.location_id, ft, fs);
+      load();
+    } catch (e) {
+      setErr(e instanceof Error ? e.message : "保存失败");
+    }
+  };
+
+  if (err && !resp) {
+    return (
+      <div className="glass-card rounded-2xl p-6 flex items-start gap-3">
+        <AlertCircle className="w-5 h-5 text-destructive shrink-0 mt-0.5" />
+        <div><p className="font-medium text-sm">加载失败</p><p className="text-sm text-muted-foreground mt-0.5">{err}</p></div>
+      </div>
+    );
+  }
+  if (!resp) {
+    return <div className="glass-card rounded-2xl p-10 flex items-center justify-center text-muted-foreground"><Loader2 className="w-5 h-5 animate-spin" /></div>;
+  }
+
+  const isLive = resp.settings.stripe_payment_mode === "live";
+
+  return (
+    <div className="space-y-5 max-w-2xl">
+      {/* ── Stripe mode (the money switch) ── */}
+      <div className={`rounded-2xl p-5 border-2 ${isLive ? "border-red-300 bg-red-50/60" : "border-emerald-300 bg-emerald-50/50"}`}>
+        <div className="flex items-center gap-2 mb-3">
+          <CreditCard className={`w-5 h-5 ${isLive ? "text-red-600" : "text-emerald-600"}`} />
+          <p className="font-display font-bold">Stripe 付款模式</p>
+        </div>
+
+        <div className={`rounded-xl px-4 py-3 flex items-center gap-3 ${isLive ? "bg-red-100" : "bg-emerald-100"}`}>
+          {isLive ? <ShieldAlert className="w-6 h-6 text-red-600 shrink-0" /> : <ShieldCheck className="w-6 h-6 text-emerald-600 shrink-0" />}
+          <div>
+            <p className={`font-bold ${isLive ? "text-red-800" : "text-emerald-800"}`}>
+              当前：{isLive ? "正式模式 (Live) · 真实扣款" : "测试模式 (Sandbox) · 不扣真钱"}
+            </p>
+            <p className={`text-xs ${isLive ? "text-red-700" : "text-emerald-700"}`}>
+              {isLive ? "顾客下单会真实扣款到你的 Stripe 账户。" : "顾客下单用测试卡（4242…），不会真实扣款。"}
+            </p>
+          </div>
+        </div>
+
+        {!isLive ? (
+          <div className="mt-4 space-y-2">
+            <p className="text-sm font-medium">切换到正式模式（开始收真钱）</p>
+            {/* Safeguard 1: live key precheck */}
+            <div className={`text-xs flex items-center gap-1.5 ${resp.liveKeyConfigured ? "text-emerald-700" : "text-red-700"}`}>
+              {resp.liveKeyConfigured ? <Check className="w-3.5 h-3.5" /> : <AlertCircle className="w-3.5 h-3.5" />}
+              正式密钥 OE_STRIPE_SECRET_KEY_LIVE：{resp.liveKeyConfigured ? "已配置" : "未配置（请先在 Supabase 配好，否则无法切换）"}
+            </div>
+            {/* Safeguard 3: pending warning */}
+            {resp.pendingCount > 0 && (
+              <div className="text-xs text-amber-700 flex items-center gap-1.5">
+                <AlertCircle className="w-3.5 h-3.5" /> 有 {resp.pendingCount} 个待付款订单在进行中，切换前建议先处理（否则它们可能核实失败）。
+              </div>
+            )}
+            {/* Safeguard 2: typed confirmation */}
+            <div className="flex gap-2 items-center pt-1">
+              <input
+                value={confirmText}
+                onChange={(e) => setConfirmText(e.target.value)}
+                placeholder={`输入「${LIVE_CONFIRM}」确认`}
+                disabled={!resp.liveKeyConfigured}
+                className="h-10 rounded-xl border border-border bg-background px-3 text-sm w-48 disabled:opacity-50"
+              />
+              <button
+                onClick={() => doSwitch("live")}
+                disabled={!resp.liveKeyConfigured || confirmText.trim() !== LIVE_CONFIRM || switching}
+                className="h-10 px-4 rounded-xl bg-red-600 text-white text-sm font-semibold flex items-center gap-1.5 disabled:opacity-40"
+              >
+                {switching ? <Loader2 className="w-4 h-4 animate-spin" /> : <ShieldAlert className="w-4 h-4" />}
+                切换到正式模式
+              </button>
+            </div>
+          </div>
+        ) : (
+          <div className="mt-4">
+            <button
+              onClick={() => { if (window.confirm("切回测试模式？之后的下单将不再真实扣款。")) doSwitch("sandbox"); }}
+              disabled={switching}
+              className="h-10 px-4 rounded-xl bg-muted text-sm font-medium flex items-center gap-1.5 disabled:opacity-50"
+            >
+              {switching ? <Loader2 className="w-4 h-4 animate-spin" /> : null} 切回测试模式 (Sandbox)
+            </button>
+          </div>
+        )}
+        {switchErr && <p className="text-sm text-destructive mt-2">{switchErr}</p>}
+      </div>
+
+      {/* ── Charge settings ── */}
+      <div className="glass-card rounded-2xl p-5 space-y-3">
+        <p className="font-display font-bold">收费设置</p>
+        <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+          <Field label="SST 税率 %"><input value={sstPercent} onChange={(e) => setSstPercent(e.target.value)} inputMode="decimal" className={inp} /></Field>
+          <Field label="午餐价 RM/份"><input value={lunchPrice} onChange={(e) => setLunchPrice(e.target.value)} inputMode="decimal" className={inp} /></Field>
+          <Field label="每单最多座位"><input value={maxSeats} onChange={(e) => setMaxSeats(e.target.value)} inputMode="numeric" className={inp} /></Field>
+        </div>
+        <p className="font-medium text-sm pt-1">免费额度（全局默认，新子账号首次访问时套用）</p>
+        <div className="grid grid-cols-2 gap-3">
+          <Field label="默认免费票（张）"><input value={defTickets} onChange={(e) => setDefTickets(e.target.value)} inputMode="numeric" className={inp} /></Field>
+          <Field label="默认免费座位（个）"><input value={defSeats} onChange={(e) => setDefSeats(e.target.value)} inputMode="numeric" className={inp} /></Field>
+        </div>
+        <button onClick={saveCharges} disabled={saving} className="h-10 px-5 rounded-xl text-white text-sm font-semibold flex items-center gap-1.5 disabled:opacity-40" style={{ background: "linear-gradient(135deg, #FF7E5F, #FF3D6E)" }}>
+          {saving ? <Loader2 className="w-4 h-4 animate-spin" /> : savedFlag ? <Check className="w-4 h-4" /> : <Save className="w-4 h-4" />}
+          {savedFlag ? "已保存" : "保存"}
+        </button>
+      </div>
+
+      {/* ── Per-sub-account free allowance overrides ── */}
+      <div className="glass-card rounded-2xl p-5">
+        <p className="font-display font-bold mb-1">各子账号免费额度（覆盖全局默认）</p>
+        <p className="text-xs text-muted-foreground mb-3">只列出已使用过本工具的子账号；改这里会覆盖该客户的免费额度。</p>
+        {subs.length === 0 ? (
+          <p className="text-sm text-muted-foreground">还没有子账号使用过。</p>
+        ) : (
+          <div className="space-y-2 max-h-80 overflow-y-auto">
+            {subs.map((row) => <SubRow key={row.location_id} row={row} onSave={saveSub} />)}
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+
+function SubRow({ row, onSave }: { row: OeSubaccountRow; onSave: (row: OeSubaccountRow, ft: number, fs: number) => void }) {
+  const [ft, setFt] = useState(String(row.free_tickets));
+  const [fs, setFs] = useState(String(row.free_seats));
+  const dirty = ft !== String(row.free_tickets) || fs !== String(row.free_seats);
+  return (
+    <div className="flex items-center gap-2 text-sm border-b border-border/30 pb-2">
+      <div className="min-w-0 flex-1">
+        <p className="truncate font-medium">{row.business_name || row.location_id}</p>
+        <p className="text-[11px] text-muted-foreground truncate">{row.location_id}</p>
+      </div>
+      <label className="text-[11px] text-muted-foreground">票<input value={ft} onChange={(e) => setFt(e.target.value)} inputMode="numeric" className="ml-1 w-12 h-8 rounded-lg border border-border bg-background px-2 text-sm" /></label>
+      <label className="text-[11px] text-muted-foreground">座<input value={fs} onChange={(e) => setFs(e.target.value)} inputMode="numeric" className="ml-1 w-12 h-8 rounded-lg border border-border bg-background px-2 text-sm" /></label>
+      <button
+        onClick={() => onSave(row, Math.max(0, Math.floor(Number(ft) || 0)), Math.max(0, Math.floor(Number(fs) || 0)))}
+        disabled={!dirty}
+        className="h-8 px-3 rounded-lg bg-primary text-primary-foreground text-xs font-medium disabled:opacity-30"
+      >
+        保存
+      </button>
+    </div>
+  );
+}
+
+const inp = "w-full h-10 rounded-xl border border-border bg-background px-3 text-sm";
+
+function Field({ label, children }: { label: string; children: React.ReactNode }) {
+  return (
+    <div>
+      <label className="text-[11px] uppercase tracking-wider text-muted-foreground font-semibold">{label}</label>
+      <div className="mt-1">{children}</div>
+    </div>
+  );
+}

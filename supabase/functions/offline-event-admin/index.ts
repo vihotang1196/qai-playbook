@@ -683,6 +683,109 @@ serve(async (req) => {
         return json({ ok: true });
       }
 
+      // ═══ P7c — Settings ════════════════════════════════════════════════════
+
+      // ── Read settings (+ live-key status + pending count for the UI) ─────
+      case "getSettings": {
+        const { data } = await sb.from("oe_settings").select("key, value");
+        const m: Record<string, string> = {};
+        for (const r of data ?? []) m[r.key as string] = r.value as string;
+        const get = (k: string, d: string) => (m[k] !== undefined ? m[k] : d);
+
+        const { count: pendingCount } = await sb.from("oe_bookings").select("id", { count: "exact", head: true }).eq("status", "pending");
+        const liveKeyConfigured = !!(Deno.env.get("OE_STRIPE_SECRET_KEY_LIVE") ?? "");
+
+        return json({
+          settings: {
+            stripe_payment_mode: get("stripe_payment_mode", "sandbox"),
+            sst_rate: get("sst_rate", "0.08"),
+            lunch_price: get("lunch_price", "39.99"),
+            max_seats_per_booking: get("max_seats_per_booking", "4"),
+            default_free_tickets: get("default_free_tickets", "1"),
+            default_free_seats: get("default_free_seats", "2"),
+          },
+          liveKeyConfigured,
+          pendingCount: pendingCount ?? 0,
+        });
+      }
+
+      // ── Update the non-Stripe-mode settings (numeric, validated) ─────────
+      case "updateSettings": {
+        const p = body?.settings ?? {};
+        const allowed = ["sst_rate", "lunch_price", "max_seats_per_booking", "default_free_tickets", "default_free_seats"];
+        const nowIso = new Date().toISOString();
+        const rows: { key: string; value: string; updated_at: string }[] = [];
+        for (const k of allowed) {
+          if (p[k] === undefined || p[k] === null || String(p[k]).trim() === "") continue;
+          let v = Number(p[k]);
+          if (!Number.isFinite(v) || v < 0) return json({ error: `invalid_${k}` }, 400);
+          if (k === "sst_rate" && v > 1) return json({ error: "sst_rate_out_of_range" }, 400); // fraction 0..1
+          if (k === "max_seats_per_booking") v = Math.max(1, Math.floor(v));
+          if (k === "default_free_tickets" || k === "default_free_seats") v = Math.max(0, Math.floor(v));
+          rows.push({ key: k, value: String(v), updated_at: nowIso });
+        }
+        if (rows.length) {
+          const { error } = await sb.from("oe_settings").upsert(rows, { onConflict: "key" });
+          if (error) throw error;
+        }
+        await logAudit(sb, admin, "oe_update_settings", p);
+        return json({ ok: true });
+      }
+
+      // ── Switch Stripe mode (THE money switch — safeguards + audit) ───────
+      // Safeguard 1 (server-enforced): switching to live requires the live
+      // secret key to be configured. Safeguards 2 (typed confirm) + 3 (pending
+      // warning / badge) are the UI's job; this always writes an audit row.
+      case "setStripeMode": {
+        const mode = body?.mode === "live" ? "live" : body?.mode === "sandbox" ? "sandbox" : null;
+        if (!mode) return json({ error: "invalid_mode" }, 400);
+
+        const { data: cur } = await sb.from("oe_settings").select("value").eq("key", "stripe_payment_mode").maybeSingle();
+        const from = (cur?.value as string) ?? "sandbox";
+
+        if (mode === "live" && !(Deno.env.get("OE_STRIPE_SECRET_KEY_LIVE") ?? "")) {
+          return json({ error: "live_key_missing" }, 400);
+        }
+
+        const { error } = await sb
+          .from("oe_settings")
+          .upsert({ key: "stripe_payment_mode", value: mode, updated_at: new Date().toISOString() }, { onConflict: "key" });
+        if (error) throw error;
+        await logAudit(sb, admin, "oe_set_stripe_mode", { from, to: mode });
+        return json({ ok: true, mode });
+      }
+
+      // ── Per-sub-account free-allowance overrides ─────────────────────────
+      case "listSubaccountSettings": {
+        const { data, error } = await sb
+          .from("oe_subaccount_settings")
+          .select("location_id, free_tickets, free_seats, updated_at")
+          .order("updated_at", { ascending: false })
+          .limit(1000);
+        if (error) throw error;
+        const rows = data ?? [];
+        const ids = rows.map((r) => r.location_id as string);
+        const nameMap: Record<string, string> = {};
+        if (ids.length) {
+          const { data: locs } = await sb.from("ghl_locations").select("location_id, business_name").in("location_id", ids);
+          for (const l of locs ?? []) nameMap[l.location_id as string] = (l.business_name as string) ?? "";
+        }
+        return json({ rows: rows.map((r) => ({ ...r, business_name: nameMap[r.location_id as string] ?? null })) });
+      }
+
+      case "updateSubaccountSettings": {
+        const locId = String(body?.locationId || "").trim();
+        if (!locId) return json({ error: "location_required" }, 400);
+        const ft = Math.max(0, Math.floor(Number(body?.free_tickets) || 0));
+        const fs = Math.max(0, Math.floor(Number(body?.free_seats) || 0));
+        const { error } = await sb
+          .from("oe_subaccount_settings")
+          .upsert({ location_id: locId, free_tickets: ft, free_seats: fs, updated_at: new Date().toISOString() }, { onConflict: "location_id" });
+        if (error) throw error;
+        await logAudit(sb, admin, "oe_update_subaccount", { location_id: locId, free_tickets: ft, free_seats: fs }, locId);
+        return json({ ok: true });
+      }
+
       default:
         return json({ error: `Unknown action: ${action || "(none)"}` }, 400);
     }

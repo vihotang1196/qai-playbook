@@ -303,3 +303,59 @@ export async function updateEvent(id: string, event: OeEventInput): Promise<{ ok
 export async function deleteEvent(id: string): Promise<{ ok: boolean }> {
   return await callOeAdmin("deleteEvent", { id });
 }
+
+// ── P7c settings ────────────────────────────────────────────────────────────
+
+export type OeStripeMode = "sandbox" | "live";
+
+export type OeSettingsValues = {
+  stripe_payment_mode: OeStripeMode;
+  sst_rate: string; // fraction, e.g. "0.08"
+  lunch_price: string;
+  max_seats_per_booking: string;
+  default_free_tickets: string;
+  default_free_seats: string;
+};
+
+export type OeSettingsResponse = {
+  settings: OeSettingsValues;
+  liveKeyConfigured: boolean;
+  pendingCount: number;
+};
+
+export async function getSettings(): Promise<OeSettingsResponse> {
+  return await callOeAdmin("getSettings");
+}
+
+/** Update the non-Stripe-mode settings. sst_rate is a FRACTION (0.08 = 8%). */
+export async function updateSettings(settings: Partial<{
+  sst_rate: number | string;
+  lunch_price: number | string;
+  max_seats_per_booking: number | string;
+  default_free_tickets: number | string;
+  default_free_seats: number | string;
+}>): Promise<{ ok: boolean }> {
+  return await callOeAdmin("updateSettings", { settings });
+}
+
+/** Switch Stripe mode. Server rejects live when the live key isn't configured. */
+export async function setStripeMode(mode: OeStripeMode): Promise<{ ok: boolean; mode: OeStripeMode }> {
+  return await callOeAdmin("setStripeMode", { mode });
+}
+
+export type OeSubaccountRow = {
+  location_id: string;
+  business_name: string | null;
+  free_tickets: number;
+  free_seats: number;
+  updated_at: string;
+};
+
+export async function listSubaccountSettings(): Promise<OeSubaccountRow[]> {
+  const { rows } = await callOeAdmin<{ rows: OeSubaccountRow[] }>("listSubaccountSettings");
+  return rows ?? [];
+}
+
+export async function updateSubaccountSettings(locationId: string, free_tickets: number, free_seats: number): Promise<{ ok: boolean }> {
+  return await callOeAdmin("updateSubaccountSettings", { locationId, free_tickets, free_seats });
+}

@@ -31,7 +31,13 @@ function genBookingId(): string {
   return `BK-${ts}-${rand}`;
 }
 
-type OeSettings = { maxSeats: number; lunchPrice: number; sstRate: number };
+type OeSettings = {
+  maxSeats: number;
+  lunchPrice: number;
+  sstRate: number;
+  defaultFreeTickets: number;
+  defaultFreeSeats: number;
+};
 async function loadSettings(sb: SB): Promise<OeSettings> {
   const { data } = await sb.from("oe_settings").select("key, value");
   const m: Record<string, string> = {};
@@ -44,6 +50,9 @@ async function loadSettings(sb: SB): Promise<OeSettings> {
     maxSeats: Math.max(1, Math.floor(num("max_seats_per_booking", 4))),
     lunchPrice: num("lunch_price", 39.99),
     sstRate: num("sst_rate", 0.08),
+    // Global default allowance for a NEW sub-account (admin-configurable, P7c).
+    defaultFreeTickets: Math.max(0, Math.floor(num("default_free_tickets", 1))),
+    defaultFreeSeats: Math.max(0, Math.floor(num("default_free_seats", 2))),
   };
 }
 
@@ -219,10 +228,14 @@ serve(async (req) => {
     switch (action) {
       // ── Resolve context (identity + tool access + free allowance + settings) ──
       case "resolveContext": {
+        // Auto-register a new sub-account with the ADMIN-CONFIGURED global default
+        // allowance (P7c). ignoreDuplicates → existing rows (incl. per-sub-account
+        // overrides) are never overwritten.
+        const s = await loadSettings(sb);
         await sb
           .from("oe_subaccount_settings")
           .upsert(
-            { location_id: locationId, free_tickets: 1, free_seats: 2 },
+            { location_id: locationId, free_tickets: s.defaultFreeTickets, free_seats: s.defaultFreeSeats },
             { onConflict: "location_id", ignoreDuplicates: true },
           );
 
@@ -234,11 +247,9 @@ serve(async (req) => {
           .select("free_tickets, free_seats")
           .eq("location_id", locationId)
           .maybeSingle();
-        const freeTickets = Number(settingsRow?.free_tickets ?? 1);
-        const freeSeats = Number(settingsRow?.free_seats ?? 2);
+        const freeTickets = Number(settingsRow?.free_tickets ?? s.defaultFreeTickets);
+        const freeSeats = Number(settingsRow?.free_seats ?? s.defaultFreeSeats);
         const freeSeatsUsed = await freeSeatsUsedFor(sb, locationId);
-
-        const s = await loadSettings(sb);
 
         let businessName: string | null = null;
         try {

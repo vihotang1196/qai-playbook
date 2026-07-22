@@ -33,10 +33,8 @@ import OEOverview from "./pages/admin/offline-event/Overview";
 import OECheckIn from "./pages/admin/offline-event/CheckIn";
 import OEBookings from "./pages/admin/offline-event/Bookings";
 import OEEventDates from "./pages/admin/offline-event/EventDates";
-import {
-  OEFloorPlans,
-  OESettings,
-} from "./pages/admin/offline-event/sections";
+import OESettings from "./pages/admin/offline-event/Settings";
+import { OEFloorPlans } from "./pages/admin/offline-event/sections";
 import EventsPage from "./pages/events/EventsPage";
 import CheckoutReturn from "./pages/checkout/Return";
 import { rememberLocationId } from "@/lib/ghl";

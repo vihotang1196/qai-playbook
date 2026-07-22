@@ -361,10 +361,25 @@ e-ticket+check-in → admin+seat editor → polish.
     deleted; guard_delete July→has_bookings(2); guard_capacity July cap=1→capacity_below_claimed
     (claimed 5); guard_plan July→cannot_change_plan_with_bookings; admin list + 12-field form
     render; tsc clean.
-  - [ ] **P7c — Settings.** Stripe mode toggle (server reads oe_settings.stripe_payment_mode
-    at booking time → flip = next order uses that mode; strong confirm + live-key precheck +
-    warn if pending in flight + prominent mode badge) · SST · lunch price · max seats ·
-    free allowance (global default + per-subaccount overrides).
+  - [x] **P7c — Settings (DONE 2026-07-22).** admin fn: `getSettings` (values +
+    `liveKeyConfigured` bool + `pendingCount`), `updateSettings` (sst_rate as FRACTION,
+    lunch_price, max_seats, default_free_tickets/seats — validated), `setStripeMode`,
+    `listSubaccountSettings` / `updateSubaccountSettings`. **Stripe mode switch (money switch)
+    — 3 safeguards, owner-required:** ① live-key precheck SERVER-ENFORCED (setStripeMode('live')
+    → `live_key_missing` if OE_STRIPE_SECRET_KEY_LIVE unset) + shown in UI; ② typed-confirm
+    (must type「正式」before the switch button enables); ③ pending-booking warning + a
+    **always-on mode badge in the shell header** (● 测试模式 Sandbox / ● 正式模式 Live on every
+    sub-page). Mode switch is AUDITED (`oe_set_stripe_mode` {from,to}); server reads
+    stripe_payment_mode at booking time so a flip takes effect on the next order. Free allowance:
+    **global default** now admin-configurable (oe fn `resolveContext` reads default_free_tickets/
+    seats for new sub-accounts, was hardcoded 1/2) + **per-subaccount overrides** (list existing +
+    edit). Front `Settings.tsx` (Stripe card + charge settings + free-allowance) + shell badge;
+    App.tsx rewired; oe fn redeployed. **Verified live** (owner session): getSettings
+    (liveKeyConfigured=true, pending=0); safeguard-2 button disabled until「正式」typed
+    (did NOT flip — live key IS set, would enable real charges); invalid_mode guard; sandbox
+    write+audit ok; **lunch price 39.99→55 propagated to customer pricing** (oe resolveContext
+    lunchPrice=55) then restored; 8 sub-account overrides listed + one saved; badge shows on
+    every admin page; tsc clean. Owner does the real live-flip when ready (like the P5 pay test).
   - [ ] **P7d — Clean test data.** List all current (all test) → owner confirms → hard-delete
     the specific rows (cascades booked_seats) + test-location subaccount_settings; Overview
     → 0.
