@@ -16,12 +16,14 @@ import { useLang } from "@/i18n/LanguageContext";
 import { resolveLocationId } from "@/lib/ghl";
 import { SeatMap } from "@/components/offline-event/SeatMap";
 import { QrTicket } from "@/components/offline-event/QrTicket";
+import { MyBookings } from "@/components/offline-event/MyBookings";
 import {
   resolveContext,
   listEvents,
   getEvent,
   createBooking,
   createCheckout,
+  rememberBookingEmail,
   layoutToSeatGroups,
   type OeContext,
   type OeEvent,
@@ -110,6 +112,7 @@ function BookingBrowser({ lang, locationId, ctx, onRefreshCtx }: { lang: "cn" | 
   const [events, setEvents] = useState<OeEvent[] | null>(null);
   const [err, setErr] = useState<string | null>(null);
   const [openId, setOpenId] = useState<string | null>(null);
+  const [showMine, setShowMine] = useState(false);
 
   const loadEvents = useCallback(() => {
     listEvents(locationId)
@@ -135,11 +138,21 @@ function BookingBrowser({ lang, locationId, ctx, onRefreshCtx }: { lang: "cn" | 
         <div className="w-11 h-11 rounded-2xl flex items-center justify-center text-white shrink-0" style={{ background: "linear-gradient(135deg, #FF7E5F, #FF3D6E)" }}>
           <CalendarDays className="w-6 h-6" />
         </div>
-        <div className="min-w-0">
+        <div className="min-w-0 flex-1">
           <h1 className="text-2xl font-display font-bold leading-tight">{lang === "cn" ? "线下活动报名" : "Offline Event Booking"}</h1>
           <p className="text-sm text-muted-foreground truncate">{ctx.businessName || (lang === "cn" ? "选择活动 · 挑座位 · 报名" : "Pick an event · choose seats · book")}</p>
         </div>
+        <button
+          type="button"
+          onClick={() => setShowMine(true)}
+          className="shrink-0 inline-flex items-center gap-1.5 rounded-full border border-border/60 bg-background/60 px-3 py-2 text-xs font-bold hover:bg-muted/50"
+        >
+          <Ticket className="w-3.5 h-3.5 text-primary" />
+          {lang === "cn" ? "我的报名" : "My bookings"}
+        </button>
       </div>
+
+      {showMine && <MyBookings lang={lang} locationId={locationId} onClose={() => setShowMine(false)} />}
 
       <div className="glass-card rounded-2xl px-4 py-3 mb-5 flex items-center gap-2.5">
         <Ticket className="w-4 h-4 text-primary shrink-0" />
@@ -345,6 +358,7 @@ function EventBooking({
     }
     setSubmitting(true);
     try {
+      rememberBookingEmail(email.trim()); // so "My bookings" can auto-load later
       const input = {
         event_id: event.id,
         email: email.trim(),

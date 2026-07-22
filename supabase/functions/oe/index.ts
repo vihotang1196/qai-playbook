@@ -653,6 +653,54 @@ serve(async (req) => {
         return json({ status: "confirmed", booking: bookingOut() });
       }
 
+      // ── "My bookings": a customer's own confirmed tickets (scope A) ───────
+      // Identity = location_id (URL) + the email they booked with. The match is
+      // enforced SERVER-SIDE (ghl_location_id + case-insensitive email); a
+      // different email under the same location NEVER appears, so students don't
+      // see each other's tickets. Only `confirmed` rows (real tickets) are
+      // returned — pending/cancelled are hidden.
+      case "listMyBookings": {
+        if (!(await hasToolAccess(sb, locationId, TOOL_KEY))) return json({ error: "tool_disabled" }, 403);
+        const email = String(body?.email || "").trim();
+        if (!email || !/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(email)) return json({ error: "email_required" }, 400);
+
+        // Exact, case-insensitive email match: ILIKE with the LIKE wildcards in
+        // the address escaped so it can only match that one address.
+        const escaped = email.replace(/([\\%_])/g, "\\$1");
+
+        const { data, error } = await sb
+          .from("oe_bookings")
+          .select(
+            "booking_id, event_label, free_seats, addon_seats, lunch_qty, total, qr_payload, created_at, oe_events(start_date, end_date, time_slot, theme_zh, theme_en)",
+          )
+          .eq("ghl_location_id", locationId)
+          .eq("status", "confirmed")
+          .ilike("email", escaped)
+          .order("created_at", { ascending: false });
+        if (error) throw error;
+
+        // deno-lint-ignore no-explicit-any
+        const bookings = (data ?? []).map((b: any) => {
+          const ev = b.oe_events ?? null;
+          return {
+            booking_id: b.booking_id,
+            event_label: b.event_label,
+            start_date: ev?.start_date ?? null,
+            end_date: ev?.end_date ?? null,
+            time_slot: ev?.time_slot ?? null,
+            theme_zh: ev?.theme_zh ?? null,
+            theme_en: ev?.theme_en ?? null,
+            seats: [...(b.free_seats ?? []), ...(b.addon_seats ?? [])],
+            lunch_qty: Number(b.lunch_qty ?? 0),
+            total: Number(b.total ?? 0),
+            qr_payload: b.qr_payload,
+          };
+        });
+        // Latest event date first (nulls sink to the bottom).
+        bookings.sort((a, b) => (b.start_date || "").localeCompare(a.start_date || ""));
+        return json({ bookings });
+      }
+
       default:
         return json({ error: `Unknown action: ${action || "(none)"}` }, 400);
     }

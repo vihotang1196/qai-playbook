@@ -188,6 +188,45 @@ export async function confirmBooking(
   return callOe("confirmBooking", locationId, args);
 }
 
+// ── "My bookings" (scope A: location_id + email) ───────────────────────────
+export type OeMyBooking = {
+  booking_id: string;
+  event_label: string;
+  start_date: string | null;
+  end_date: string | null;
+  time_slot: string | null;
+  theme_zh: string | null;
+  theme_en: string | null;
+  seats: string[];
+  lunch_qty: number;
+  total: number;
+  qr_payload: string;
+};
+
+/** A customer's own CONFIRMED tickets for this location, matched server-side by
+ *  (location_id + email). Never returns other emails' bookings. */
+export async function listMyBookings(locationId: string, email: string): Promise<OeMyBooking[]> {
+  const { bookings } = await callOe<{ bookings: OeMyBooking[] }>("listMyBookings", locationId, { email });
+  return bookings || [];
+}
+
+// Remember the email a customer booked with (per browser) so "My bookings" can
+// auto-load without retyping. Per-tool key; not identity-sensitive on its own.
+const EMAIL_KEY = "oe_booking_email";
+export function rememberBookingEmail(email: string): void {
+  try {
+    const e = (email || "").trim();
+    if (e) localStorage.setItem(EMAIL_KEY, e);
+  } catch { /* storage may be unavailable */ }
+}
+export function getStoredBookingEmail(): string {
+  try {
+    return localStorage.getItem(EMAIL_KEY) || "";
+  } catch {
+    return "";
+  }
+}
+
 // ── Layout → seat-map conversion (ported from the old floorPlans.ts) ──────
 /** Seat label as stored/rendered everywhere: "G5 Seat 1". */
 export function seatLabel(groupId: string, seatNumber: number): string {
