@@ -228,8 +228,8 @@ e-ticket+check-in → admin+seat editor → polish.
   event now holds 4 test booked seats (G1S1/G10S1/G5S1/G5S2) + 3 confirmed test
   bookings on test locations (test-verify-001 / oe-conc-b / oe-ui-demo) — July +
   August are pristine. Remove the test rows via the P7 bookings admin.
-- [~] **P5 — Paid booking + Stripe ⭐ (CODE COMPLETE + DEPLOYED 2026-07-22; e2e pay
-  test pending).** Owner chose **Hosted Checkout** (redirect, not embedded) and (pivot)
+- [x] **P5 — Paid booking + Stripe ⭐ (DONE 2026-07-22 — full pay test PASSED).**
+  Owner chose **Hosted Checkout** (redirect, not embedded) and (pivot)
   **return-page server-side verification instead of a webhook**. Implemented as:
   `createCheckout` + `getBooking` + `confirmBooking` ACTIONS on the existing `oe` fn
   (NOT a separate `oe-checkout` fn — reuses P4 pricing/free-allowance/atomic seat-claim,
@@ -254,8 +254,8 @@ e-ticket+check-in → admin+seat editor → polish.
   to Stripe hosted checkout (Sandbox / MYR / AJ ENDLESS ASIA SDN BHD, email prefilled).**
   TEST DATA TO CLEAN (P7): pending holds on SEPT — BK-NSKG-9L2TE7 (G20 Seat 3, loc
   oe-p5-stripe-check) + the browser-test hold G14 Seat 1 (loc oe-e2e-001, self-sweeps
-  ~35min if unpaid). REMAINING: owner runs the full pay test (4242) → pending→confirmed
-  + QR; optional: add webhook backstop later.
+  ~35min if unpaid). **Full pay test PASSED** (4242 → BK-1QUH-ZB6UPG confirmed,
+  RM 857.52, server-verified: pending→confirmed + QR). Optional future: add webhook backstop.
 - [~] **P6 — E-ticket + QR + check-in.** **CUSTOMER HALF DONE (2026-07-22): "我的报名"
   / My bookings — TEAM VIEW (owner changed scope A→team on 2026-07-22).** A location =
   one team/company, so it lists EVERY confirmed ticket under the location_id (colleagues
