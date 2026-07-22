@@ -3,18 +3,19 @@ import { useSearchParams, Link } from "react-router-dom";
 import { Loader2, AlertCircle, XCircle } from "lucide-react";
 import { useLang } from "@/i18n/LanguageContext";
 import { resolveLocationId } from "@/lib/ghl";
-import { getBooking, type OeBooking, type OeBookingStatus } from "@/lib/offlineEvent";
+import { confirmBooking, type OeBooking, type OeBookingStatus } from "@/lib/offlineEvent";
 import { QrTicket } from "@/components/offline-event/QrTicket";
 
 /**
- * Stripe hosted-Checkout return page (`/checkout/return?booking=BK-…`).
+ * Stripe hosted-Checkout return page (`/checkout/return?booking=BK-…&session=cs_…`).
  *
- * Payment is confirmed SERVER-SIDE by the oe-stripe-webhook (signature-verified),
- * NOT here — so this page just polls the booking status until the webhook lands
- * (usually 1–3s). Identity = the location_id stashed in sessionStorage during the
- * booking flow (survives the round-trip to Stripe in the same tab). Confirmed →
- * QR ticket; expired/cancelled → released notice; still pending after ~30s →
- * "processing, contact support" (rare — webhook delayed).
+ * Payment is verified SERVER-SIDE here: confirmBooking retrieves the Checkout
+ * session with the secret key and only confirms if Stripe says it's paid — the
+ * browser's word is never trusted. We poll it (idempotent) until confirmed
+ * (normally the first call). Identity = the location_id stashed in sessionStorage
+ * during the booking flow (survives the round-trip to Stripe in the same tab).
+ * Confirmed → QR ticket; cancelled → released notice; still pending after ~30s →
+ * "if charged, contact support" (rare).
  */
 const MAX_TRIES = 15; // ~30s at 2s intervals
 
@@ -22,13 +23,14 @@ export default function CheckoutReturn() {
   const { lang } = useLang();
   const [params] = useSearchParams();
   const bookingCode = params.get("booking") || "";
+  const sessionId = params.get("session") || "";
   const locationId = resolveLocationId();
   const [status, setStatus] = useState<OeBookingStatus | "loading">("loading");
   const [booking, setBooking] = useState<OeBooking | null>(null);
   const tries = useRef(0);
 
   useEffect(() => {
-    if (!bookingCode || !locationId) {
+    if ((!bookingCode && !sessionId) || !locationId) {
       setStatus("not_found");
       return;
     }
@@ -37,7 +39,7 @@ export default function CheckoutReturn() {
 
     const poll = async () => {
       try {
-        const resp = await getBooking(locationId, bookingCode);
+        const resp = await confirmBooking(locationId, { session_id: sessionId, booking_code: bookingCode });
         if (!active) return;
         if (resp.status === "confirmed" && resp.booking) {
           setBooking(resp.booking);
@@ -48,10 +50,10 @@ export default function CheckoutReturn() {
           setStatus("cancelled");
           return;
         }
-        // pending / not_found (webhook not landed yet) → keep polling
+        // pending / not_found (payment not visible to Stripe yet) → keep polling
         tries.current += 1;
         if (tries.current >= MAX_TRIES) {
-          setStatus(resp.status);
+          setStatus("not_found");
           return;
         }
         setStatus("pending");
@@ -71,7 +73,7 @@ export default function CheckoutReturn() {
       active = false;
       clearTimeout(timer);
     };
-  }, [bookingCode, locationId]);
+  }, [bookingCode, sessionId, locationId]);
 
   return (
     <div className="min-h-screen px-4 sm:px-6 pb-16 pt-24 md:pt-28">

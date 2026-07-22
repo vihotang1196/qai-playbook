@@ -188,8 +188,8 @@ function BookingBrowser({ lang, locationId, ctx, onRefreshCtx }: { lang: "cn" | 
 
       <p className="mt-5 text-xs text-muted-foreground">
         {lang === "cn"
-          ? "选座、价格与免费票额度都由后端核算（前端不直连数据表）。收费订单的在线付款将在下一步开放。"
-          : "Seats, pricing and free-ticket allowance are computed server-side (the frontend never touches the tables). Online payment for paid orders arrives next."}
+          ? "选座、价格与免费票额度都由后端核算（前端不直连数据表）。收费订单通过 Stripe 安全付款。"
+          : "Seats, pricing and free-ticket allowance are computed server-side (the frontend never touches the tables). Paid orders are charged securely via Stripe."}
       </p>
     </Shell>
   );

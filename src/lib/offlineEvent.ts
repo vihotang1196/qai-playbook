@@ -170,12 +170,22 @@ export async function createCheckout(
 
 export type OeBookingStatus = "pending" | "confirmed" | "cancelled" | "not_found";
 
-/** Poll one booking's status (return page). Scoped server-side to this location. */
+/** Poll one booking's status (read-only). Scoped server-side to this location. */
 export async function getBooking(
   locationId: string,
   bookingCode: string,
 ): Promise<{ status: OeBookingStatus; booking?: OeBooking }> {
   return callOe("getBooking", locationId, { booking_code: bookingCode });
+}
+
+/** Confirm a paid booking on return from Stripe. The SERVER verifies the payment
+ *  with the secret key (retrieves the Checkout session) before flipping pending →
+ *  confirmed — the browser's claim of "paid" is never trusted. Idempotent. */
+export async function confirmBooking(
+  locationId: string,
+  args: { session_id?: string; booking_code?: string },
+): Promise<{ status: OeBookingStatus; booking?: OeBooking }> {
+  return callOe("confirmBooking", locationId, args);
 }
 
 // ── Layout → seat-map conversion (ported from the old floorPlans.ts) ──────

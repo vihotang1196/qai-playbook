@@ -61,6 +61,52 @@ async function freeSeatsUsedFor(sb: SB, locationId: string): Promise<number> {
   );
 }
 
+// ── Release stale PENDING bookings (no-webhook seat cleanup) ────────────────
+// Without a Stripe webhook, an unpaid checkout would hold its seats forever.
+// Instead we sweep lazily: whenever someone views a seat map (by event) or
+// starts a booking (by location), any pending booking older than the checkout
+// window is reconciled. We VERIFY with Stripe before releasing — a stale
+// pending that actually got PAID (customer closed the return page before it
+// confirmed) is promoted to confirmed instead of cancelled. This doubles as a
+// lightweight missed-order safety net; a real webhook can be added later.
+const HOLD_STALE_MINUTES = 35; // > the ~32-min Stripe session expiry set below
+
+// deno-lint-ignore no-explicit-any
+async function sweepStalePending(sb: SB, filter: { eventId?: string; locationId?: string }): Promise<void> {
+  const cutoff = new Date(Date.now() - HOLD_STALE_MINUTES * 60 * 1000).toISOString();
+  let q = sb.from("oe_bookings").select("id, stripe_session_id").eq("status", "pending").lt("created_at", cutoff);
+  if (filter.eventId) q = q.eq("event_id", filter.eventId);
+  if (filter.locationId) q = q.eq("ghl_location_id", filter.locationId);
+  const { data } = await q;
+  const rows = data ?? [];
+  if (!rows.length) return; // common case: nothing stale, zero Stripe calls
+
+  // deno-lint-ignore no-explicit-any
+  let stripe: any = null;
+  for (const r of rows) {
+    let paid = false;
+    if (r.stripe_session_id) {
+      try {
+        if (!stripe) stripe = (await resolveOeStripe(sb)).stripe;
+        const s = await stripe.checkout.sessions.retrieve(r.stripe_session_id);
+        paid = s?.payment_status === "paid" || s?.status === "complete";
+      } catch { /* unknown → treat as unpaid, release below */ }
+    }
+    if (paid) {
+      await sb.from("oe_bookings")
+        .update({ status: "confirmed", payment_note: "Reconciled (paid, late)", updated_at: new Date().toISOString() })
+        .eq("id", r.id).eq("status", "pending");
+    } else {
+      // booked_seats cascade-delete with the row, but delete explicitly so seats
+      // free immediately even though we keep the (cancelled) booking for history.
+      await sb.from("oe_booked_seats").delete().eq("booking_id", r.id);
+      await sb.from("oe_bookings")
+        .update({ status: "cancelled", payment_note: "Payment not completed (auto-released)", updated_at: new Date().toISOString() })
+        .eq("id", r.id).eq("status", "pending");
+    }
+  }
+}
+
 // ── Shared booking plan: validate + price a request SERVER-SIDE ─────────────
 // Used by BOTH createBooking (free path) and createCheckout (paid path) so the
 // two flows can NEVER price a seat differently. Everything the frontend sends is
@@ -259,6 +305,8 @@ serve(async (req) => {
         if (!(await hasToolAccess(sb, locationId, TOOL_KEY))) return json({ error: "tool_disabled" }, 403);
         const eventId = String(body?.event_id || "").trim();
         if (!eventId) return json({ error: "event_id required" }, 400);
+        // Release any stale unpaid holds on this event so the seat map is fresh.
+        await sweepStalePending(sb, { eventId });
 
         const { data: event, error } = await sb
           .from("oe_events")
@@ -293,6 +341,8 @@ serve(async (req) => {
       // capacity overflow aborts it → the just-created booking row is rolled back.
       case "createBooking": {
         if (!(await hasToolAccess(sb, locationId, TOOL_KEY))) return json({ error: "tool_disabled" }, 403);
+        // Reconcile this location's stale unpaid holds first (frees seats + free allowance).
+        await sweepStalePending(sb, { locationId });
 
         const plan = await computeBookingPlan(sb, locationId, body);
         if (!plan.ok) return json({ error: plan.error, ...(plan.extra ?? {}) }, plan.status);
@@ -386,6 +436,8 @@ serve(async (req) => {
 
         const origin = String(body?.origin || "").trim();
         if (!/^https?:\/\/[^\s/]+/.test(origin)) return json({ error: "origin_required" }, 400);
+        // Reconcile this location's stale unpaid holds first (frees seats + free allowance).
+        await sweepStalePending(sb, { locationId });
 
         const plan = await computeBookingPlan(sb, locationId, body);
         if (!plan.ok) return json({ error: plan.error, ...(plan.extra ?? {}) }, plan.status);
@@ -518,6 +570,87 @@ serve(async (req) => {
             free_used: (b.free_seats ?? []).length,
           },
         });
+      }
+
+      // ── Confirm a paid booking by VERIFYING with Stripe (no webhook) ──────
+      // Called by /checkout/return. The browser's word is NEVER trusted: we
+      // retrieve the Checkout session with the secret key and only confirm if
+      // Stripe itself says it's paid. Idempotent (guarded on status=pending);
+      // seats were already held at checkout, so nothing is re-claimed here.
+      case "confirmBooking": {
+        if (!(await hasToolAccess(sb, locationId, TOOL_KEY))) return json({ error: "tool_disabled" }, 403);
+        const sessionId = String(body?.session_id || body?.session || "").trim();
+        const code = String(body?.booking_code || body?.booking || "").trim();
+        if (!sessionId && !code) return json({ error: "missing_reference" }, 400);
+
+        // Find the booking, scoped to THIS location.
+        let bq = sb
+          .from("oe_bookings")
+          .select("id, booking_id, status, stripe_session_id, qr_payload, free_seats, addon_seats, event_label, email, total")
+          .eq("ghl_location_id", locationId);
+        bq = sessionId ? bq.eq("stripe_session_id", sessionId) : bq.eq("booking_id", code);
+        const { data: b } = await bq.maybeSingle();
+        if (!b) return json({ status: "not_found" });
+
+        const bookingOut = () => ({
+          booking_id: b.booking_id,
+          qr_payload: b.qr_payload,
+          seats: [...(b.free_seats ?? []), ...(b.addon_seats ?? [])],
+          event_label: b.event_label,
+          email: b.email,
+          total: Number(b.total ?? 0),
+          free_used: (b.free_seats ?? []).length,
+        });
+
+        if (b.status === "confirmed") return json({ status: "confirmed", booking: bookingOut() });
+        if (b.status === "cancelled") return json({ status: "cancelled" });
+
+        // pending → verify against Stripe with the secret key.
+        const sid = b.stripe_session_id || sessionId;
+        if (!sid) return json({ status: "pending" });
+        const { stripe } = await resolveOeStripe(sb);
+        // deno-lint-ignore no-explicit-any
+        let session: any;
+        try {
+          session = await stripe.checkout.sessions.retrieve(sid);
+        } catch (e) {
+          console.error("confirmBooking retrieve error:", e);
+          return json({ status: "pending" }); // transient — let the page keep polling
+        }
+        // Defense: the session must belong to this booking.
+        if (session?.metadata?.bookingId && session.metadata.bookingId !== b.id) {
+          return json({ status: "not_found" });
+        }
+        const paid = session?.payment_status === "paid" || session?.status === "complete";
+        if (!paid) return json({ status: "pending" });
+
+        // Paid → confirm ONCE (guard on pending = idempotent). Best-effort receipt.
+        const paymentIntentId =
+          typeof session.payment_intent === "string" ? session.payment_intent : session.payment_intent?.id;
+        let receiptUrl: string | null = null;
+        try {
+          if (paymentIntentId) {
+            const pi = await stripe.paymentIntents.retrieve(paymentIntentId, { expand: ["latest_charge"] });
+            const charge = pi?.latest_charge;
+            receiptUrl = charge && typeof charge === "object" ? (charge.receipt_url ?? null) : null;
+          }
+        } catch { /* receipt is optional */ }
+        const amount = session.amount_total != null ? (Number(session.amount_total) / 100).toFixed(2) : "";
+        const currency = String(session.currency || "").toUpperCase();
+
+        await sb
+          .from("oe_bookings")
+          .update({
+            status: "confirmed",
+            payment_intent_id: paymentIntentId ?? null,
+            receipt_url: receiptUrl,
+            payment_note: `Stripe ${amount} ${currency}`.trim(),
+            updated_at: new Date().toISOString(),
+          })
+          .eq("id", b.id)
+          .eq("status", "pending");
+
+        return json({ status: "confirmed", booking: bookingOut() });
       }
 
       default:
