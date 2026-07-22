@@ -359,3 +359,15 @@ export async function listSubaccountSettings(): Promise<OeSubaccountRow[]> {
 export async function updateSubaccountSettings(locationId: string, free_tickets: number, free_seats: number): Promise<{ ok: boolean }> {
   return await callOeAdmin("updateSubaccountSettings", { locationId, free_tickets, free_seats });
 }
+
+// ── P7d permanent delete ────────────────────────────────────────────────────
+
+/** Permanently delete a booking (frees its seats). Irreversible. */
+export async function deleteBookingHard(bookingId: string): Promise<{ ok: boolean }> {
+  return await callOeAdmin("deleteBookingHard", { bookingId });
+}
+
+/** Permanently delete a sub-account's free-allowance override row. */
+export async function deleteSubaccountSettings(locationId: string): Promise<{ ok: boolean }> {
+  return await callOeAdmin("deleteSubaccountSettings", { locationId });
+}

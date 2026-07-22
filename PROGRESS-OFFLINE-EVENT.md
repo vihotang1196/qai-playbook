@@ -4,8 +4,9 @@ Rebuild of **Offline Event** (5th migrated tool) into this Playbook project,
 ported from a Lovable export. It is a **line-up event booking system**: pick an
 event date → choose seats on a floor-plan seat map → add lunch → **pay via
 Stripe (MYR + 8% SST)** → get a **QR e-ticket on the web page** → staff **scan
-the QR to check in** (2-day event: day1/day2). **IN PROGRESS — P0–P6 DONE (booking +
-payment + e-ticket + BOTH check-in halves); P7 admin (bookings/event-dates/settings) is next.**
+the QR to check in** (2-day event: day1/day2). **IN PROGRESS — P0–P7 DONE (booking +
+payment + e-ticket + check-in + full admin: bookings/manual-add/change/events/settings +
+test data cleaned); P8 (floor-plan visual editor) + P9 (polish + merge) remain.**
 
 This file records the owner's locked decisions, the old-version facts, and the
 phased plan so a new session can pick up without re-researching.
@@ -306,7 +307,7 @@ e-ticket+check-in → admin+seat editor → polish.
   (offline-event files) clean; no console errors. Self-check-in (old app had it) DROPPED for
   now (not needed for MVP; add later if wanted). Note: BK-1QUH-ZB6UPG is now day1=attended
   from the live test (July test data, wiped in P7).
-- [~] **P7 — Admin: bookings + event-dates + settings (IN PROGRESS).** Split into
+- [x] **P7 — Admin: bookings + event-dates + settings (DONE 2026-07-22).** Split into
   sub-blocks (owner-approved 2026-07-22), each its own commit:
   - [x] **P7a — Bookings list/search/detail + cancel + archive (DONE 2026-07-22).**
     `offline-event-admin` fn: `listBookings` (filters event/status/location + BK-code/email
@@ -380,9 +381,14 @@ e-ticket+check-in → admin+seat editor → polish.
     write+audit ok; **lunch price 39.99→55 propagated to customer pricing** (oe resolveContext
     lunchPrice=55) then restored; 8 sub-account overrides listed + one saved; badge shows on
     every admin page; tsc clean. Owner does the real live-flip when ready (like the P5 pay test).
-  - [ ] **P7d — Clean test data.** List all current (all test) → owner confirms → hard-delete
-    the specific rows (cascades booked_seats) + test-location subaccount_settings; Overview
-    → 0.
+  - [x] **P7d — Clean test data (DONE 2026-07-22).** Added `deleteBookingHard` (permanent,
+    frees seats, audited) + `deleteSubaccountSettings` admin actions + UI ("永久删除" button in
+    the booking detail w/ confirm; delete on each settings sub-account row). Owner confirmed the
+    exact list, then hard-deleted the **7 test bookings** (incl. the P5 pay-test BK-1QUH,
+    cascades booked_seats) + **7 test sub-account rows**, **KEEPING the real client
+    "Ong pei shirl"** (qRI68jTZHoSutcigyIhn). **Verified:** Overview → 0 bookings / 0 confirmed
+    / 0 pending / 0 claimed seats / RM 0.00, with the 3 seed events + 1 hall intact; only
+    "Ong pei shirl" remains in sub-account settings. Clean slate for launch. tsc clean.
 - [ ] **P8 — Admin: floor-plan visual editor.** Full drag-drop `FloorPlanEditor`
   (add/remove tables, cluster 4 / long 6, disabled seats, rows/cols, stage/door);
   floor-plan CRUD + set default + link to events; recompute `physical_seats` on save.

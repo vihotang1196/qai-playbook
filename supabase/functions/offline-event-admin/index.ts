@@ -786,6 +786,32 @@ serve(async (req) => {
         return json({ ok: true });
       }
 
+      // ═══ P7d — Permanent delete (test-data cleanup / purge junk) ═══════════
+
+      // ── Hard-delete a booking (PERMANENT; frees its seats) ───────────────
+      case "deleteBookingHard": {
+        const code = String(body?.bookingId || "").trim();
+        if (!code) return json({ error: "booking_required" }, 400);
+        const { data: b } = await sb.from("oe_bookings").select("id, ghl_location_id").eq("booking_id", code).maybeSingle();
+        if (!b) return json({ error: "not_found" }, 404);
+        // booked_seats cascade-delete via FK; delete explicitly so seats free at once.
+        await sb.from("oe_booked_seats").delete().eq("booking_id", b.id);
+        const { error } = await sb.from("oe_bookings").delete().eq("id", b.id);
+        if (error) throw error;
+        await logAudit(sb, admin, "oe_delete_booking_hard", { booking_id: code }, b.ghl_location_id);
+        return json({ ok: true });
+      }
+
+      // ── Delete a sub-account's free-allowance override row (PERMANENT) ───
+      case "deleteSubaccountSettings": {
+        const locId = String(body?.locationId || "").trim();
+        if (!locId) return json({ error: "location_required" }, 400);
+        const { error } = await sb.from("oe_subaccount_settings").delete().eq("location_id", locId);
+        if (error) throw error;
+        await logAudit(sb, admin, "oe_delete_subaccount", { location_id: locId }, locId);
+        return json({ ok: true });
+      }
+
       default:
         return json({ error: `Unknown action: ${action || "(none)"}` }, 400);
     }

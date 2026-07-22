@@ -1,10 +1,11 @@
 import { useCallback, useEffect, useState } from "react";
-import { Loader2, AlertCircle, Search, X, Ticket, RefreshCw, Archive, Ban, QrCode, UserPlus, Armchair, CalendarClock } from "lucide-react";
+import { Loader2, AlertCircle, Search, X, Ticket, RefreshCw, Archive, Ban, QrCode, UserPlus, Armchair, CalendarClock, Trash2 } from "lucide-react";
 import {
   listBookings,
   getBookingDetail,
   cancelBooking,
   archiveBooking,
+  deleteBookingHard,
   getCheckinEvents,
   type OeBookingRow,
   type OeBookingDetail,
@@ -112,6 +113,20 @@ export default function OfflineEventBookings() {
       load();
     } catch (e) {
       setErr(e instanceof Error ? e.message : "归档失败");
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const doHardDelete = async (code: string) => {
+    if (!window.confirm(`永久删除订单 ${code}？此操作不可撤销，将彻底删除并释放座位。`)) return;
+    setBusy(true);
+    try {
+      await deleteBookingHard(code);
+      setDetail(null);
+      load();
+    } catch (e) {
+      setErr(e instanceof Error ? e.message : "删除失败");
     } finally {
       setBusy(false);
     }
@@ -365,6 +380,13 @@ export default function OfflineEventBookings() {
                       <Archive className="w-4 h-4" /> {detail.booking.is_archived ? "取消归档" : "归档"}
                     </button>
                   </div>
+                  <button
+                    disabled={busy}
+                    onClick={() => doHardDelete(detail.booking.booking_id)}
+                    className="w-full h-9 rounded-xl text-xs font-medium text-red-600 hover:bg-red-50 flex items-center justify-center gap-1.5 disabled:opacity-50"
+                  >
+                    <Trash2 className="w-3.5 h-3.5" /> 永久删除（不可撤销）
+                  </button>
                 </div>
               </div>
             )}

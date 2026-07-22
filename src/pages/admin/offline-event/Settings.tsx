@@ -6,10 +6,12 @@ import {
   setStripeMode,
   listSubaccountSettings,
   updateSubaccountSettings,
+  deleteSubaccountSettings,
   type OeSettingsResponse,
   type OeStripeMode,
   type OeSubaccountRow,
 } from "@/lib/offlineEventAdmin";
+import { Trash2 } from "lucide-react";
 
 /**
  * Offline Event admin — P7c settings (`/admin/offline-event/settings`).
@@ -99,6 +101,16 @@ export default function OfflineEventSettings() {
       load();
     } catch (e) {
       setErr(e instanceof Error ? e.message : "保存失败");
+    }
+  };
+
+  const delSub = async (row: OeSubaccountRow) => {
+    if (!window.confirm(`删除「${row.business_name || row.location_id}」的免费额度覆盖？该子账号将回到全局默认。`)) return;
+    try {
+      await deleteSubaccountSettings(row.location_id);
+      load();
+    } catch (e) {
+      setErr(e instanceof Error ? e.message : "删除失败");
     }
   };
 
@@ -211,7 +223,7 @@ export default function OfflineEventSettings() {
           <p className="text-sm text-muted-foreground">还没有子账号使用过。</p>
         ) : (
           <div className="space-y-2 max-h-80 overflow-y-auto">
-            {subs.map((row) => <SubRow key={row.location_id} row={row} onSave={saveSub} />)}
+            {subs.map((row) => <SubRow key={row.location_id} row={row} onSave={saveSub} onDelete={delSub} />)}
           </div>
         )}
       </div>
@@ -219,7 +231,7 @@ export default function OfflineEventSettings() {
   );
 }
 
-function SubRow({ row, onSave }: { row: OeSubaccountRow; onSave: (row: OeSubaccountRow, ft: number, fs: number) => void }) {
+function SubRow({ row, onSave, onDelete }: { row: OeSubaccountRow; onSave: (row: OeSubaccountRow, ft: number, fs: number) => void; onDelete: (row: OeSubaccountRow) => void }) {
   const [ft, setFt] = useState(String(row.free_tickets));
   const [fs, setFs] = useState(String(row.free_seats));
   const dirty = ft !== String(row.free_tickets) || fs !== String(row.free_seats);
@@ -237,6 +249,9 @@ function SubRow({ row, onSave }: { row: OeSubaccountRow; onSave: (row: OeSubacco
         className="h-8 px-3 rounded-lg bg-primary text-primary-foreground text-xs font-medium disabled:opacity-30"
       >
         保存
+      </button>
+      <button onClick={() => onDelete(row)} className="h-8 w-8 rounded-lg text-red-600 hover:bg-red-50 flex items-center justify-center" title="删除覆盖">
+        <Trash2 className="w-3.5 h-3.5" />
       </button>
     </div>
   );
