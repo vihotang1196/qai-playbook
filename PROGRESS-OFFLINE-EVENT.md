@@ -324,14 +324,29 @@ e-ticket+check-in → admin+seat editor → polish.
     to 取消归档; lazy stale-pending sweep observed auto-cancelling an old unpaid P5 hold
     (BK-NSKG); tsc (oe files) + no console errors. (Deferred to P7d cleanup: these test
     rows.)
-  - [ ] **P7a-2 — Manual add-ticket + change-seat + change-date.** Owner: change-seat/date
-    = **same seat count, money untouched** (change count/price → cancel+rebook). PLUS
-    **manual add-ticket** (owner ask: some pay via 3rd party → admin creates a confirmed
-    booking directly, seats→addon so no free-allowance spend, manual payment note, atomic
-    claim). New additive RPCs `oe_reassign_seats` (same event) + `oe_move_booking_seats`
-    (cross event) — delete-old+insert-new in ONE txn, rollback on collision (old seats
-    retained; sibling of `oe_claim_seats`, doesn't touch it). Keep booking_id stable so the
-    customer's existing QR still scans.
+  - [x] **P7a-2 — Manual add-ticket + change-seat + change-date (DONE 2026-07-22).**
+    Owner: change-seat/date = **same seat count, money untouched** (change count/price →
+    cancel+rebook). PLUS **manual add-ticket** (owner ask: some pay via 3rd party → admin
+    creates a confirmed booking directly, seats→addon so no free-allowance spend, manual
+    payment note, atomic claim). Additive migration `20260722180000_offline_event_p7_seat_ops`
+    adds two RPCs — `oe_reassign_seats` (same event) + `oe_move_booking_seats` (cross event):
+    capacity check FIRST, then delete-old+insert-new in ONE txn, `exception when
+    unique_violation → return false` rolls back the delete too (old seats retained; siblings
+    of `oe_claim_seats`, untouched). Admin fn actions: `listLocations` (sub-account picker),
+    `getEventSeatmap` (layout + claimed labels, `excludeBookingId` frees a booking's own seats),
+    `addBooking` (confirmed, created_by=admin, addon_seats, payment_note, oe_claim_seats),
+    `changeSeats` (reassign, count must match, preserves free/paid split sizes), `changeEvent`
+    (same event → reassign; else move; updates event_id/label + regen QR; booking_id STABLE so
+    the customer's old QR still scans). Front: reusable `AdminSeatPicker` (wraps SeatMap,
+    labels↔ids, skips already-booked seats when pre-selecting) + `ManualAddModal` +
+    `SeatOpModal` (改座/改期); wired into Bookings.tsx (＋手动加票 button; 改座/改期 in detail).
+    **Verified live** (owner session, API + UI): change-seat released old G10S1 + locked new
+    G2S1; **collision** (move onto a taken seat) → 409 seats_unavailable AND kept the old seat
+    (no double-book, no seat-less); change-date moved BK-SPL2 Sept→July (old released, new
+    locked, booking now points at July); manual add BK-YSJ6 → confirmed + QR + **checked in OK**;
+    manual-add modal renders 911-location picker + 182-seat map; 改座 modal enforces "需选 4" +
+    91-seat map + 确认改座. tsc clean (only the pre-existing review-boost error). Left test
+    rows for P7d.
   - [ ] **P7b — Event-date CRUD.** create/update/delete (per-event price, capacity, status
     live/display/off, floor plan, seat_selection, theme/notice); block delete when bookings
     exist (force off/archive).

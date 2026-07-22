@@ -180,3 +180,63 @@ export async function cancelBooking(bookingId: string): Promise<{ ok: boolean; a
 export async function archiveBooking(bookingId: string, archived = true): Promise<{ ok: boolean; archived: boolean }> {
   return await callOeAdmin<{ ok: boolean; archived: boolean }>("archiveBooking", { bookingId, archived });
 }
+
+// ── P7a-2 manual add-ticket + change-seat + change-date ─────────────────────
+
+export type OeLocation = { location_id: string; business_name: string | null };
+
+/** Sub-accounts for the manual add-ticket location picker. */
+export async function listLocations(): Promise<OeLocation[]> {
+  const { locations } = await callOeAdmin<{ locations: OeLocation[] }>("listLocations");
+  return locations ?? [];
+}
+
+export type OeSeatmapEvent = {
+  id: string;
+  display_label: string;
+  start_date: string;
+  end_date: string;
+  price_per_seat: number;
+  capacity: number | null;
+  floor_plan_id: string | null;
+  seat_selection_enabled: boolean;
+  status: string;
+};
+
+/**
+ * Floor-plan layout + already-claimed seat labels for an event's seat picker.
+ * Pass `excludeBookingId` (change-seat) to omit that booking's own seats so they
+ * show free and can be re-selected.
+ */
+export async function getEventSeatmap(
+  eventId: string,
+  excludeBookingId?: string,
+): Promise<{ event: OeSeatmapEvent; layout: unknown; bookedLabels: string[] }> {
+  return await callOeAdmin("getEventSeatmap", { eventId, excludeBookingId });
+}
+
+export type AddBookingParams = {
+  locationId: string;
+  eventId: string;
+  seats: string[];
+  email: string;
+  phone?: string;
+  lunchQty?: number;
+  amount?: number;
+  note?: string;
+};
+
+/** Manually create a CONFIRMED booking (3rd-party / offline payment). */
+export async function addBooking(params: AddBookingParams): Promise<{ ok: boolean; booking: { booking_id: string } }> {
+  return await callOeAdmin("addBooking", params);
+}
+
+/** Swap a booking's seats within the same event (atomic; same seat count). */
+export async function changeSeats(bookingId: string, seats: string[]): Promise<{ ok: boolean }> {
+  return await callOeAdmin("changeSeats", { bookingId, seats });
+}
+
+/** Move a booking to another event (atomic; same seat count). */
+export async function changeEvent(bookingId: string, newEventId: string, seats: string[]): Promise<{ ok: boolean }> {
+  return await callOeAdmin("changeEvent", { bookingId, newEventId, seats });
+}

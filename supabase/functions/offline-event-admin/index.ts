@@ -40,6 +40,24 @@ async function logAudit(
   }
 }
 
+/** Short, human-scannable booking code (mirrors the `oe` fn's generator). */
+function genBookingId(): string {
+  const ts = Date.now().toString(36).slice(-4).toUpperCase();
+  const rand = Math.random().toString(36).slice(2, 8).toUpperCase();
+  return `BK-${ts}-${rand}`;
+}
+
+/** QR payload — MUST match the `oe` fn's shape so the check-in scanner + QrTicket
+ *  read it identically (check-in keys off bookingId; the rest is display). */
+function buildQrPayload(o: {
+  bookingId: string; email: string; phone: string; eventId: string; eventLabel: string; totalSeats: number;
+}): string {
+  return JSON.stringify({
+    v: 1, bookingId: o.bookingId, email: o.email, phone: o.phone,
+    eventId: o.eventId, eventLabel: o.eventLabel, totalSeats: o.totalSeats,
+  });
+}
+
 serve(async (req) => {
   if (req.method === "OPTIONS") return new Response(null, { headers: corsHeaders });
 
@@ -325,6 +343,209 @@ serve(async (req) => {
         if (!data) return json({ error: "not_found" }, 404);
         await logAudit(sb, admin, "oe_archive_booking", { booking_id: code, archived }, data.ghl_location_id);
         return json({ ok: true, archived });
+      }
+
+      // ═══ P7a-2 — Manual add-ticket + change-seat + change-date ═════════════
+
+      // ── Sub-accounts (for the manual add-ticket location picker) ─────────
+      case "listLocations": {
+        const { data, error } = await sb
+          .from("ghl_locations")
+          .select("location_id, business_name")
+          .order("business_name", { ascending: true })
+          .limit(1000);
+        if (error) throw error;
+        return json({ locations: data ?? [] });
+      }
+
+      // ── Seat map for an event (for the admin seat picker) ────────────────
+      // Returns the floor-plan layout + already-claimed seat labels. When
+      // `excludeBookingId` is given (change-seat), that booking's OWN seats are
+      // omitted from the claimed set so they show free + can be re-selected.
+      case "getEventSeatmap": {
+        const eventId = String(body?.eventId || "").trim();
+        if (!eventId) return json({ error: "event_required" }, 400);
+        const { data: ev, error } = await sb
+          .from("oe_events")
+          .select("id, display_label, start_date, end_date, price_per_seat, capacity, floor_plan_id, seat_selection_enabled, status")
+          .eq("id", eventId)
+          .maybeSingle();
+        if (error) throw error;
+        if (!ev) return json({ error: "event_not_found" }, 404);
+
+        let layout: unknown = null;
+        if (ev.floor_plan_id) {
+          const { data: fp } = await sb.from("oe_floor_plans").select("layout_data").eq("id", ev.floor_plan_id).maybeSingle();
+          layout = fp?.layout_data ?? null;
+        }
+
+        let ownUuid: string | null = null;
+        const excludeBookingId = String(body?.excludeBookingId || "").trim();
+        if (excludeBookingId) {
+          const { data: bk } = await sb.from("oe_bookings").select("id").eq("booking_id", excludeBookingId).maybeSingle();
+          ownUuid = (bk?.id as string) ?? null;
+        }
+        const { data: claimed } = await sb.from("oe_booked_seats").select("seat_label, booking_id").eq("event_id", eventId);
+        const bookedLabels = (claimed ?? [])
+          .filter((r) => !ownUuid || r.booking_id !== ownUuid)
+          .map((r) => r.seat_label as string);
+
+        return json({ event: ev, layout, bookedLabels });
+      }
+
+      // ── Manual add-ticket (3rd-party / offline payment) ──────────────────
+      // Admin creates a CONFIRMED booking directly. Seats → addon_seats (so it
+      // does NOT consume the location's free allowance). Payment is a note only
+      // (no Stripe). Seats claimed atomically via the P4 oe_claim_seats RPC.
+      case "addBooking": {
+        const locId = String(body?.locationId || "").trim();
+        const eventId = String(body?.eventId || "").trim();
+        const email = String(body?.email || "").trim();
+        const phone = String(body?.phone || "").trim();
+        const note = String(body?.note || "").trim();
+        const amount = Number(body?.amount) || 0;
+        const lunchQty = Math.max(0, Math.floor(Number(body?.lunchQty) || 0));
+        const seats: string[] = Array.isArray(body?.seats) ? body.seats.map((s: unknown) => String(s).trim()).filter(Boolean) : [];
+        const uniqSeats = [...new Set(seats)];
+        if (!locId) return json({ error: "location_required" }, 400);
+        if (!eventId) return json({ error: "event_required" }, 400);
+        if (!email || !/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(email)) return json({ error: "email_required" }, 400);
+        if (uniqSeats.length < 1) return json({ error: "no_seats" }, 400);
+
+        const { data: ev } = await sb.from("oe_events").select("id, display_label").eq("id", eventId).maybeSingle();
+        if (!ev) return json({ error: "event_not_found" }, 404);
+
+        const bookingId = genBookingId();
+        const qr = buildQrPayload({ bookingId, email, phone, eventId, eventLabel: ev.display_label, totalSeats: uniqSeats.length });
+        const { data: inserted, error: insErr } = await sb
+          .from("oe_bookings")
+          .insert({
+            booking_id: bookingId,
+            event_id: eventId,
+            event_label: ev.display_label,
+            email,
+            phone,
+            free_seats: [],
+            addon_seats: uniqSeats,
+            lunch_qty: lunchQty,
+            subtotal: amount || 0,
+            sst_amount: 0,
+            total: amount || 0,
+            status: "confirmed",
+            qr_payload: qr,
+            ghl_location_id: locId,
+            payment_note: note || "手动加票(管理员)",
+            created_by: "admin",
+          })
+          .select("id")
+          .single();
+        if (insErr) throw insErr;
+
+        const { data: claimed, error: claimErr } = await sb.rpc("oe_claim_seats", {
+          p_event_id: eventId,
+          p_booking_id: inserted.id,
+          p_seats: uniqSeats,
+        });
+        if (claimErr) {
+          await sb.from("oe_bookings").delete().eq("id", inserted.id);
+          throw claimErr;
+        }
+        if (claimed !== true) {
+          await sb.from("oe_bookings").delete().eq("id", inserted.id);
+          return json({ error: "seats_unavailable" }, 409);
+        }
+
+        await logAudit(sb, admin, "oe_add_booking", { booking_id: bookingId, event_id: eventId, seats: uniqSeats, amount }, locId);
+        return json({
+          ok: true,
+          booking: { booking_id: bookingId, qr_payload: qr, seats: uniqSeats, event_label: ev.display_label, total: amount || 0 },
+        });
+      }
+
+      // ── Change-seat: swap seats within the SAME event (atomic, same count) ──
+      case "changeSeats": {
+        const code = String(body?.bookingId || "").trim();
+        const seats: string[] = Array.isArray(body?.seats) ? body.seats.map((s: unknown) => String(s).trim()).filter(Boolean) : [];
+        const uniqSeats = [...new Set(seats)];
+        if (!code) return json({ error: "booking_required" }, 400);
+        const { data: b } = await sb
+          .from("oe_bookings")
+          .select("id, event_id, status, free_seats, addon_seats, ghl_location_id")
+          .eq("booking_id", code)
+          .maybeSingle();
+        if (!b) return json({ error: "not_found" }, 404);
+        if (b.status === "cancelled") return json({ error: "cancelled_booking" }, 400);
+        if (!b.event_id) return json({ error: "no_event" }, 400);
+        const curCount = (b.free_seats?.length ?? 0) + (b.addon_seats?.length ?? 0);
+        if (uniqSeats.length !== curCount) return json({ error: "seat_count_mismatch", required: curCount }, 400);
+
+        const { data: ok, error: rpcErr } = await sb.rpc("oe_reassign_seats", {
+          p_event_id: b.event_id,
+          p_booking_id: b.id,
+          p_new_seats: uniqSeats,
+        });
+        if (rpcErr) throw rpcErr;
+        if (ok !== true) return json({ error: "seats_unavailable" }, 409);
+
+        // Preserve the free/paid split SIZES (keeps free-allowance accounting stable); relabel.
+        const freeCount = b.free_seats?.length ?? 0;
+        await sb
+          .from("oe_bookings")
+          .update({ free_seats: uniqSeats.slice(0, freeCount), addon_seats: uniqSeats.slice(freeCount), updated_at: new Date().toISOString() })
+          .eq("id", b.id);
+        await logAudit(sb, admin, "oe_change_seats", { booking_id: code, seats: uniqSeats }, b.ghl_location_id);
+        return json({ ok: true });
+      }
+
+      // ── Change-date: move a booking to another event (atomic, same count) ──
+      case "changeEvent": {
+        const code = String(body?.bookingId || "").trim();
+        const newEventId = String(body?.newEventId || "").trim();
+        const seats: string[] = Array.isArray(body?.seats) ? body.seats.map((s: unknown) => String(s).trim()).filter(Boolean) : [];
+        const uniqSeats = [...new Set(seats)];
+        if (!code) return json({ error: "booking_required" }, 400);
+        if (!newEventId) return json({ error: "event_required" }, 400);
+        const { data: b } = await sb
+          .from("oe_bookings")
+          .select("id, event_id, status, free_seats, addon_seats, email, phone, ghl_location_id")
+          .eq("booking_id", code)
+          .maybeSingle();
+        if (!b) return json({ error: "not_found" }, 404);
+        if (b.status === "cancelled") return json({ error: "cancelled_booking" }, 400);
+        const curCount = (b.free_seats?.length ?? 0) + (b.addon_seats?.length ?? 0);
+        if (uniqSeats.length !== curCount) return json({ error: "seat_count_mismatch", required: curCount }, 400);
+
+        const { data: ev } = await sb.from("oe_events").select("id, display_label").eq("id", newEventId).maybeSingle();
+        if (!ev) return json({ error: "event_not_found" }, 404);
+
+        // Same event chosen → this is really a seat change.
+        const sameEvent = b.event_id === newEventId;
+        const { data: ok, error: rpcErr } = sameEvent
+          ? await sb.rpc("oe_reassign_seats", { p_event_id: newEventId, p_booking_id: b.id, p_new_seats: uniqSeats })
+          : await sb.rpc("oe_move_booking_seats", { p_old_event_id: b.event_id, p_new_event_id: newEventId, p_booking_id: b.id, p_new_seats: uniqSeats });
+        if (rpcErr) throw rpcErr;
+        if (ok !== true) return json({ error: "seats_unavailable" }, 409);
+
+        // Keep booking_id stable (customer's existing QR still scans); refresh
+        // event_id/label + regenerate the QR payload; preserve free/paid split.
+        const freeCount = b.free_seats?.length ?? 0;
+        const qr = buildQrPayload({
+          bookingId: code, email: b.email ?? "", phone: b.phone ?? "",
+          eventId: newEventId, eventLabel: ev.display_label, totalSeats: uniqSeats.length,
+        });
+        await sb
+          .from("oe_bookings")
+          .update({
+            event_id: newEventId,
+            event_label: ev.display_label,
+            free_seats: uniqSeats.slice(0, freeCount),
+            addon_seats: uniqSeats.slice(freeCount),
+            qr_payload: qr,
+            updated_at: new Date().toISOString(),
+          })
+          .eq("id", b.id);
+        await logAudit(sb, admin, "oe_change_event", { booking_id: code, from: b.event_id, to: newEventId, seats: uniqSeats }, b.ghl_location_id);
+        return json({ ok: true });
       }
 
       default:

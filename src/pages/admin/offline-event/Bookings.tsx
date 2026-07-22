@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useState } from "react";
-import { Loader2, AlertCircle, Search, X, Ticket, RefreshCw, Archive, Ban, QrCode } from "lucide-react";
+import { Loader2, AlertCircle, Search, X, Ticket, RefreshCw, Archive, Ban, QrCode, UserPlus, Armchair, CalendarClock } from "lucide-react";
 import {
   listBookings,
   getBookingDetail,
@@ -13,6 +13,8 @@ import {
   type OeCheckinEvent,
 } from "@/lib/offlineEventAdmin";
 import { QrTicket } from "@/components/offline-event/QrTicket";
+import ManualAddModal from "@/components/offline-event/ManualAddModal";
+import SeatOpModal from "@/components/offline-event/SeatOpModal";
 
 /**
  * Offline Event admin — P7a bookings management (`/admin/offline-event/bookings`).
@@ -51,6 +53,8 @@ export default function OfflineEventBookings() {
   const [detail, setDetail] = useState<{ booking: OeBookingDetail; event: OeBookingEvent } | null>(null);
   const [detailLoading, setDetailLoading] = useState(false);
   const [busy, setBusy] = useState(false);
+  const [addOpen, setAddOpen] = useState(false);
+  const [seatOp, setSeatOp] = useState<{ mode: "seat" | "date"; booking: { booking_id: string; event_id: string | null; event_label: string; seats: string[] } } | null>(null);
 
   useEffect(() => {
     getCheckinEvents().then(setEvents).catch(() => {/* filter still usable without it */});
@@ -176,6 +180,13 @@ export default function OfflineEventBookings() {
           <Ticket className="w-4 h-4 text-primary" />
           <span className="text-sm font-medium">报名列表</span>
           <span className="text-xs text-muted-foreground ml-auto">共 {total} 条</span>
+          <button
+            onClick={() => setAddOpen(true)}
+            className="h-8 px-3 rounded-lg text-white text-xs font-medium flex items-center gap-1"
+            style={{ background: "linear-gradient(135deg, #FF7E5F, #FF3D6E)" }}
+          >
+            <UserPlus className="w-3.5 h-3.5" /> 手动加票
+          </button>
         </div>
         {rows === null ? (
           <div className="p-10 flex items-center justify-center text-muted-foreground">
@@ -297,28 +308,83 @@ export default function OfflineEventBookings() {
                   </div>
                 )}
 
-                <div className="flex gap-2 pt-2 border-t border-border/40">
+                <div className="space-y-2 pt-2 border-t border-border/40">
                   {detail.booking.status !== "cancelled" && (
+                    <div className="flex gap-2">
+                      <button
+                        disabled={busy}
+                        onClick={() =>
+                          setSeatOp({
+                            mode: "seat",
+                            booking: {
+                              booking_id: detail.booking.booking_id,
+                              event_id: detail.booking.event_id,
+                              event_label: detail.booking.event_label,
+                              seats: detail.booking.seats,
+                            },
+                          })
+                        }
+                        className="flex-1 h-10 rounded-xl bg-muted text-sm font-medium flex items-center justify-center gap-1.5 disabled:opacity-50"
+                      >
+                        <Armchair className="w-4 h-4" /> 改座
+                      </button>
+                      <button
+                        disabled={busy}
+                        onClick={() =>
+                          setSeatOp({
+                            mode: "date",
+                            booking: {
+                              booking_id: detail.booking.booking_id,
+                              event_id: detail.booking.event_id,
+                              event_label: detail.booking.event_label,
+                              seats: detail.booking.seats,
+                            },
+                          })
+                        }
+                        className="flex-1 h-10 rounded-xl bg-muted text-sm font-medium flex items-center justify-center gap-1.5 disabled:opacity-50"
+                      >
+                        <CalendarClock className="w-4 h-4" /> 改期
+                      </button>
+                    </div>
+                  )}
+                  <div className="flex gap-2">
+                    {detail.booking.status !== "cancelled" && (
+                      <button
+                        disabled={busy}
+                        onClick={() => doCancel(detail.booking.booking_id)}
+                        className="flex-1 h-10 rounded-xl bg-red-50 text-red-700 text-sm font-medium flex items-center justify-center gap-1.5 disabled:opacity-50"
+                      >
+                        <Ban className="w-4 h-4" /> 取消订单
+                      </button>
+                    )}
                     <button
                       disabled={busy}
-                      onClick={() => doCancel(detail.booking.booking_id)}
-                      className="flex-1 h-10 rounded-xl bg-red-50 text-red-700 text-sm font-medium flex items-center justify-center gap-1.5 disabled:opacity-50"
+                      onClick={() => doArchive(detail.booking.booking_id, !detail.booking.is_archived)}
+                      className="flex-1 h-10 rounded-xl bg-muted text-sm font-medium flex items-center justify-center gap-1.5 disabled:opacity-50"
                     >
-                      <Ban className="w-4 h-4" /> 取消订单
+                      <Archive className="w-4 h-4" /> {detail.booking.is_archived ? "取消归档" : "归档"}
                     </button>
-                  )}
-                  <button
-                    disabled={busy}
-                    onClick={() => doArchive(detail.booking.booking_id, !detail.booking.is_archived)}
-                    className="flex-1 h-10 rounded-xl bg-muted text-sm font-medium flex items-center justify-center gap-1.5 disabled:opacity-50"
-                  >
-                    <Archive className="w-4 h-4" /> {detail.booking.is_archived ? "取消归档" : "归档"}
-                  </button>
+                  </div>
                 </div>
               </div>
             )}
           </div>
         </div>
+      )}
+
+      <ManualAddModal open={addOpen} onClose={() => setAddOpen(false)} onDone={load} />
+      {seatOp && (
+        <SeatOpModal
+          open
+          mode={seatOp.mode}
+          booking={seatOp.booking}
+          events={events}
+          onClose={() => setSeatOp(null)}
+          onDone={() => {
+            load();
+            openDetail(seatOp.booking.booking_id);
+          }}
+        />
       )}
     </div>
   );
