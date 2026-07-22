@@ -16,6 +16,7 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { corsHeaders, json, serviceClient } from "../_shared/ghl.ts";
 import { hasToolAccess } from "../_shared/access.ts";
+import { resolveOeStripe } from "../_shared/stripe.ts";
 // deno-lint-ignore no-explicit-any
 type SB = any;
 
@@ -58,6 +59,104 @@ async function freeSeatsUsedFor(sb: SB, locationId: string): Promise<number> {
     (n: number, r: { free_seats: string[] | null }) => n + (Array.isArray(r.free_seats) ? r.free_seats.length : 0),
     0,
   );
+}
+
+// ── Shared booking plan: validate + price a request SERVER-SIDE ─────────────
+// Used by BOTH createBooking (free path) and createCheckout (paid path) so the
+// two flows can NEVER price a seat differently. Everything the frontend sends is
+// re-derived here from the DB (event price, free allowance, settings) — the
+// client's numbers are display-only and are never trusted. Returns a priced plan
+// or a typed error the caller maps to a JSON response. Does NOT touch the DB for
+// writes and does NOT gate tool access (the caller does that first).
+type BookingPlan = {
+  ok: true;
+  event: { id: string; display_label: string; price_per_seat: number };
+  seatSelection: boolean;
+  seatLabels: string[]; // real labels when seat-selection is on; [] for quantity-only (synthesized at insert)
+  seatCount: number;
+  lunchQty: number;
+  freeUsedNow: number;
+  paidSeats: number;
+  pricePerSeat: number;
+  lunchPrice: number;
+  sstRate: number;
+  subtotal: number;
+  sst: number;
+  total: number;
+};
+type PlanError = { ok: false; error: string; status: number; extra?: Record<string, unknown> };
+
+// deno-lint-ignore no-explicit-any
+async function computeBookingPlan(sb: SB, locationId: string, body: any): Promise<BookingPlan | PlanError> {
+  const eventId = String(body?.event_id || "").trim();
+  const email = String(body?.email || "").trim();
+  const lunchQty = Math.max(0, Math.floor(Number(body?.lunch_qty) || 0));
+  const seatsInput: string[] = Array.isArray(body?.seats)
+    ? body.seats.map((s: unknown) => String(s).trim()).filter(Boolean)
+    : [];
+  const quantity = Math.max(0, Math.floor(Number(body?.quantity) || 0));
+
+  if (!eventId) return { ok: false, error: "event_id required", status: 400 };
+  if (!email || !/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(email)) return { ok: false, error: "email_required", status: 400 };
+
+  const { data: event, error: evErr } = await sb
+    .from("oe_events")
+    .select("id, display_label, status, price_per_seat, seat_selection_enabled")
+    .eq("id", eventId)
+    .maybeSingle();
+  if (evErr) throw evErr;
+  if (!event) return { ok: false, error: "event_not_found", status: 404 };
+  if (event.status !== "live") return { ok: false, error: "event_not_bookable", status: 400 };
+
+  const s = await loadSettings(sb);
+  const seatSelection = event.seat_selection_enabled !== false;
+
+  let seatLabels: string[];
+  let seatCount: number;
+  if (seatSelection) {
+    seatLabels = [...new Set(seatsInput)];
+    seatCount = seatLabels.length;
+    if (seatCount < 1) return { ok: false, error: "no_seats_selected", status: 400 };
+  } else {
+    seatCount = quantity;
+    if (seatCount < 1) return { ok: false, error: "no_quantity", status: 400 };
+    seatLabels = []; // synthesized by the caller (needs the booking code)
+  }
+  if (seatCount > s.maxSeats) return { ok: false, error: "too_many_seats", status: 400, extra: { max: s.maxSeats } };
+
+  // Free-ticket accounting (server-side; per location).
+  const freeUsedAlready = await freeSeatsUsedFor(sb, locationId);
+  const { data: sa } = await sb
+    .from("oe_subaccount_settings")
+    .select("free_seats")
+    .eq("location_id", locationId)
+    .maybeSingle();
+  const freeAllot = Number(sa?.free_seats ?? 2);
+  const freeRemaining = Math.max(0, freeAllot - freeUsedAlready);
+  const freeUsedNow = Math.min(seatCount, freeRemaining);
+  const paidSeats = seatCount - freeUsedNow;
+
+  const price = Number(event.price_per_seat ?? 0);
+  const subtotal = round2(paidSeats * price + lunchQty * s.lunchPrice);
+  const sst = subtotal > 0 ? round2(subtotal * s.sstRate) : 0;
+  const total = round2(subtotal + sst);
+
+  return {
+    ok: true,
+    event: { id: event.id, display_label: event.display_label, price_per_seat: price },
+    seatSelection,
+    seatLabels,
+    seatCount,
+    lunchQty,
+    freeUsedNow,
+    paidSeats,
+    pricePerSeat: price,
+    lunchPrice: s.lunchPrice,
+    sstRate: s.sstRate,
+    subtotal,
+    sst,
+    total,
+  };
 }
 
 serve(async (req) => {
@@ -195,85 +294,45 @@ serve(async (req) => {
       case "createBooking": {
         if (!(await hasToolAccess(sb, locationId, TOOL_KEY))) return json({ error: "tool_disabled" }, 403);
 
-        const eventId = String(body?.event_id || "").trim();
+        const plan = await computeBookingPlan(sb, locationId, body);
+        if (!plan.ok) return json({ error: plan.error, ...(plan.extra ?? {}) }, plan.status);
+
         const email = String(body?.email || "").trim();
         const phone = String(body?.phone || "").trim();
-        const lunchQty = Math.max(0, Math.floor(Number(body?.lunch_qty) || 0));
-        const seatsInput: string[] = Array.isArray(body?.seats) ? body.seats.map((s: unknown) => String(s).trim()).filter(Boolean) : [];
-        const quantity = Math.max(0, Math.floor(Number(body?.quantity) || 0));
 
-        if (!eventId) return json({ error: "event_id required" }, 400);
-        if (!email || !/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(email)) return json({ error: "email_required" }, 400);
-
-        const { data: event, error: evErr } = await sb
-          .from("oe_events")
-          .select("id, display_label, status, price_per_seat, seat_selection_enabled")
-          .eq("id", eventId)
-          .maybeSingle();
-        if (evErr) throw evErr;
-        if (!event) return json({ error: "event_not_found" }, 404);
-        if (event.status !== "live") return json({ error: "event_not_bookable" }, 400);
-
-        const s = await loadSettings(sb);
-        const seatSelection = event.seat_selection_enabled !== false;
-
-        // Seat labels + count.
-        let seatLabels: string[];
-        let seatCount: number;
-        if (seatSelection) {
-          seatLabels = [...new Set(seatsInput)];
-          seatCount = seatLabels.length;
-          if (seatCount < 1) return json({ error: "no_seats_selected" }, 400);
-        } else {
-          seatCount = quantity;
-          if (seatCount < 1) return json({ error: "no_quantity" }, 400);
-          seatLabels = []; // synthesized below (needs the booking code)
-        }
-        if (seatCount > s.maxSeats) return json({ error: "too_many_seats", max: s.maxSeats }, 400);
-
-        // Free-ticket accounting (server-side; per location).
-        const freeUsedAlready = await freeSeatsUsedFor(sb, locationId);
-        const { data: sa } = await sb
-          .from("oe_subaccount_settings")
-          .select("free_seats")
-          .eq("location_id", locationId)
-          .maybeSingle();
-        const freeAllot = Number(sa?.free_seats ?? 2);
-        const freeRemaining = Math.max(0, freeAllot - freeUsedAlready);
-        const freeUsedNow = Math.min(seatCount, freeRemaining);
-        const paidSeats = seatCount - freeUsedNow;
-
-        const price = Number(event.price_per_seat ?? 0);
-        const subtotal = round2(paidSeats * price + lunchQty * s.lunchPrice);
-        const sst = subtotal > 0 ? round2(subtotal * s.sstRate) : 0;
-        const total = round2(subtotal + sst);
-
-        // Paid → P5 handles Stripe; do NOT create a booking in P4.
-        if (total > 0) {
+        // Paid → the client must go through createCheckout (Stripe). Return the
+        // authoritative breakdown; write NOTHING here.
+        if (plan.total > 0) {
           return json({
             requiresPayment: true,
-            breakdown: { seatCount, freeUsedNow, paidSeats, pricePerSeat: price, lunchQty, lunchPrice: s.lunchPrice, subtotal, sst, total },
+            breakdown: {
+              seatCount: plan.seatCount, freeUsedNow: plan.freeUsedNow, paidSeats: plan.paidSeats,
+              pricePerSeat: plan.pricePerSeat, lunchQty: plan.lunchQty, lunchPrice: plan.lunchPrice,
+              subtotal: plan.subtotal, sst: plan.sst, total: plan.total,
+            },
           });
         }
 
-        // FREE booking — create then atomically claim.
+        // FREE booking — create (confirmed) then atomically claim.
         const bookingId = genBookingId();
-        if (!seatSelection) seatLabels = Array.from({ length: seatCount }, (_, i) => `#${bookingId}-${i + 1}`);
+        const seatLabels = plan.seatSelection
+          ? plan.seatLabels
+          : Array.from({ length: plan.seatCount }, (_, i) => `#${bookingId}-${i + 1}`);
         const qrPayload = JSON.stringify({
-          v: 1, bookingId, email, phone, eventId, eventLabel: event.display_label, totalSeats: seatCount,
+          v: 1, bookingId, email, phone, eventId: plan.event.id, eventLabel: plan.event.display_label, totalSeats: plan.seatCount,
         });
 
         const { data: inserted, error: insErr } = await sb
           .from("oe_bookings")
           .insert({
             booking_id: bookingId,
-            event_id: eventId,
-            event_label: event.display_label,
+            event_id: plan.event.id,
+            event_label: plan.event.display_label,
             email,
             phone,
             free_seats: seatLabels, // fully-free booking → all seats are free
             addon_seats: [],
-            lunch_qty: lunchQty,
+            lunch_qty: plan.lunchQty,
             subtotal: 0,
             sst_amount: 0,
             total: 0,
@@ -287,7 +346,7 @@ serve(async (req) => {
         if (insErr) throw insErr;
 
         const { data: claimed, error: claimErr } = await sb.rpc("oe_claim_seats", {
-          p_event_id: eventId,
+          p_event_id: plan.event.id,
           p_booking_id: inserted.id,
           p_seats: seatLabels,
         });
@@ -307,10 +366,156 @@ serve(async (req) => {
             booking_id: bookingId,
             qr_payload: qrPayload,
             seats: seatLabels,
-            event_label: event.display_label,
+            event_label: plan.event.display_label,
             email,
             total: 0,
-            free_used: freeUsedNow,
+            free_used: plan.freeUsedNow,
+          },
+        });
+      }
+
+      // ── Create a Stripe Checkout session for a PAID booking (P5) ──────────
+      // Money-safe ordering: (1) re-price server-side, (2) write a PENDING
+      // booking, (3) atomically claim the seats — ALL before any Stripe call, so
+      // a seat that was just taken is rejected with money untouched — then (4)
+      // create the hosted Checkout session. Seats are HELD for the pending
+      // booking; a 30-min expiry releases them via the checkout.session.expired
+      // webhook. The webhook flips pending → confirmed on payment.
+      case "createCheckout": {
+        if (!(await hasToolAccess(sb, locationId, TOOL_KEY))) return json({ error: "tool_disabled" }, 403);
+
+        const origin = String(body?.origin || "").trim();
+        if (!/^https?:\/\/[^\s/]+/.test(origin)) return json({ error: "origin_required" }, 400);
+
+        const plan = await computeBookingPlan(sb, locationId, body);
+        if (!plan.ok) return json({ error: plan.error, ...(plan.extra ?? {}) }, plan.status);
+        if (plan.total <= 0) return json({ error: "no_payment_required" }, 400);
+
+        const email = String(body?.email || "").trim();
+        const phone = String(body?.phone || "").trim();
+
+        // 1) PENDING booking. Free portion → free_seats (counts against the free
+        //    allowance while held); paid portion → addon_seats.
+        const bookingId = genBookingId();
+        const allLabels = plan.seatSelection
+          ? plan.seatLabels
+          : Array.from({ length: plan.seatCount }, (_, i) => `#${bookingId}-${i + 1}`);
+        const freeLabels = allLabels.slice(0, plan.freeUsedNow);
+        const paidLabels = allLabels.slice(plan.freeUsedNow);
+        const qrPayload = JSON.stringify({
+          v: 1, bookingId, email, phone, eventId: plan.event.id, eventLabel: plan.event.display_label, totalSeats: plan.seatCount,
+        });
+
+        const { data: inserted, error: insErr } = await sb
+          .from("oe_bookings")
+          .insert({
+            booking_id: bookingId,
+            event_id: plan.event.id,
+            event_label: plan.event.display_label,
+            email,
+            phone,
+            free_seats: freeLabels,
+            addon_seats: paidLabels,
+            lunch_qty: plan.lunchQty,
+            subtotal: plan.subtotal,
+            sst_amount: plan.sst,
+            total: plan.total,
+            status: "pending",
+            qr_payload: qrPayload,
+            ghl_location_id: locationId,
+            created_by: "customer",
+          })
+          .select("id")
+          .single();
+        if (insErr) throw insErr;
+
+        // 2) Atomic seat claim BEFORE any money moves. On failure the booking row
+        //    is deleted (booked_seats cascade with it) → seats released.
+        const { data: claimed, error: claimErr } = await sb.rpc("oe_claim_seats", {
+          p_event_id: plan.event.id,
+          p_booking_id: inserted.id,
+          p_seats: allLabels,
+        });
+        if (claimErr) {
+          await sb.from("oe_bookings").delete().eq("id", inserted.id);
+          throw claimErr;
+        }
+        if (claimed !== true) {
+          await sb.from("oe_bookings").delete().eq("id", inserted.id);
+          return json({ error: "seats_unavailable" }, 409);
+        }
+
+        // 3) Hosted Stripe Checkout session. Two line items so the receipt shows
+        //    the SST breakdown. metadata.bookingId lets the webhook find this row.
+        try {
+          const { stripe } = await resolveOeStripe(sb);
+          const subtotalCents = Math.round(plan.subtotal * 100);
+          const sstCents = Math.round(plan.sst * 100);
+          // deno-lint-ignore no-explicit-any
+          const lineItems: any[] = [
+            {
+              price_data: {
+                currency: "myr",
+                product_data: { name: `${plan.event.display_label} — ${plan.seatCount} seat(s)` },
+                unit_amount: subtotalCents,
+              },
+              quantity: 1,
+            },
+          ];
+          if (sstCents > 0) {
+            lineItems.push({
+              price_data: { currency: "myr", product_data: { name: "SST (8%)" }, unit_amount: sstCents },
+              quantity: 1,
+            });
+          }
+
+          const HOLD_SECONDS = 30 * 60; // seats held ~30 min during checkout
+          const session = await stripe.checkout.sessions.create({
+            mode: "payment",
+            line_items: lineItems,
+            customer_email: email || undefined,
+            metadata: { bookingId: inserted.id, bookingCode: bookingId, locationId },
+            success_url: `${origin}/checkout/return?booking=${encodeURIComponent(bookingId)}&session={CHECKOUT_SESSION_ID}`,
+            cancel_url: `${origin}/events`,
+            expires_at: Math.floor(Date.now() / 1000) + HOLD_SECONDS + 120,
+          });
+
+          await sb.from("oe_bookings").update({ stripe_session_id: session.id }).eq("id", inserted.id);
+
+          return json({ ok: true, checkoutUrl: session.url, bookingCode: bookingId });
+        } catch (e) {
+          // Checkout creation failed — release the held seats + pending booking
+          // (booked_seats cascade-delete with the row) so nothing is stranded.
+          await sb.from("oe_bookings").delete().eq("id", inserted.id);
+          console.error("createCheckout stripe error:", e);
+          return json({ error: "checkout_failed" }, 502);
+        }
+      }
+
+      // ── Poll one booking's status (for the /checkout/return page) ─────────
+      // Scoped to the caller's OWN location. Always 200 (status field) so the
+      // return page can poll cleanly while the webhook lands.
+      case "getBooking": {
+        const code = String(body?.booking_code || body?.booking || "").trim();
+        if (!code) return json({ status: "not_found" });
+        const { data: b } = await sb
+          .from("oe_bookings")
+          .select("booking_id, status, qr_payload, free_seats, addon_seats, event_label, email, total")
+          .eq("booking_id", code)
+          .eq("ghl_location_id", locationId)
+          .maybeSingle();
+        if (!b) return json({ status: "not_found" });
+        const seats = [...(b.free_seats ?? []), ...(b.addon_seats ?? [])];
+        return json({
+          status: b.status,
+          booking: {
+            booking_id: b.booking_id,
+            qr_payload: b.qr_payload,
+            seats,
+            event_label: b.event_label,
+            email: b.email,
+            total: Number(b.total ?? 0),
+            free_used: (b.free_seats ?? []).length,
           },
         });
       }

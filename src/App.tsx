@@ -38,6 +38,7 @@ import {
   OESettings,
 } from "./pages/admin/offline-event/sections";
 import EventsPage from "./pages/events/EventsPage";
+import CheckoutReturn from "./pages/checkout/Return";
 import { rememberLocationId } from "@/lib/ghl";
 
 const ScrollToTop = () => {
@@ -103,6 +104,9 @@ const App = () => (
               {/* Offline Event — CUSTOMER booking page. Identity = URL location_id
                   (trust-the-URL). Entered via a GHL custom menu link. */}
               <Route path="/events" element={<EventsPage />} />
+              {/* Stripe hosted-Checkout return landing. Polls the webhook-confirmed
+                  booking, then shows its QR e-ticket. */}
+              <Route path="/checkout/return" element={<CheckoutReturn />} />
 
               {/* Review Boost — CUSTOMER (sub-account) app only. Identity = URL
                   location_id. Agency god-view (all sub-accounts / cross-client

@@ -147,13 +147,35 @@ export async function getEvent(
 }
 
 /** Create a booking. FREE (total ≤ 0) completes immediately with a QR ticket;
- *  paid returns { requiresPayment } (Stripe flow is P5). Everything is validated
- *  + priced server-side; seats are claimed atomically (no same-seat double-book). */
+ *  paid returns { requiresPayment } → the caller then calls createCheckout.
+ *  Everything is validated + priced server-side; seats are claimed atomically
+ *  (no same-seat double-book). */
 export async function createBooking(
   locationId: string,
   input: { event_id: string; email: string; phone?: string; seats?: string[]; quantity?: number; lunch_qty?: number },
 ): Promise<OeBookingResult> {
   return callOe<OeBookingResult>("createBooking", locationId, input);
+}
+
+/** Start a PAID booking: server writes a pending booking + atomically holds the
+ *  seats, then returns a Stripe hosted-Checkout URL. The caller redirects there;
+ *  Stripe redirects back to /checkout/return, where the webhook-confirmed booking
+ *  shows its QR ticket. `origin` = window.location.origin (for the return URLs). */
+export async function createCheckout(
+  locationId: string,
+  input: { event_id: string; email: string; phone?: string; seats?: string[]; quantity?: number; lunch_qty?: number; origin: string },
+): Promise<{ ok: true; checkoutUrl: string; bookingCode: string }> {
+  return callOe("createCheckout", locationId, input);
+}
+
+export type OeBookingStatus = "pending" | "confirmed" | "cancelled" | "not_found";
+
+/** Poll one booking's status (return page). Scoped server-side to this location. */
+export async function getBooking(
+  locationId: string,
+  bookingCode: string,
+): Promise<{ status: OeBookingStatus; booking?: OeBooking }> {
+  return callOe("getBooking", locationId, { booking_code: bookingCode });
 }
 
 // ── Layout → seat-map conversion (ported from the old floorPlans.ts) ──────

@@ -9,10 +9,15 @@ the QR to check in** (2-day event: day1/day2). **IN PROGRESS — P0 + P1 done.**
 This file records the owner's locked decisions, the old-version facts, and the
 phased plan so a new session can pick up without re-researching.
 
-_Last updated: 2026-07-21 — P0–P4 done, committed + pushed to `feat/offline-event`.
-Next: **P5 (paid booking + Stripe + webhook)** — owner configures Stripe. NOTE:
-P0+P1 code/migration were drafted by the prior session (uncommitted); this session
-verified them, committed them, then built P2 + P3 + P4._
+_Last updated: 2026-07-22 — P5 CODE COMPLETE + DEPLOYED to hkqzz (committed +
+pushed). Stripe = Hosted Checkout (owner chose redirect-to-Stripe over embedded);
+DIRECT Stripe (no Lovable gateway); dual-key structure (sandbox→_TEST / live→_LIVE
+secrets, mode from oe_settings.stripe_payment_mode). Owner stored
+OE_STRIPE_SECRET_KEY_TEST + _LIVE. REMAINING before P5 is "done": owner creates the
+TEST webhook endpoint in Stripe (URL below) → sets OE_STRIPE_WEBHOOK_SECRET_TEST →
+then the full end-to-end pay test (card 4242) confirming pending→confirmed. Webhook
+URL: https://hkqzzfyigmvisaftdmwh.supabase.co/functions/v1/oe-stripe-webhook (events:
+checkout.session.completed + checkout.session.expired). Prior phases P0–P4 done._
 
 ## Where to build it
 - **Old version (read-only reference):** `C:\Users\chais\Projects\QAI Offline Event`
@@ -209,10 +214,32 @@ e-ticket+check-in → admin+seat editor → polish.
   event now holds 4 test booked seats (G1S1/G10S1/G5S1/G5S2) + 3 confirmed test
   bookings on test locations (test-verify-001 / oe-conc-b / oe-ui-demo) — July +
   August are pristine. Remove the test rows via the P7 bookings admin.
-- [ ] **P5 — Paid booking + Stripe + webhook ⭐.** `oe-checkout` (create session,
-  hold pending booking) + `oe-stripe-webhook` (verify signature → mark paid →
-  confirm seats). `/checkout/return`. SST 8%. Test/live mode via oe_settings.
-  RISK: highest (money, signature verify, edge cases). Owner configures Stripe.
+- [~] **P5 — Paid booking + Stripe + webhook ⭐ (CODE COMPLETE + DEPLOYED 2026-07-22;
+  e2e pending owner webhook secret).** Owner chose **Hosted Checkout** (redirect to
+  Stripe, not embedded). Implemented as: `createCheckout` + `getBooking` ACTIONS added
+  to the existing `oe` fn (NOT a separate `oe-checkout` fn — reuses the P4 pricing /
+  free-allowance / atomic seat-claim, extracted into a shared `computeBookingPlan()`
+  so free + paid can never price differently) + NEW `oe-stripe-webhook` fn (verify_jwt
+  off; the REAL gate is `stripe.webhooks.constructEventAsync` signature check). Money-
+  safe flow: point of "pay" → re-price server-side → write PENDING booking → **atomic
+  `oe_claim_seats` BEFORE any Stripe call** (seat taken → 409, money untouched) → create
+  hosted session (2 line items: subtotal + SST 8%; `expires_at` now+~32min;
+  `metadata.bookingId`) → redirect. Webhook: `checkout.session.completed` → pending→
+  confirmed (+payment_intent_id, best-effort receipt_url) guarded `.eq(status,pending)`
+  = idempotent; `checkout.session.expired` → pending→cancelled + delete booked_seats
+  (release, freeing the free-allowance too). Frontend: EventsPage paid button →
+  `createCheckout` → `window.location.href = checkoutUrl`; new `/checkout/return` page
+  polls `getBooking` (~30s) → shared `QrTicket` when confirmed / released notice if
+  cancelled. `_shared/stripe.ts` = `makeStripeClient` + `resolveOeStripe` (mode→secret,
+  ONE source of truth). Secrets: `OE_STRIPE_SECRET_KEY_TEST|LIVE`,
+  `OE_STRIPE_WEBHOOK_SECRET_TEST|LIVE`. **Verified:** tsc clean; both fns deployed;
+  regression (resolveContext/listEvents) intact; `createCheckout` origin_required +
+  no_payment_required + `getBooking` not_found all correct (no side effects); **real
+  test session created with sk_test_ (cs_test_…)** proving key + session path.
+  TEST DATA TO CLEAN (P7): the sk_test_ probe left pending booking **BK-NSKG-9L2TE7**
+  holding **G20 Seat 3** on the SEPT event (loc `oe-p5-stripe-check`) — won't
+  auto-expire (no endpoint existed at creation). REMAINING: owner creates Stripe TEST
+  webhook endpoint → `OE_STRIPE_WEBHOOK_SECRET_TEST` → full pay test (4242).
 - [ ] **P6 — E-ticket + QR + check-in.** Ticket page (big QR, screenshot-friendly);
   admin CheckInScanner (camera → requireAdmin fn → mark day1/day2 attended,
   idempotent); optional self-check-in.

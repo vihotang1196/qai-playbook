@@ -10,25 +10,23 @@ import {
   ChevronDown,
   Minus,
   Plus,
-  PartyPopper,
-  CreditCard,
 } from "lucide-react";
-import { QRCodeSVG } from "qrcode.react";
 import { toast } from "sonner";
 import { useLang } from "@/i18n/LanguageContext";
 import { resolveLocationId } from "@/lib/ghl";
 import { SeatMap } from "@/components/offline-event/SeatMap";
+import { QrTicket } from "@/components/offline-event/QrTicket";
 import {
   resolveContext,
   listEvents,
   getEvent,
   createBooking,
+  createCheckout,
   layoutToSeatGroups,
   type OeContext,
   type OeEvent,
   type OeSeatGroup,
   type OeSeat,
-  type OePriceBreakdown,
   type OeBooking,
 } from "@/lib/offlineEvent";
 
@@ -283,7 +281,6 @@ function EventBooking({
   const [email, setEmail] = useState("");
   const [submitting, setSubmitting] = useState(false);
   const [done, setDone] = useState<OeBooking | null>(null);
-  const [paid, setPaid] = useState<OePriceBreakdown | null>(null);
 
   const maxSeats = ctx.settings?.maxSeats ?? 4;
   const lunchPrice = ctx.settings?.lunchPrice ?? 39.99;
@@ -348,18 +345,24 @@ function EventBooking({
     }
     setSubmitting(true);
     try {
-      const res = await createBooking(locationId, {
+      const input = {
         event_id: event.id,
         email: email.trim(),
         seats: seatSelection ? selected.map((s) => s.label) : undefined,
         quantity: seatSelection ? undefined : qty,
         lunch_qty: lunchQty,
-      });
+      };
+      // Server decides free vs paid (authoritative). Free → confirmed here;
+      // paid → open a Stripe hosted-Checkout session and redirect to it.
+      const res = await createBooking(locationId, input);
       if ("ok" in res && res.ok) {
         setDone(res.booking);
         onBooked();
       } else if ("requiresPayment" in res) {
-        setPaid(res.breakdown);
+        toast.message(lang === "cn" ? "正在跳转到付款页…" : "Redirecting to payment…");
+        const { checkoutUrl } = await createCheckout(locationId, { ...input, origin: window.location.origin });
+        window.location.href = checkoutUrl;
+        return; // page navigates away
       }
     } catch (e) {
       const msg = e instanceof Error ? e.message : "报名失败";
@@ -379,56 +382,7 @@ function EventBooking({
   }
 
   // ── Success (free booking confirmed) ──
-  if (done) {
-    return (
-      <div className="glass-card rounded-2xl p-6 text-center">
-        <div className="w-12 h-12 rounded-2xl flex items-center justify-center mx-auto mb-3 text-white" style={{ background: "linear-gradient(135deg, #22c55e, #16a34a)" }}>
-          <PartyPopper className="w-6 h-6" />
-        </div>
-        <h3 className="text-lg font-display font-bold">{lang === "cn" ? "报名成功！" : "You're booked!"}</h3>
-        <p className="text-sm text-muted-foreground mt-1">
-          {lang === "cn" ? "请截图保存下方二维码，活动当天出示签到。" : "Screenshot the QR below and show it at check-in."}
-        </p>
-        <div className="mt-4 inline-flex flex-col items-center gap-3 rounded-2xl bg-white p-5 border border-border/60">
-          <QRCodeSVG value={done.qr_payload} size={180} level="M" includeMargin />
-          <p className="text-xs font-mono text-muted-foreground">{done.booking_id}</p>
-        </div>
-        <div className="mt-4 text-sm text-muted-foreground">
-          <p>{done.event_label}</p>
-          <p className="mt-0.5">{lang === "cn" ? "座位" : "Seats"}: {done.seats.join("、")}</p>
-          <p className="mt-0.5 text-emerald-600 font-medium">{lang === "cn" ? "免费报名" : "Free booking"}</p>
-        </div>
-      </div>
-    );
-  }
-
-  // ── Paid → payment coming in P5 ──
-  if (paid) {
-    return (
-      <div className="glass-card rounded-2xl p-6">
-        <div className="flex items-center gap-2 mb-3">
-          <CreditCard className="w-5 h-5 text-primary" />
-          <h3 className="font-display font-semibold">{lang === "cn" ? "本单需付费" : "Payment required"}</h3>
-        </div>
-        <div className="text-sm space-y-1 text-muted-foreground">
-          <Row l={lang === "cn" ? "座位" : "Seats"} r={`${paid.seatCount}（${lang === "cn" ? "免费" : "free"} ${paid.freeUsedNow} · ${lang === "cn" ? "付费" : "paid"} ${paid.paidSeats}）`} />
-          {paid.lunchQty > 0 && <Row l={lang === "cn" ? "午餐" : "Lunch"} r={`${paid.lunchQty} × RM ${paid.lunchPrice.toFixed(2)}`} />}
-          <Row l={lang === "cn" ? "小计" : "Subtotal"} r={`RM ${paid.subtotal.toFixed(2)}`} />
-          <Row l="SST 8%" r={`RM ${paid.sst.toFixed(2)}`} />
-          <div className="border-t border-border/50 my-1.5" />
-          <Row l={lang === "cn" ? "合计" : "Total"} r={`RM ${paid.total.toFixed(2)}`} bold />
-        </div>
-        <div className="mt-4 rounded-xl border border-amber-200 bg-amber-50/90 px-4 py-3 text-sm text-amber-900">
-          {lang === "cn"
-            ? `在线付款即将开放。你有 ${freeRemaining} 张免费票——选不超过 ${freeRemaining} 个座位（且不加午餐）即可免费报名。`
-            : `Online payment is coming soon. You have ${freeRemaining} free ticket(s) — pick up to ${freeRemaining} seat(s) (no lunch) to book for free.`}
-        </div>
-        <button type="button" onClick={() => setPaid(null)} className="mt-3 text-sm font-medium text-primary hover:opacity-80">
-          {lang === "cn" ? "← 返回修改" : "← Back to edit"}
-        </button>
-      </div>
-    );
-  }
+  if (done) return <QrTicket lang={lang} booking={done} paid={false} />;
 
   // ── Booking form (seat select + lunch + email) ──
   return (
@@ -504,7 +458,13 @@ function EventBooking({
               className="w-full h-11 rounded-full bg-primary text-primary-foreground text-sm font-bold shadow-sm disabled:opacity-50 flex items-center justify-center gap-2"
             >
               {submitting ? <Loader2 className="w-4 h-4 animate-spin" /> : null}
-              {total > 0 ? (lang === "cn" ? "继续（需付费）" : "Continue (payment)") : lang === "cn" ? "确认免费报名" : "Confirm free booking"}
+              {total > 0
+                ? lang === "cn"
+                  ? `去付款 RM ${total.toFixed(2)}`
+                  : `Pay RM ${total.toFixed(2)}`
+                : lang === "cn"
+                  ? "确认免费报名"
+                  : "Confirm free booking"}
             </button>
           </div>
         </>

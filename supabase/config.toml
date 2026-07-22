@@ -38,3 +38,10 @@ verify_jwt = false
 # and gated by location_tool_access(offline_event).
 [functions.oe]
 verify_jwt = false
+
+# Offline Event Stripe webhook — called DIRECTLY by Stripe (not the browser), so
+# verify_jwt is off at the gateway; the REAL gate is the Stripe signature check
+# (constructEventAsync with OE_STRIPE_WEBHOOK_SECRET_*). Marks paid bookings
+# confirmed / expired bookings cancelled + releases their seats.
+[functions.oe-stripe-webhook]
+verify_jwt = false
