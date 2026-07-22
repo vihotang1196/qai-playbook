@@ -4,28 +4,31 @@ Rebuild of **Offline Event** (5th migrated tool) into this Playbook project,
 ported from a Lovable export. It is a **line-up event booking system**: pick an
 event date → choose seats on a floor-plan seat map → add lunch → **pay via
 Stripe (MYR + 8% SST)** → get a **QR e-ticket on the web page** → staff **scan
-the QR to check in** (2-day event: day1/day2). **IN PROGRESS — P0 + P1 done.**
+the QR to check in** (2-day event: day1/day2). **IN PROGRESS — P0–P5 + P6a (customer
+"我的报名") DONE; P6 admin scan-checkin is next.**
 
 This file records the owner's locked decisions, the old-version facts, and the
 phased plan so a new session can pick up without re-researching.
 
-_Last updated: 2026-07-22 — P5 CODE COMPLETE + DEPLOYED to hkqzz (committed +
-pushed). Stripe = Hosted Checkout (owner chose redirect over embedded); DIRECT
-Stripe (no Lovable gateway); dual-key structure (sandbox→_TEST / live→_LIVE, mode
-from oe_settings.stripe_payment_mode). **DESIGN PIVOT (owner, 2026-07-22): NO webhook
-for now** — confirmation happens on the /checkout/return page: the browser hands the
-session_id to the `confirmBooking` oe action → server RETRIEVES the session with the
-secret key → confirms only if Stripe says paid (browser's word never trusted).
-`oe-stripe-webhook` fn code is LEFT deployed but DORMANT (nothing calls it; owner may
-add it later as a missed-order backstop). Seat release without the expired webhook =
-lazy `sweepStalePending` (reconciles pending >35min on seat-map view / new booking;
-verifies with Stripe before releasing so a late-paid order is promoted not dropped).
-Owner stored OE_STRIPE_SECRET_KEY_TEST + _LIVE (webhook secrets NOT needed in this
-model). REMAINING before P5 "done": owner runs the end-to-end pay test (localhost or
-deployed, card 4242) → sees pending→confirmed + QR. Verified so far: tsc clean; oe
-redeployed; unpaid session correctly stays pending; wrong-location→not_found; the
-real booking UI redirects to Stripe hosted checkout (Sandbox, MYR, AJ ENDLESS ASIA
-SDN BHD). Prior phases P0–P4 done._
+_Last updated: 2026-07-22 — **P0–P5 DONE + P6a DONE, ALL committed + pushed to
+`feat/offline-event` (HEAD fc16141).** P5 = paid booking via Stripe **Hosted Checkout**
+(owner chose redirect over embedded), DIRECT Stripe (no Lovable gateway), dual-key
+(sandbox→_TEST / live→_LIVE from oe_settings.stripe_payment_mode). **NO webhook (owner
+pivot):** /checkout/return hands the session_id to the `confirmBooking` oe action →
+server RETRIEVES the session with the secret key → confirms ONLY if Stripe says paid
+(browser never trusted); stale unpaid holds released by lazy `sweepStalePending`
+(verifies with Stripe first, so a late-paid order is promoted not dropped);
+`oe-stripe-webhook` fn deployed but DORMANT (future backstop). Owner set
+OE_STRIPE_SECRET_KEY_TEST + _LIVE (webhook secrets not needed). **Full pay test
+PASSED** (card 4242 → BK-1QUH-ZB6UPG confirmed, RM 857.52, server-verified). P6a =
+customer "我的报名" = **team view** (lists ALL confirmed tickets under the location_id,
+no email step, colleagues share, location-isolated server-side). **NEXT = P6 admin
+CheckInScanner** (scan QR → requireAdmin fn → mark day1/day2 attended, idempotent).
+**TEST DATA TO CLEAN IN P7:** **July** event = BK-1QUH-ZB6UPG (4 confirmed seats G16
+Seat 1–4, loc oe-mytest-1, the real pay test); **September** event = the P4 seed-test
+seats (G1S1/G5S1/G5S2/G10S1 + 3 confirmed test bookings on test-verify-001/oe-conc-b/
+oe-ui-demo) plus any leftover unpaid probe holds (self-sweep ~35min). Detail per phase
+below._
 
 ## Where to build it
 - **Old version (read-only reference):** `C:\Users\chais\Projects\QAI Offline Event`
