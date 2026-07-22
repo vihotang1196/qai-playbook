@@ -1,19 +1,26 @@
 // ════════════════════════════════════════════════════════════════════════
 // Shared Stripe helper (Deno edge functions).
 //
-// makeStripeClient() is tool-neutral. resolveOeStripe() is Offline-Event
-// specific: it reads oe_settings.stripe_payment_mode (sandbox | live) and
-// returns the matching secret key + webhook signing secret from the OE_STRIPE_*
-// edge secrets. Keeping the "which secret for which mode" mapping in ONE place
-// (this file) matters — it's the money path; a wrong/missing name must fail
-// LOUDLY, never silently charge on the wrong account.
+// ARCHITECTURE (owner decision 2026-07-22):
+//   • Stripe KEYS are PLATFORM-LEVEL — ONE Stripe account, ONE set of test/live
+//     secrets, shared by every tool. Set them ONCE in Supabase secrets; you do
+//     NOT configure Stripe per tool.
+//   • Each TOOL has its OWN independent test/live MODE switch (Offline Event's
+//     lives in oe_settings.stripe_payment_mode). So Offline Event can be LIVE
+//     (collecting real money) while a brand-new tool is still in TEST — flipping
+//     one tool's mode never touches another's. A future tool gets its own mode
+//     row + its own resolve*Stripe() that reuses these same platform keys.
 //
-// Secrets (owner sets in Supabase → Edge Functions → Secrets; NEVER in code):
-//   sandbox → OE_STRIPE_SECRET_KEY_TEST  + OE_STRIPE_WEBHOOK_SECRET_TEST
-//   live    → OE_STRIPE_SECRET_KEY_LIVE  + OE_STRIPE_WEBHOOK_SECRET_LIVE
+// Platform secrets (owner sets in Supabase → Edge Functions → Secrets):
+//   test → STRIPE_SECRET_KEY_TEST  + STRIPE_WEBHOOK_SECRET_TEST
+//   live → STRIPE_SECRET_KEY_LIVE  + STRIPE_WEBHOOK_SECRET_LIVE
+// Back-compat: if a platform name isn't set we fall back to the legacy
+// OE_STRIPE_SECRET_KEY_* / OE_STRIPE_WEBHOOK_SECRET_* names, so the existing
+// setup keeps working until the platform-level names are configured.
 //
-// We talk to Stripe DIRECTLY (unlike the old Lovable-gateway version) — a plain
-// secret key + the Deno fetch HTTP client.
+// We talk to Stripe DIRECTLY (a plain secret key + the Deno fetch HTTP client).
+// The "which secret for which mode" mapping lives ONLY here — it's the money
+// path; a wrong/missing name must fail LOUDLY, never silently charge wrong.
 // ════════════════════════════════════════════════════════════════════════
 import Stripe from "https://esm.sh/stripe@22.0.2";
 import type { SupabaseClient } from "https://esm.sh/@supabase/supabase-js@2.49.4";
@@ -28,6 +35,28 @@ export function makeStripeClient(secretKey: string): Stripe {
   });
 }
 
+// ── Platform-level key resolution (tool-neutral) ──────────────────────────
+const env = (n: string) => Deno.env.get(n) ?? "";
+
+/** Platform Stripe secret key for a mode (platform name, else legacy OE_ name). */
+export function platformStripeSecret(mode: OeStripeMode): { name: string; key: string } {
+  const platform = mode === "live" ? "STRIPE_SECRET_KEY_LIVE" : "STRIPE_SECRET_KEY_TEST";
+  const legacy = mode === "live" ? "OE_STRIPE_SECRET_KEY_LIVE" : "OE_STRIPE_SECRET_KEY_TEST";
+  return { name: `${platform} (or ${legacy})`, key: env(platform) || env(legacy) };
+}
+
+/** Platform Stripe webhook signing secret for a mode ("" if unset). */
+export function platformWebhookSecret(mode: OeStripeMode): string {
+  const platform = mode === "live" ? "STRIPE_WEBHOOK_SECRET_LIVE" : "STRIPE_WEBHOOK_SECRET_TEST";
+  const legacy = mode === "live" ? "OE_STRIPE_WEBHOOK_SECRET_LIVE" : "OE_STRIPE_WEBHOOK_SECRET_TEST";
+  return env(platform) || env(legacy);
+}
+
+/** Is the platform LIVE secret configured? (platform name or legacy OE_ name) */
+export function platformLiveKeyConfigured(): boolean {
+  return !!platformStripeSecret("live").key;
+}
+
 export type OeStripeConfig = {
   mode: OeStripeMode;
   secretKey: string;
@@ -37,7 +66,11 @@ export type OeStripeConfig = {
   stripe: Stripe;
 };
 
-/** Resolve the active Offline-Event Stripe config from oe_settings + secrets. */
+/**
+ * Resolve the active Offline-Event Stripe config: OE's OWN mode (from
+ * oe_settings.stripe_payment_mode) selects which PLATFORM key to use. Other
+ * tools would have their own mode source but reuse the same platform keys.
+ */
 export async function resolveOeStripe(sb: SupabaseClient): Promise<OeStripeConfig> {
   const { data } = await sb
     .from("oe_settings")
@@ -46,12 +79,8 @@ export async function resolveOeStripe(sb: SupabaseClient): Promise<OeStripeConfi
     .maybeSingle();
   const mode: OeStripeMode = data?.value === "live" ? "live" : "sandbox";
 
-  const keyName = mode === "live" ? "OE_STRIPE_SECRET_KEY_LIVE" : "OE_STRIPE_SECRET_KEY_TEST";
-  const whName = mode === "live" ? "OE_STRIPE_WEBHOOK_SECRET_LIVE" : "OE_STRIPE_WEBHOOK_SECRET_TEST";
+  const { name, key } = platformStripeSecret(mode);
+  if (!key) throw new Error(`Stripe secret not configured: ${name}`);
 
-  const secretKey = Deno.env.get(keyName) ?? "";
-  const webhookSecret = Deno.env.get(whName) ?? "";
-  if (!secretKey) throw new Error(`${keyName} not configured`);
-
-  return { mode, secretKey, webhookSecret, stripe: makeStripeClient(secretKey) };
+  return { mode, secretKey: key, webhookSecret: platformWebhookSecret(mode), stripe: makeStripeClient(key) };
 }

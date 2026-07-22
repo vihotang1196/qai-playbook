@@ -15,6 +15,7 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { corsHeaders, json, serviceClient } from "../_shared/ghl.ts";
 import { requireAdmin } from "../_shared/admin.ts";
+import { platformLiveKeyConfigured } from "../_shared/stripe.ts";
 
 // Best-effort audit trail for admin write actions (who changed what, when).
 // Never blocks the action if logging fails.
@@ -693,7 +694,7 @@ serve(async (req) => {
         const get = (k: string, d: string) => (m[k] !== undefined ? m[k] : d);
 
         const { count: pendingCount } = await sb.from("oe_bookings").select("id", { count: "exact", head: true }).eq("status", "pending");
-        const liveKeyConfigured = !!(Deno.env.get("OE_STRIPE_SECRET_KEY_LIVE") ?? "");
+        const liveKeyConfigured = platformLiveKeyConfigured();
 
         return json({
           settings: {
@@ -743,7 +744,7 @@ serve(async (req) => {
         const { data: cur } = await sb.from("oe_settings").select("value").eq("key", "stripe_payment_mode").maybeSingle();
         const from = (cur?.value as string) ?? "sandbox";
 
-        if (mode === "live" && !(Deno.env.get("OE_STRIPE_SECRET_KEY_LIVE") ?? "")) {
+        if (mode === "live" && !platformLiveKeyConfigured()) {
           return json({ error: "live_key_missing" }, 400);
         }
 

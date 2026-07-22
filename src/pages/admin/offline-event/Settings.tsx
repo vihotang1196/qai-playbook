@@ -155,7 +155,7 @@ export default function OfflineEventSettings() {
             {/* Safeguard 1: live key precheck */}
             <div className={`text-xs flex items-center gap-1.5 ${resp.liveKeyConfigured ? "text-emerald-700" : "text-red-700"}`}>
               {resp.liveKeyConfigured ? <Check className="w-3.5 h-3.5" /> : <AlertCircle className="w-3.5 h-3.5" />}
-              正式密钥 OE_STRIPE_SECRET_KEY_LIVE：{resp.liveKeyConfigured ? "已配置" : "未配置（请先在 Supabase 配好，否则无法切换）"}
+              平台正式密钥（Stripe Live，平台各工具共用）：{resp.liveKeyConfigured ? "已配置" : "未配置（请先在 Supabase 配好，否则无法切换）"}
             </div>
             {/* Safeguard 3: pending warning */}
             {resp.pendingCount > 0 && (

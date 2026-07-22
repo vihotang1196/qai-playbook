@@ -381,6 +381,16 @@ e-ticket+check-in → admin+seat editor → polish.
     write+audit ok; **lunch price 39.99→55 propagated to customer pricing** (oe resolveContext
     lunchPrice=55) then restored; 8 sub-account overrides listed + one saved; badge shows on
     every admin page; tsc clean. Owner does the real live-flip when ready (like the P5 pay test).
+    - **Stripe architecture (owner clarification 2026-07-22 — refactored `_shared/stripe.ts`):**
+      test/live KEYS are **platform-level, shared by ALL tools** (one Stripe account, set once).
+      Each TOOL has its OWN independent mode switch — OE's is `oe_settings.stripe_payment_mode` —
+      so OE can be LIVE while a future tool is TEST; flipping one NEVER touches another. New
+      tool-neutral helpers `platformStripeSecret(mode)` / `platformWebhookSecret(mode)` /
+      `platformLiveKeyConfigured()` read platform names `STRIPE_SECRET_KEY_{TEST,LIVE}` with
+      **fallback to the legacy `OE_STRIPE_SECRET_KEY_*`** (current setup keeps working; owner can
+      add platform-named secrets later, and a future tool reuses them). `resolveOeStripe` = OE's
+      mode → platform key. **Verified: liveKeyConfigured still true via fallback; mode still
+      sandbox; guards intact; oe + admin + webhook fns redeployed.**
   - [x] **P7d — Clean test data (DONE 2026-07-22).** Added `deleteBookingHard` (permanent,
     frees seats, audited) + `deleteSubaccountSettings` admin actions + UI ("永久删除" button in
     the booking detail w/ confirm; delete on each settings sub-account row). Owner confirmed the
