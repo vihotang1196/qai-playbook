@@ -653,29 +653,24 @@ serve(async (req) => {
         return json({ status: "confirmed", booking: bookingOut() });
       }
 
-      // ── "My bookings": a customer's own confirmed tickets (scope A) ───────
-      // Identity = location_id (URL) + the email they booked with. The match is
-      // enforced SERVER-SIDE (ghl_location_id + case-insensitive email); a
-      // different email under the same location NEVER appears, so students don't
-      // see each other's tickets. Only `confirmed` rows (real tickets) are
-      // returned — pending/cancelled are hidden.
+      // ── "My bookings": all confirmed tickets for THIS location (team view) ─
+      // A location = one team/company; colleagues who book for each other should
+      // all see "our tickets", so this lists EVERY confirmed booking under the
+      // caller's location_id — no email needed. Scoping is still enforced
+      // SERVER-SIDE by ghl_location_id, so one location NEVER sees another's
+      // tickets. Only `confirmed` rows (real tickets) are returned;
+      // pending/cancelled are hidden. Each row carries its booker email so the
+      // team can tell whose ticket is whose.
       case "listMyBookings": {
         if (!(await hasToolAccess(sb, locationId, TOOL_KEY))) return json({ error: "tool_disabled" }, 403);
-        const email = String(body?.email || "").trim();
-        if (!email || !/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(email)) return json({ error: "email_required" }, 400);
-
-        // Exact, case-insensitive email match: ILIKE with the LIKE wildcards in
-        // the address escaped so it can only match that one address.
-        const escaped = email.replace(/([\\%_])/g, "\\$1");
 
         const { data, error } = await sb
           .from("oe_bookings")
           .select(
-            "booking_id, event_label, free_seats, addon_seats, lunch_qty, total, qr_payload, created_at, oe_events(start_date, end_date, time_slot, theme_zh, theme_en)",
+            "booking_id, email, event_label, free_seats, addon_seats, lunch_qty, total, qr_payload, created_at, oe_events(start_date, end_date, time_slot, theme_zh, theme_en)",
           )
           .eq("ghl_location_id", locationId)
           .eq("status", "confirmed")
-          .ilike("email", escaped)
           .order("created_at", { ascending: false });
         if (error) throw error;
 
@@ -684,6 +679,7 @@ serve(async (req) => {
           const ev = b.oe_events ?? null;
           return {
             booking_id: b.booking_id,
+            email: b.email ?? "",
             event_label: b.event_label,
             start_date: ev?.start_date ?? null,
             end_date: ev?.end_date ?? null,

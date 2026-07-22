@@ -1,14 +1,15 @@
-import { useCallback, useEffect, useState } from "react";
-import { X, Loader2, AlertCircle, CalendarDays, Clock, Ticket, ChevronLeft, QrCode } from "lucide-react";
-import { listMyBookings, getStoredBookingEmail, rememberBookingEmail, type OeMyBooking } from "@/lib/offlineEvent";
+import { useEffect, useState } from "react";
+import { X, Loader2, AlertCircle, CalendarDays, Clock, Ticket, ChevronLeft, QrCode, Mail } from "lucide-react";
+import { listMyBookings, type OeMyBooking } from "@/lib/offlineEvent";
 import { QrTicket } from "@/components/offline-event/QrTicket";
 
 /**
- * "My bookings" — a customer re-finds their own tickets to show the QR at
- * check-in. Scope A: matched SERVER-SIDE by (location_id + email); a different
- * email never appears, so students under one sub-account don't see each other's
- * tickets. The last-booked email is remembered per browser and auto-loaded.
- * Renders as a self-contained modal overlay (no external UI dep).
+ * "My bookings" — the team's tickets for this location. A location is one
+ * team/company, so this lists EVERY confirmed booking under the location_id
+ * (colleagues share; no email step). Scoping is enforced SERVER-SIDE by
+ * location_id — one location never sees another's tickets. Each row shows its
+ * booker email so the team can tell whose ticket is whose; tap → big QR for
+ * check-in. Self-contained modal overlay (no external UI dep).
  */
 export function MyBookings({
   lang,
@@ -19,42 +20,21 @@ export function MyBookings({
   locationId: string;
   onClose: () => void;
 }) {
-  const [email, setEmail] = useState<string>(() => getStoredBookingEmail());
-  const [loading, setLoading] = useState(false);
-  const [searched, setSearched] = useState(false);
+  const [loading, setLoading] = useState(true);
   const [bookings, setBookings] = useState<OeMyBooking[]>([]);
   const [err, setErr] = useState<string | null>(null);
   const [selected, setSelected] = useState<OeMyBooking | null>(null);
 
-  const search = useCallback(
-    async (addr: string) => {
-      const e = addr.trim();
-      if (!/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(e)) {
-        setErr(lang === "cn" ? "请填写有效邮箱" : "Please enter a valid email");
-        return;
-      }
-      setErr(null);
-      setLoading(true);
-      try {
-        const list = await listMyBookings(locationId, e);
-        rememberBookingEmail(e);
-        setBookings(list);
-        setSearched(true);
-      } catch (x) {
-        setErr(x instanceof Error ? x.message : lang === "cn" ? "查询失败" : "Lookup failed");
-      } finally {
-        setLoading(false);
-      }
-    },
-    [locationId, lang],
-  );
-
-  // Auto-load if we already remember an email from a prior booking.
   useEffect(() => {
-    const remembered = getStoredBookingEmail();
-    if (remembered) search(remembered);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+    let active = true;
+    listMyBookings(locationId)
+      .then((list) => active && setBookings(list))
+      .catch((x) => active && setErr(x instanceof Error ? x.message : lang === "cn" ? "加载失败" : "Failed to load"))
+      .finally(() => active && setLoading(false));
+    return () => {
+      active = false;
+    };
+  }, [locationId, lang]);
 
   return (
     <div className="fixed inset-0 z-50 flex items-start justify-center overflow-y-auto bg-black/40 backdrop-blur-sm px-4 py-10">
@@ -101,47 +81,26 @@ export function MyBookings({
             <>
               <p className="text-sm text-muted-foreground mb-3">
                 {lang === "cn"
-                  ? "输入你报名时用的邮箱，查回你的票（只显示你自己的）。"
-                  : "Enter the email you booked with to see your tickets (only your own)."}
+                  ? "本账号（团队）名下的所有报名。点开可看二维码，签到日出示。"
+                  : "All bookings under this account (team). Tap one for its check-in QR."}
               </p>
-              <div className="flex gap-2">
-                <input
-                  type="email"
-                  value={email}
-                  onChange={(e) => setEmail(e.target.value)}
-                  onKeyDown={(e) => e.key === "Enter" && search(email)}
-                  placeholder="you@example.com"
-                  className="flex-1 rounded-xl border border-border/60 bg-background px-3 py-2 text-sm outline-none focus:border-primary"
-                />
-                <button
-                  type="button"
-                  disabled={loading}
-                  onClick={() => search(email)}
-                  className="rounded-xl bg-primary text-primary-foreground text-sm font-bold px-4 shrink-0 disabled:opacity-50 flex items-center gap-1.5"
-                >
-                  {loading ? <Loader2 className="w-4 h-4 animate-spin" /> : null}
-                  {lang === "cn" ? "查询" : "Find"}
-                </button>
-              </div>
 
-              {err && (
-                <div className="mt-3 flex items-start gap-2 text-sm text-destructive">
+              {loading ? (
+                <div className="py-10 flex items-center justify-center text-muted-foreground">
+                  <Loader2 className="w-5 h-5 animate-spin" />
+                </div>
+              ) : err ? (
+                <div className="py-6 flex items-start gap-2 text-sm text-destructive">
                   <AlertCircle className="w-4 h-4 shrink-0 mt-0.5" />
                   <span>{err}</span>
                 </div>
-              )}
-
-              <div className="mt-4 space-y-3">
-                {loading ? (
-                  <div className="py-8 flex items-center justify-center text-muted-foreground">
-                    <Loader2 className="w-5 h-5 animate-spin" />
-                  </div>
-                ) : searched && bookings.length === 0 ? (
-                  <div className="py-8 text-center text-sm text-muted-foreground">
-                    {lang === "cn" ? "这个邮箱下没有找到报名。" : "No bookings found for this email."}
-                  </div>
-                ) : (
-                  bookings.map((b) => {
+              ) : bookings.length === 0 ? (
+                <div className="py-10 text-center text-sm text-muted-foreground">
+                  {lang === "cn" ? "这个账号下还没有报名。" : "No bookings under this account yet."}
+                </div>
+              ) : (
+                <div className="space-y-3">
+                  {bookings.map((b) => {
                     const theme = (lang === "cn" ? b.theme_zh : b.theme_en) || b.event_label;
                     return (
                       <div key={b.booking_id} className="rounded-2xl border border-border/60 p-4">
@@ -158,7 +117,13 @@ export function MyBookings({
                             </span>
                           )}
                         </div>
-                        <p className="mt-2 text-sm">
+                        {b.email && (
+                          <p className="mt-1.5 inline-flex items-center gap-1 text-xs text-muted-foreground">
+                            <Mail className="w-3.5 h-3.5" />
+                            {b.email}
+                          </p>
+                        )}
+                        <p className="mt-1.5 text-sm">
                           {lang === "cn" ? "座位" : "Seats"}: <span className="font-medium">{b.seats.join("、")}</span>
                         </p>
                         <div className="mt-3 flex items-center justify-between">
@@ -174,9 +139,9 @@ export function MyBookings({
                         </div>
                       </div>
                     );
-                  })
-                )}
-              </div>
+                  })}
+                </div>
+              )}
             </>
           )}
         </div>

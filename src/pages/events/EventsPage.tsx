@@ -23,7 +23,6 @@ import {
   getEvent,
   createBooking,
   createCheckout,
-  rememberBookingEmail,
   layoutToSeatGroups,
   type OeContext,
   type OeEvent,
@@ -358,7 +357,6 @@ function EventBooking({
     }
     setSubmitting(true);
     try {
-      rememberBookingEmail(email.trim()); // so "My bookings" can auto-load later
       const input = {
         event_id: event.id,
         email: email.trim(),

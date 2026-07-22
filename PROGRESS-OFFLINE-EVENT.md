@@ -254,21 +254,22 @@ e-ticket+check-in → admin+seat editor → polish.
   ~35min if unpaid). REMAINING: owner runs the full pay test (4242) → pending→confirmed
   + QR; optional: add webhook backstop later.
 - [~] **P6 — E-ticket + QR + check-in.** **CUSTOMER HALF DONE (2026-07-22): "我的报名"
-  / My bookings** — scope A (location_id + email, owner-chosen). `oe` fn `listMyBookings`
-  action: server-side match on `ghl_location_id` + case-insensitive email (ILIKE with
-  LIKE wildcards escaped = exact), returns only `confirmed` rows (pending/cancelled
-  hidden), event dates embedded via `oe_events(...)`, sorted newest event first. Front:
-  `MyBookings.tsx` self-contained modal (no shadcn dep) opened by a "我的报名" header
-  button on /events — email input (auto-loads if a prior booking email is remembered),
-  ticket list → tap → big QR via shared `QrTicket`. Email persisted in localStorage
-  (`oe_booking_email`) on every submit (`rememberBookingEmail`). **Verified:** tsc clean;
-  oe deployed; curl — my-email/my-loc lists the booking, stranger-email→[], other-loc→[],
-  case-insensitive matches, bad email→email_required; browser — button→modal→search→
-  list→QR ("已付款 RM 857.52"), no console errors. Residual (documented): email is
-  unverified identity (someone knowing a location_id + another's email could view their
-  ticket) — harden with an email OTP once email sending is added (decision 1). REMAINING
-  (admin half, next): CheckInScanner (camera → requireAdmin fn → mark day1/day2 attended,
-  idempotent); optional self-check-in.
+  / My bookings — TEAM VIEW (owner changed scope A→team on 2026-07-22).** A location =
+  one team/company, so it lists EVERY confirmed ticket under the location_id (colleagues
+  share; NO email step). `oe` fn `listMyBookings` action: scoped SERVER-SIDE by
+  `ghl_location_id` + status=confirmed only (pending/cancelled hidden), event dates
+  embedded via `oe_events(...)`, newest event first, each row carries its booker `email`
+  so the team can tell tickets apart. Location isolation kept (A company never sees B's).
+  Front: `MyBookings.tsx` self-contained modal (no shadcn dep) opened by a "我的报名"
+  header button on /events — auto-loads the location's tickets on open (no input), each
+  shows theme/date/booker-email/seats/code → tap → big QR via shared `QrTicket`. (Dropped
+  the email input + the `rememberBookingEmail`/`getStoredBookingEmail` helpers.)
+  **Verified:** tsc clean; oe deployed; curl — location lists its confirmed booking (no
+  email arg), other-location→[]; browser — button→modal shows the team ticket
+  (chaishaofeng3@gmail.com, G16 1-4) directly + QR, and a different location shows
+  "没有报名" (isolation); no console errors (the getStoredBookingEmail errors seen mid-
+  edit were stale HMR residue). REMAINING (admin half, next): CheckInScanner (camera →
+  requireAdmin fn → mark day1/day2 attended, idempotent); optional self-check-in.
 - [ ] **P7 — Admin: bookings + event-dates + settings.** List/search/change-date/
   change-seat/archive bookings; event-date CRUD (per-event price); capacity; Stripe
   mode toggle; per-Sub-Account free allowance (reconcile with location_tool_access).
