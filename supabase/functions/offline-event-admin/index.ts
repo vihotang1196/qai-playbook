@@ -16,6 +16,30 @@ import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { corsHeaders, json, serviceClient } from "../_shared/ghl.ts";
 import { requireAdmin } from "../_shared/admin.ts";
 
+// Best-effort audit trail for admin write actions (who changed what, when).
+// Never blocks the action if logging fails.
+// deno-lint-ignore no-explicit-any
+async function logAudit(
+  sb: any,
+  admin: { user_id?: string; email?: string },
+  action: string,
+  detail: Record<string, unknown>,
+  targetLocationId?: string | null,
+) {
+  try {
+    await sb.from("admin_audit_log").insert({
+      admin_user_id: admin?.user_id ?? null,
+      admin_email: admin?.email ?? null,
+      action,
+      target_location_id: targetLocationId ?? null,
+      tool_key: "offline_event",
+      detail,
+    });
+  } catch (e) {
+    console.error("audit log failed:", e);
+  }
+}
+
 serve(async (req) => {
   if (req.method === "OPTIONS") return new Response(null, { headers: corsHeaders });
 
@@ -196,6 +220,111 @@ serve(async (req) => {
         if (!upd) return json({ result: "already", booking: { ...info, checkedInAt: curAt ?? nowIso } });
 
         return json({ result: "ok", booking: { ...info, checkedInAt: nowIso } });
+      }
+
+      // ═══ P7a — Bookings management ═════════════════════════════════════
+
+      // ── List bookings (filters + search + total count) ───────────────────
+      case "listBookings": {
+        const eventId = String(body?.eventId || "").trim();
+        const status = String(body?.status || "").trim();
+        const locId = String(body?.locationId || "").trim();
+        const includeArchived = body?.includeArchived === true;
+        const limit = Math.min(500, Math.max(1, Math.floor(Number(body?.limit) || 200)));
+        // Sanitize search so it can't break the PostgREST or() filter syntax.
+        const search = String(body?.search || "").replace(/[^a-zA-Z0-9@._\- ]/g, "").trim();
+
+        let q = sb
+          .from("oe_bookings")
+          .select(
+            "booking_id, email, phone, event_id, event_label, free_seats, addon_seats, lunch_qty, subtotal, sst_amount, total, status, payment_note, receipt_url, day1_status, day2_status, day1_checked_in_at, day2_checked_in_at, ghl_location_id, is_archived, created_at",
+            { count: "exact" },
+          );
+        if (!includeArchived) q = q.eq("is_archived", false);
+        if (eventId) q = q.eq("event_id", eventId);
+        if (status) q = q.eq("status", status);
+        if (locId) q = q.eq("ghl_location_id", locId);
+        if (search) q = q.or(`booking_id.ilike.%${search}%,email.ilike.%${search}%`);
+        q = q.order("created_at", { ascending: false }).limit(limit);
+
+        const { data, error, count } = await q;
+        if (error) throw error;
+        // deno-lint-ignore no-explicit-any
+        const bookings = (data ?? []).map((b: any) => ({
+          ...b,
+          seats: [...((b.free_seats as string[]) ?? []), ...((b.addon_seats as string[]) ?? [])],
+        }));
+        return json({ bookings, total: count ?? bookings.length });
+      }
+
+      // ── One booking's full detail + its event ────────────────────────────
+      case "getBookingDetail": {
+        const code = String(body?.bookingId || "").trim();
+        if (!code) return json({ error: "booking_required" }, 400);
+        const { data: b, error } = await sb.from("oe_bookings").select("*").eq("booking_id", code).maybeSingle();
+        if (error) throw error;
+        if (!b) return json({ error: "not_found" }, 404);
+        let event = null;
+        if (b.event_id) {
+          const { data: ev } = await sb
+            .from("oe_events")
+            .select(
+              "id, display_label, start_date, end_date, time_slot, price_per_seat, status, floor_plan_id, seat_selection_enabled",
+            )
+            .eq("id", b.event_id)
+            .maybeSingle();
+          event = ev ?? null;
+        }
+        return json({
+          booking: { ...b, seats: [...((b.free_seats as string[]) ?? []), ...((b.addon_seats as string[]) ?? [])] },
+          event,
+        });
+      }
+
+      // ── Cancel a booking (void + free its seats; keep the row) ───────────
+      // Two-action model: cancel frees seats + marks the row cancelled (kept for
+      // history); archive (below) only hides. Idempotent — cancelling twice is safe.
+      case "cancelBooking": {
+        const code = String(body?.bookingId || "").trim();
+        if (!code) return json({ error: "booking_required" }, 400);
+        const { data: b, error } = await sb
+          .from("oe_bookings")
+          .select("id, status, payment_note, ghl_location_id")
+          .eq("booking_id", code)
+          .maybeSingle();
+        if (error) throw error;
+        if (!b) return json({ error: "not_found" }, 404);
+        if (b.status === "cancelled") return json({ ok: true, alreadyCancelled: true });
+
+        // Free the held seats so they become bookable again (keep the booking row).
+        await sb.from("oe_booked_seats").delete().eq("booking_id", b.id);
+        const nowIso = new Date().toISOString();
+        const note = `${b.payment_note ? b.payment_note + " · " : ""}已取消(管理员)`;
+        const { error: upErr } = await sb
+          .from("oe_bookings")
+          .update({ status: "cancelled", payment_note: note, updated_at: nowIso })
+          .eq("id", b.id);
+        if (upErr) throw upErr;
+        await logAudit(sb, admin, "oe_cancel_booking", { booking_id: code, from: b.status }, b.ghl_location_id);
+        return json({ ok: true });
+      }
+
+      // ── Archive / un-archive a booking (hide from the active list) ───────
+      case "archiveBooking": {
+        const code = String(body?.bookingId || "").trim();
+        const archived = body?.archived !== false; // default true
+        if (!code) return json({ error: "booking_required" }, 400);
+        const nowIso = new Date().toISOString();
+        const { data, error } = await sb
+          .from("oe_bookings")
+          .update({ is_archived: archived, archived_at: archived ? nowIso : null, updated_at: nowIso })
+          .eq("booking_id", code)
+          .select("id, ghl_location_id")
+          .maybeSingle();
+        if (error) throw error;
+        if (!data) return json({ error: "not_found" }, 404);
+        await logAudit(sb, admin, "oe_archive_booking", { booking_id: code, archived }, data.ghl_location_id);
+        return json({ ok: true, archived });
       }
 
       default:

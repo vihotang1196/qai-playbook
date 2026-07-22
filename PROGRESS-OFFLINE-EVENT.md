@@ -306,9 +306,42 @@ e-ticket+check-in → admin+seat editor → polish.
   (offline-event files) clean; no console errors. Self-check-in (old app had it) DROPPED for
   now (not needed for MVP; add later if wanted). Note: BK-1QUH-ZB6UPG is now day1=attended
   from the live test (July test data, wiped in P7).
-- [ ] **P7 — Admin: bookings + event-dates + settings.** List/search/change-date/
-  change-seat/archive bookings; event-date CRUD (per-event price); capacity; Stripe
-  mode toggle; per-Sub-Account free allowance (reconcile with location_tool_access).
+- [~] **P7 — Admin: bookings + event-dates + settings (IN PROGRESS).** Split into
+  sub-blocks (owner-approved 2026-07-22), each its own commit:
+  - [x] **P7a — Bookings list/search/detail + cancel + archive (DONE 2026-07-22).**
+    `offline-event-admin` fn: `listBookings` (filters event/status/location + BK-code/email
+    search, sanitized against PostgREST or()-injection, + exact count), `getBookingDetail`
+    (+ its event), `cancelBooking` (status→cancelled + DELETE its `oe_booked_seats` = frees
+    the seat + free-allowance, keeps row; note appended, idempotent), `archiveBooking`
+    (toggle is_archived, hidden from default list). Light audit → `admin_audit_log`
+    (oe_cancel_booking / oe_archive_booking). Frontend `Bookings.tsx` (filters + search +
+    table + detail modal w/ QR via shared `QrTicket lang="cn"`, payment note, check-in
+    times, Stripe receipt link) replaces the OEBookings placeholder; App.tsx rewired.
+    **Two-action model (owner):** cancel frees seat + keeps as "已取消"; archive only hides.
+    **Verified live** (owner admin session): 6 test bookings list + filters; detail shows
+    BK-1QUH-ZB6UPG w/ "Stripe 857.52 MYR" + "Day 1 已到 02:28 PM" + QR; cancelled BK-RLUU →
+    seat **G14 Seat 1 confirmed released** from Sept seat map; archived → list 6→5 + toggle
+    to 取消归档; lazy stale-pending sweep observed auto-cancelling an old unpaid P5 hold
+    (BK-NSKG); tsc (oe files) + no console errors. (Deferred to P7d cleanup: these test
+    rows.)
+  - [ ] **P7a-2 — Manual add-ticket + change-seat + change-date.** Owner: change-seat/date
+    = **same seat count, money untouched** (change count/price → cancel+rebook). PLUS
+    **manual add-ticket** (owner ask: some pay via 3rd party → admin creates a confirmed
+    booking directly, seats→addon so no free-allowance spend, manual payment note, atomic
+    claim). New additive RPCs `oe_reassign_seats` (same event) + `oe_move_booking_seats`
+    (cross event) — delete-old+insert-new in ONE txn, rollback on collision (old seats
+    retained; sibling of `oe_claim_seats`, doesn't touch it). Keep booking_id stable so the
+    customer's existing QR still scans.
+  - [ ] **P7b — Event-date CRUD.** create/update/delete (per-event price, capacity, status
+    live/display/off, floor plan, seat_selection, theme/notice); block delete when bookings
+    exist (force off/archive).
+  - [ ] **P7c — Settings.** Stripe mode toggle (server reads oe_settings.stripe_payment_mode
+    at booking time → flip = next order uses that mode; strong confirm + live-key precheck +
+    warn if pending in flight + prominent mode badge) · SST · lunch price · max seats ·
+    free allowance (global default + per-subaccount overrides).
+  - [ ] **P7d — Clean test data.** List all current (all test) → owner confirms → hard-delete
+    the specific rows (cascades booked_seats) + test-location subaccount_settings; Overview
+    → 0.
 - [ ] **P8 — Admin: floor-plan visual editor.** Full drag-drop `FloorPlanEditor`
   (add/remove tables, cluster 4 / long 6, disabled seats, rows/cols, stage/door);
   floor-plan CRUD + set default + link to events; recompute `physical_seats` on save.

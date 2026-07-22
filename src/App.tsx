@@ -31,8 +31,8 @@ import AdminAudit from "./pages/admin/AdminAudit";
 import OfflineEventAdminShell from "./components/offline-event/OfflineEventAdminShell";
 import OEOverview from "./pages/admin/offline-event/Overview";
 import OECheckIn from "./pages/admin/offline-event/CheckIn";
+import OEBookings from "./pages/admin/offline-event/Bookings";
 import {
-  OEBookings,
   OEEventDates,
   OEFloorPlans,
   OESettings,

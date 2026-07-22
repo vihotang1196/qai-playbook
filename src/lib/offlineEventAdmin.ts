@@ -108,3 +108,75 @@ export type OeCheckinResult = {
 export async function checkIn(bookingId: string, eventId: string, day: 1 | 2): Promise<OeCheckinResult> {
   return await callOeAdmin<OeCheckinResult>("checkIn", { bookingId, eventId, day });
 }
+
+// ── P7a bookings management ─────────────────────────────────────────────────
+
+export type OeBookingStatus = "pending" | "confirmed" | "cancelled";
+export type OeDayStatus = "pending" | "attended" | "not_attending";
+
+export type OeBookingRow = {
+  booking_id: string;
+  email: string;
+  phone: string;
+  event_id: string | null;
+  event_label: string;
+  free_seats: string[];
+  addon_seats: string[];
+  seats: string[];
+  lunch_qty: number;
+  subtotal: number | null;
+  sst_amount: number | null;
+  total: number;
+  status: OeBookingStatus;
+  payment_note: string | null;
+  receipt_url: string | null;
+  day1_status: OeDayStatus;
+  day2_status: OeDayStatus;
+  day1_checked_in_at: string | null;
+  day2_checked_in_at: string | null;
+  ghl_location_id: string | null;
+  is_archived: boolean;
+  created_at: string;
+};
+
+export type ListBookingsParams = {
+  eventId?: string;
+  status?: OeBookingStatus | "";
+  locationId?: string;
+  search?: string;
+  includeArchived?: boolean;
+  limit?: number;
+};
+
+/** List bookings with filters + free-text search (by BK code / email) + total. */
+export async function listBookings(params: ListBookingsParams = {}): Promise<{ bookings: OeBookingRow[]; total: number }> {
+  return await callOeAdmin<{ bookings: OeBookingRow[]; total: number }>("listBookings", params);
+}
+
+export type OeBookingDetail = OeBookingRow & { qr_payload: string; archived_at: string | null; created_by: string | null };
+export type OeBookingEvent = {
+  id: string;
+  display_label: string;
+  start_date: string;
+  end_date: string;
+  time_slot: string;
+  price_per_seat: number;
+  status: string;
+  floor_plan_id: string | null;
+  seat_selection_enabled: boolean;
+} | null;
+
+/** Full detail for one booking + its event. */
+export async function getBookingDetail(bookingId: string): Promise<{ booking: OeBookingDetail; event: OeBookingEvent }> {
+  return await callOeAdmin<{ booking: OeBookingDetail; event: OeBookingEvent }>("getBookingDetail", { bookingId });
+}
+
+/** Cancel (void + free seats, keep row as cancelled). Idempotent. */
+export async function cancelBooking(bookingId: string): Promise<{ ok: boolean; alreadyCancelled?: boolean }> {
+  return await callOeAdmin<{ ok: boolean; alreadyCancelled?: boolean }>("cancelBooking", { bookingId });
+}
+
+/** Archive / un-archive (hide from the active list). */
+export async function archiveBooking(bookingId: string, archived = true): Promise<{ ok: boolean; archived: boolean }> {
+  return await callOeAdmin<{ ok: boolean; archived: boolean }>("archiveBooking", { bookingId, archived });
+}

@@ -1,12 +1,11 @@
 /**
  * Offline Event admin — placeholder sections.
  *
- * Overview is a real page (P2, Overview.tsx); CheckIn is a real page (P6,
- * CheckIn.tsx). The rest become real pages in later phases:
- *   - Bookings   → P7 (list/search/change/archive)
- *   - EventDates → P7 (CRUD event dates + per-event price)
+ * Real pages so far: Overview (P2), CheckIn (P6), Bookings (P7a). The rest
+ * become real pages in later phases:
+ *   - EventDates → P7b (CRUD event dates + per-event price)
  *   - FloorPlans → P8 (visual drag-drop floor-plan editor)
- *   - Settings   → P7 (Stripe mode, SST, lunch price, per-subaccount free allowance)
+ *   - Settings   → P7c (Stripe mode, SST, lunch price, per-subaccount free allowance)
  */
 import type { ReactNode } from "react";
 
@@ -22,9 +21,6 @@ function Placeholder({ title, desc, phase }: { title: string; desc: string; phas
   );
 }
 
-export function OEBookings(): ReactNode {
-  return <Placeholder title="报名管理" desc="查看/搜索报名、改期、改座位、归档。" phase="P7" />;
-}
 export function OEEventDates(): ReactNode {
   return <Placeholder title="活动日期" desc="新建/编辑活动日期，每场可单独设票价。" phase="P7" />;
 }
