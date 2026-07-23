@@ -1,6 +1,6 @@
 import { useEffect } from "react";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { BrowserRouter, Route, Routes, useLocation } from "react-router-dom";
+import { BrowserRouter, Route, Routes, useLocation, useNavigate } from "react-router-dom";
 import { Toaster as Sonner } from "@/components/ui/sonner";
 import { Toaster } from "@/components/ui/toaster";
 import { TooltipProvider } from "@/components/ui/tooltip";
@@ -37,7 +37,7 @@ import OESettings from "./pages/admin/offline-event/Settings";
 import OEFloorPlans from "./pages/admin/offline-event/FloorPlans";
 import EventsPage from "./pages/events/EventsPage";
 import CheckoutReturn from "./pages/checkout/Return";
-import { rememberLocationId } from "@/lib/ghl";
+import { rememberLocationId, resolveLocationId, getDefaultPage } from "@/lib/ghl";
 
 const ScrollToTop = () => {
   const { pathname } = useLocation();
@@ -54,6 +54,51 @@ const LocationIdKeeper = () => {
   return null;
 };
 
+// Need 1 — per-sub-account default landing page. The agency-wide fallback used
+// when a sub-account never set one.
+// TEMPORARY: "/" (homepage) on this branch because /help (Helpdesk) isn't routed
+// here yet. TODO: change to "/help" once Helpdesk merges to main — the owner's
+// chosen fallback is Helpdesk.
+const DEFAULT_FALLBACK_PATH = "/";
+
+// Module-level guard: React StrictMode double-mounts the effect, so this stops a
+// double-fire. It resets on a full page reload (so REOPENING Playbook re-applies
+// the default), and the effect runs only ONCE on mount (never on in-app
+// navigation), so it can never hijack a manual return to "/".
+let entryRedirectHandled = false;
+
+/**
+ * On Playbook ENTRY, send a sub-account to its chosen default page. Three safety
+ * rails (owner-required): (1) only acts at the ROOT path "/", never on a direct
+ * tool page like /events or /help; (2) only when a GHL location_id is present
+ * (public visitors untouched); (3) no loop — runs once, and never navigates to
+ * the page you're already on. Falls back to DEFAULT_FALLBACK_PATH when unset.
+ */
+const DefaultPageRedirect = () => {
+  const navigate = useNavigate();
+  const { pathname, search } = useLocation();
+  useEffect(() => {
+    if (entryRedirectHandled) return;
+    if (pathname !== "/") return; // Rail 1/2: only the root entry — don't hijack a direct tool page
+    const locId = resolveLocationId(pathname, search);
+    if (!locId) return; // Rail 3: no location_id → leave public visitors alone
+    entryRedirectHandled = true;
+    getDefaultPage(locId)
+      .then((saved) => {
+        const target = saved || DEFAULT_FALLBACK_PATH;
+        if (!target || target === "/" || target === pathname) return; // Rail 4: never self-redirect / loop
+        const sep = target.includes("?") ? "&" : "?";
+        navigate(`${target}${sep}location_id=${encodeURIComponent(locId)}`, { replace: true });
+      })
+      .catch(() => {
+        /* fail-safe: stay on the homepage */
+      });
+    // run once on mount only
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+  return null;
+};
+
 const queryClient = new QueryClient();
 
 const App = () => (
@@ -65,6 +110,7 @@ const App = () => (
         <BrowserRouter>
           <ScrollToTop />
           <LocationIdKeeper />
+          <DefaultPageRedirect />
           <Routes>
             {/* Review Boost public customer flow — full-screen, mobile-first,
                 intentionally OUTSIDE the shared Layout (no site navbar/footer). */}

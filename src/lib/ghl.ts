@@ -146,6 +146,29 @@ export async function fetchLocation(locationId: string): Promise<GhlLocation | n
   return location;
 }
 
+// ── Per-sub-account default landing page (Need 1) ───────────────────────────
+// Stored server-side keyed by location_id (pb_subaccount_prefs), so it's shared
+// across everyone in the sub-account (not per-device). Read on Playbook entry to
+// redirect; written by the navbar "set default page" button.
+
+/** This sub-account's chosen default page path, or null if none set.
+ *  Fail-safe: returns null on any error (→ caller falls back / no redirect). */
+export async function getDefaultPage(locationId: string): Promise<string | null> {
+  if (!locationId) return null;
+  try {
+    const { default_path } = await callGhl<{ default_path: string | null }>("getSubaccountPrefs", { locationId });
+    return default_path ?? null;
+  } catch {
+    return null;
+  }
+}
+
+/** Set (or clear, when path is "") this sub-account's default page. Throws on failure. */
+export async function setDefaultPage(locationId: string, path: string): Promise<void> {
+  if (!locationId) return;
+  await callGhl("setSubaccountPrefs", { locationId, default_path: path });
+}
+
 // Agency-only operations (list ALL sub-accounts, toggle access, trigger sync)
 // are intentionally NOT here — the customer app must not be able to call them.
 // They move to the authenticated Admin Portal (real login + admin check).

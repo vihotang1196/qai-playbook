@@ -1,10 +1,11 @@
 import { useState } from "react";
 import { useLocation, useNavigate } from "react-router-dom";
 import { Button } from "@/components/ui/button";
-import { Menu, X, ChevronDown, ChevronRight } from "lucide-react";
+import { Menu, X, ChevronDown, ChevronRight, Pin } from "lucide-react";
+import { toast } from "sonner";
 import { useLang } from "@/i18n/LanguageContext";
 import { t } from "@/i18n/translations";
-import { resolveLocationId } from "@/lib/ghl";
+import { resolveLocationId, setDefaultPage } from "@/lib/ghl";
 import logo from "@/assets/logo.png";
 import QuickLinkPopout from "./QuickLinkPopout";
 import {
@@ -82,6 +83,18 @@ const Navbar = () => {
     if (!isHome) {
       e.preventDefault();
       navigate("/" + link.href);
+    }
+  };
+
+  // Need 1 — set the CURRENT page as this sub-account's default landing page
+  // (stored per location_id server-side). Shown only in a sub-account context.
+  const setAsDefault = async () => {
+    if (!locId) return;
+    try {
+      await setDefaultPage(locId, location.pathname);
+      toast.success(lang === "cn" ? "已设为默认打开页" : "Set as your default page");
+    } catch {
+      toast.error(lang === "cn" ? "设置失败，请重试" : "Couldn't save, try again");
     }
   };
 
@@ -191,6 +204,17 @@ const Navbar = () => {
               </div>
             </HoverCardContent>
           </HoverCard>
+          {locId && (
+            <button
+              type="button"
+              onClick={setAsDefault}
+              title={lang === "cn" ? "把当前页设为打开 Playbook 的默认页" : "Set this page as your default landing page"}
+              className="flex items-center gap-1 text-sm text-muted-foreground hover:text-foreground transition-colors duration-300 px-1"
+            >
+              <Pin size={14} />
+              {lang === "cn" ? "设为默认" : "Set default"}
+            </button>
+          )}
           <Button
             variant="outline"
             size="sm"
@@ -278,6 +302,19 @@ const Navbar = () => {
               </a>
             ))}
           </div>
+
+          {locId && (
+            <div className="pt-3 border-t border-border">
+              <button
+                type="button"
+                onClick={() => { setAsDefault(); setMobileOpen(false); }}
+                className="flex items-center gap-1.5 text-sm text-foreground hover:text-accent-foreground py-1.5 transition-colors"
+              >
+                <Pin size={14} />
+                {lang === "cn" ? "把当前页设为默认打开页" : "Set this page as default"}
+              </button>
+            </div>
+          )}
 
           <div className="flex items-center gap-2 pt-2">
             <Button

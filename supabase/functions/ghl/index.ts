@@ -27,6 +27,45 @@ serve(async (req) => {
         const location = await getLocation(sb, String(body?.locationId || ""));
         return json({ location });
       }
+
+      // ── Per-sub-account preferences (tool-neutral, pb_subaccount_prefs) ──
+      // The customer reads / sets ITS OWN default landing page (keyed by the
+      // location_id it already has). Low-stakes UI preference; trust-the-URL.
+      case "getSubaccountPrefs": {
+        const id = String(body?.locationId || "").trim();
+        if (!id) return json({ error: "location_required" }, 400);
+        const { data } = await sb
+          .from("pb_subaccount_prefs")
+          .select("default_path")
+          .eq("location_id", id)
+          .maybeSingle();
+        return json({ default_path: (data?.default_path as string) ?? null });
+      }
+      case "setSubaccountPrefs": {
+        const id = String(body?.locationId || "").trim();
+        if (!id) return json({ error: "location_required" }, 400);
+        const raw = body?.default_path;
+        const path = raw == null ? "" : String(raw).trim();
+        // Empty → clear the override (revert to the system fallback).
+        if (path === "") {
+          await sb.from("pb_subaccount_prefs").delete().eq("location_id", id);
+          return json({ ok: true, cleared: true });
+        }
+        // Only accept a safe in-app relative path (open-redirect hygiene): must
+        // start with a single "/", no protocol-relative "//", bounded length.
+        if (!path.startsWith("/") || path.startsWith("//") || path.length > 200) {
+          return json({ error: "invalid_path" }, 400);
+        }
+        const { error } = await sb
+          .from("pb_subaccount_prefs")
+          .upsert(
+            { location_id: id, default_path: path, updated_at: new Date().toISOString() },
+            { onConflict: "location_id" },
+          );
+        if (error) throw error;
+        return json({ ok: true });
+      }
+
       // NOTE: no listLocations / setEnabled here — those are agency-only and
       // must go through the authenticated Admin Portal, never this public fn.
       default:
