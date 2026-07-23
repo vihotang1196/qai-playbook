@@ -1,15 +1,19 @@
-import { useEffect, useState, useCallback } from "react";
+import { useEffect, useState, useCallback, useRef } from "react";
+import { createPortal } from "react-dom";
 import {
   CalendarDays,
   Clock,
   Ticket,
   Loader2,
   AlertCircle,
+  AlertTriangle,
   Check,
   Copy,
   ChevronDown,
   Minus,
   Plus,
+  ArrowLeft,
+  Utensils,
 } from "lucide-react";
 import { toast } from "sonner";
 import { useLang } from "@/i18n/LanguageContext";
@@ -297,6 +301,17 @@ function EventBooking({
   const [submitting, setSubmitting] = useState(false);
   const [done, setDone] = useState<OeBooking | null>(null);
 
+  // Stepped flow (matches the old app): selecting → addons → summary, all on the
+  // same page (no route change), scrolling to the active step on each change.
+  const [phase, setPhase] = useState<"selecting" | "addons" | "summary">("selecting");
+  const [lunchChoice, setLunchChoice] = useState<"yes" | "no" | null>(null);
+  const [acknowledged, setAcknowledged] = useState(false);
+  const [emailError, setEmailError] = useState<string | null>(null);
+  const [policyError, setPolicyError] = useState<string | null>(null);
+  const [mismatchOpen, setMismatchOpen] = useState(false);
+  const rootRef = useRef<HTMLDivElement>(null);
+  const firstPhase = useRef(true);
+
   const maxSeats = ctx.settings?.maxSeats ?? 4;
   const lunchPrice = ctx.settings?.lunchPrice ?? 39.99;
   const sstRate = ctx.settings?.sstRate ?? 0.08;
@@ -349,15 +364,28 @@ function EventBooking({
   const sst = subtotal > 0 ? Math.round(subtotal * sstRate * 100) / 100 : 0;
   const total = Math.round((subtotal + sst) * 100) / 100;
 
-  async function submit() {
-    if (seatCount < 1) {
-      toast.error(lang === "cn" ? "请先选座" : "Please select a seat");
+  // Lunch can never exceed the seat count (seats may shrink if the user goes back
+  // and deselects). Keep it clamped.
+  useEffect(() => {
+    setLunchQty((q) => Math.min(q, Math.max(0, seatCount)));
+  }, [seatCount]);
+
+  // Smooth-scroll to the active step on each step change (skip first mount).
+  useEffect(() => {
+    if (firstPhase.current) {
+      firstPhase.current = false;
       return;
     }
-    if (!/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(email.trim())) {
-      toast.error(lang === "cn" ? "请填写有效邮箱" : "Please enter a valid email");
-      return;
-    }
+    rootRef.current?.scrollIntoView({ behavior: "smooth", block: "start" });
+  }, [phase]);
+
+  const emailValid = (v: string) => /^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(v.trim());
+
+  // The actual booking call. Server decides free vs paid (authoritative);
+  // free → confirmed here, paid → Stripe hosted checkout redirect. Untouched
+  // from the pre-step flow except that a seat clash sends the user back to step 1.
+  async function doBooking() {
+    if (seatCount < 1) return;
     setSubmitting(true);
     try {
       const input = {
@@ -367,8 +395,6 @@ function EventBooking({
         quantity: seatSelection ? undefined : qty,
         lunch_qty: lunchQty,
       };
-      // Server decides free vs paid (authoritative). Free → confirmed here;
-      // paid → open a Stripe hosted-Checkout session and redirect to it.
       const res = await createBooking(locationId, input);
       if ("ok" in res && res.ok) {
         setDone(res.booking);
@@ -384,6 +410,7 @@ function EventBooking({
       if (msg === "seats_unavailable") {
         toast.error(lang === "cn" ? "所选座位刚被订走，请重新选择" : "Those seats were just taken — please pick again");
         setSelected([]);
+        setPhase("selecting");
         loadMap();
         onBooked();
       } else if (msg === "too_many_seats") {
@@ -396,6 +423,56 @@ function EventBooking({
     }
   }
 
+  // Final gate before booking/payment (matches the old app): the email must be
+  // valid AND the no-refund policy must be acknowledged — either failing blocks
+  // submission, shows the error inline, and nothing is sent (never reaches Stripe).
+  const handleSubmit = () => {
+    let ok = true;
+    if (!emailValid(email)) {
+      setEmailError(lang === "cn" ? "请填写有效邮箱" : "Please enter a valid email");
+      ok = false;
+    } else {
+      setEmailError(null);
+    }
+    if (!acknowledged) {
+      setPolicyError(lang === "cn" ? "请勾选同意不退款政策" : "Please agree to the no-refund policy");
+      ok = false;
+    } else {
+      setPolicyError(null);
+    }
+    if (seatCount < 1) {
+      toast.error(lang === "cn" ? "请先选座" : "Please select a seat");
+      ok = false;
+    }
+    if (!ok) return;
+    doBooking();
+  };
+
+  // ── Step transitions (selecting → addons → summary) ──
+  const goToAddons = () => {
+    if (seatCount < 1) {
+      toast.error(lang === "cn" ? "请先选座" : "Please select a seat");
+      return;
+    }
+    setPhase("addons");
+  };
+  const chooseLunch = (choice: "yes" | "no") => {
+    setLunchChoice(choice);
+    if (choice === "no") {
+      setLunchQty(0);
+      setPhase("summary");
+    } else {
+      setLunchQty((q) => (q > 0 ? q : Math.max(1, seatCount)));
+    }
+  };
+  const confirmAddons = () => {
+    if (lunchQty !== seatCount) {
+      setMismatchOpen(true);
+      return;
+    }
+    setPhase("summary");
+  };
+
   // Return from the success ticket to the event list: clear this event's form
   // state, then collapse the card (onExit) so the customer sees the full list.
   const handleBack = () => {
@@ -403,100 +480,229 @@ function EventBooking({
     setSelected([]);
     setLunchQty(0);
     setEmail("");
+    setPhase("selecting");
+    setLunchChoice(null);
+    setAcknowledged(false);
     onExit?.();
   };
 
   // ── Success (free booking confirmed) ──
   if (done) return <QrTicket lang={lang} booking={done} paid={false} onBack={handleBack} />;
 
-  // ── Booking form (seat select + lunch + email) ──
+  // Seat area — interactive seat map, or an attendee stepper when seat selection
+  // is off. Reused read-only for display/closed events. (SeatMap itself is
+  // untouched; we only change the flow around it.)
+  const seatArea = (interactive: boolean) =>
+    !seatSelection ? (
+      <div className="glass-card rounded-2xl p-5">
+        <p className="text-sm font-medium mb-2">{lang === "cn" ? "出席人数" : "Attendees"}</p>
+        <Stepper value={qty} min={1} max={cap} onChange={setQty} disabled={!interactive} />
+      </div>
+    ) : mapState.kind === "loading" ? (
+      <div className="glass-card rounded-2xl p-10 flex items-center justify-center text-muted-foreground"><Loader2 className="w-5 h-5 animate-spin" /></div>
+    ) : mapState.kind === "error" ? (
+      <div className="glass-card rounded-2xl p-6 flex items-start gap-3"><AlertCircle className="w-5 h-5 text-destructive shrink-0 mt-0.5" /><p className="text-sm text-muted-foreground">{mapState.msg}</p></div>
+    ) : mapState.kind === "noplan" ? (
+      <div className="glass-card rounded-2xl p-6 text-center text-sm text-muted-foreground">{lang === "cn" ? "本场暂未设置座位图。" : "No seat map configured yet."}</div>
+    ) : (
+      <SeatMap
+        seatGroups={mapState.groups}
+        selectedSeatIds={interactive ? selected.map((s) => s.id) : []}
+        selectedGroupId={null}
+        onToggleSeat={toggleSeat}
+        warning={null}
+        maxSelectable={cap}
+        columns={mapState.layout.columns}
+        rows={mapState.layout.rows}
+        door={mapState.layout.door}
+        doorPos={mapState.layout.doorPos}
+        stage={mapState.layout.stage}
+        stagePosition={mapState.layout.stagePosition}
+        divider={mapState.layout.divider}
+        readOnly={!interactive}
+      />
+    );
+
+  // ── Display-only / closed events: read-only map, no booking flow, no bar ──
+  if (readOnly) {
+    return <div ref={rootRef} className="space-y-3">{seatArea(false)}</div>;
+  }
+
+  const splitText =
+    freeUsed > 0 || paidSeats > 0
+      ? `${lang === "cn" ? "免费" : "free"} ${freeUsed}${paidSeats > 0 ? ` · ${lang === "cn" ? "付费" : "paid"} ${paidSeats}` : ""}`
+      : "";
+
   return (
-    <div className="space-y-4">
-      {seatSelection ? (
-        mapState.kind === "loading" ? (
-          <div className="glass-card rounded-2xl p-10 flex items-center justify-center text-muted-foreground"><Loader2 className="w-5 h-5 animate-spin" /></div>
-        ) : mapState.kind === "error" ? (
-          <div className="glass-card rounded-2xl p-6 flex items-start gap-3"><AlertCircle className="w-5 h-5 text-destructive shrink-0 mt-0.5" /><p className="text-sm text-muted-foreground">{mapState.msg}</p></div>
-        ) : mapState.kind === "noplan" ? (
-          <div className="glass-card rounded-2xl p-6 text-center text-sm text-muted-foreground">{lang === "cn" ? "本场暂未设置座位图。" : "No seat map configured yet."}</div>
-        ) : (
-          <SeatMap
-            seatGroups={mapState.groups}
-            selectedSeatIds={selected.map((s) => s.id)}
-            selectedGroupId={null}
-            onToggleSeat={toggleSeat}
-            warning={null}
-            maxSelectable={cap}
-            columns={mapState.layout.columns}
-            rows={mapState.layout.rows}
-            door={mapState.layout.door}
-            doorPos={mapState.layout.doorPos}
-            stage={mapState.layout.stage}
-            stagePosition={mapState.layout.stagePosition}
-            divider={mapState.layout.divider}
-            readOnly={readOnly}
-          />
-        )
-      ) : (
-        <div className="glass-card rounded-2xl p-5">
-          <p className="text-sm font-medium mb-2">{lang === "cn" ? "出席人数" : "Attendees"}</p>
-          <Stepper value={qty} min={1} max={cap} onChange={setQty} disabled={readOnly} />
+    <div ref={rootRef} className="space-y-4">
+      {/* ── Step 1: select seats (+ fixed bottom confirm bar) ── */}
+      {phase === "selecting" && (
+        <>
+          <div className="pb-32">{seatArea(true)}</div>
+
+          {createPortal(
+            <div className="fixed bottom-0 left-0 right-0 z-40 px-3 sm:px-4 pb-4 pointer-events-none">
+            <div className="max-w-4xl mx-auto pointer-events-auto">
+              {freeRemaining > 0 && (
+                <div className="mb-2 flex justify-center">
+                  <span className="inline-flex items-center gap-1 rounded-full bg-background/95 backdrop-blur text-primary text-xs font-bold px-3 py-1 shadow border border-primary/20">
+                    <Ticket className="w-3.5 h-3.5" />
+                    {lang === "cn" ? `剩余 ${freeRemaining} 张免费门票` : `${freeRemaining} free ticket${freeRemaining === 1 ? "" : "s"} left`}
+                  </span>
+                </div>
+              )}
+              <div className="rounded-2xl shadow-xl border border-border/60 bg-background/95 backdrop-blur px-4 py-3 flex items-center gap-3">
+                <div className="min-w-0 flex-1">
+                  <p className="text-sm font-bold">
+                    {seatSelection
+                      ? lang === "cn" ? `已选 ${seatCount} 个座位` : `${seatCount} seat${seatCount === 1 ? "" : "s"} selected`
+                      : lang === "cn" ? `${seatCount} 位出席` : `${seatCount} attendee${seatCount === 1 ? "" : "s"}`}
+                  </p>
+                  <p className="text-[11px] text-muted-foreground truncate">
+                    {seatSelection && selected.length > 0 ? `${selected.map((s) => s.label).join("、")}${splitText ? " · " : ""}` : ""}
+                    {splitText}
+                  </p>
+                </div>
+                <p className="text-sm font-bold tabular-nums shrink-0">{total > 0 ? `RM ${total.toFixed(2)}` : lang === "cn" ? "免费" : "Free"}</p>
+                <button
+                  type="button"
+                  onClick={goToAddons}
+                  disabled={seatCount < 1}
+                  className="shrink-0 h-10 px-4 rounded-full bg-primary text-primary-foreground text-sm font-bold disabled:opacity-40"
+                >
+                  {lang === "cn" ? `确认 — ${seatCount} 张票` : `Confirm — ${seatCount}`}
+                </button>
+              </div>
+            </div>
+            </div>,
+            document.body,
+          )}
+        </>
+      )}
+
+      {/* ── Step 2: lunch add-on ── */}
+      {phase === "addons" && (
+        <div className="space-y-3">
+          <button type="button" onClick={() => setPhase("selecting")} className="inline-flex items-center gap-1 text-sm text-muted-foreground hover:text-foreground">
+            <ArrowLeft className="w-4 h-4" /> {lang === "cn" ? "上一步 · 改座位" : "Back · edit seats"}
+          </button>
+          <div className="glass-card rounded-2xl p-5 space-y-3">
+            <div className="flex items-start gap-2">
+              <Utensils className="w-5 h-5 text-primary mt-0.5 shrink-0" />
+              <div>
+                <p className="font-medium">{lang === "cn" ? "需要加购午餐吗？" : "Would you like to add lunch?"}</p>
+                <p className="text-xs text-muted-foreground">RM {lunchPrice.toFixed(2)} / {lang === "cn" ? "份（含两天午餐）" : "set (both days' lunch)"}</p>
+              </div>
+            </div>
+            <div className="flex items-center gap-2 rounded-xl bg-destructive/10 text-destructive px-3 py-2 text-sm font-medium">
+              <AlertTriangle className="w-4 h-4 shrink-0" />
+              {lang === "cn" ? "注意：午餐不适合素食者。" : "Note: Lunch is not suitable for vegetarians."}
+            </div>
+            <div className="grid grid-cols-2 gap-2">
+              <button type="button" onClick={() => chooseLunch("no")} className={`h-11 rounded-xl border text-sm font-medium transition-colors ${lunchChoice === "no" ? "border-primary bg-primary/5 text-primary" : "border-border/60 hover:bg-muted/40"}`}>
+                {lang === "cn" ? "不用了" : "No thanks"}
+              </button>
+              <button type="button" onClick={() => chooseLunch("yes")} className={`h-11 rounded-xl border text-sm font-medium transition-colors ${lunchChoice === "yes" ? "border-primary bg-primary/5 text-primary" : "border-border/60 hover:bg-muted/40"}`}>
+                {lang === "cn" ? "要加购" : "Add lunch"}
+              </button>
+            </div>
+            {lunchChoice === "yes" && (
+              <div className="space-y-3 pt-1">
+                <div className="flex items-center justify-between">
+                  <p className="text-sm font-medium">{lang === "cn" ? "午餐份数" : "Lunch sets"}</p>
+                  <Stepper value={lunchQty} min={1} max={Math.max(1, seatCount)} onChange={setLunchQty} />
+                </div>
+                <button type="button" onClick={confirmAddons} className="w-full h-11 rounded-full bg-primary text-primary-foreground text-sm font-bold">
+                  {lang === "cn" ? `确认加购 × ${lunchQty}` : `Confirm × ${lunchQty}`}
+                </button>
+              </div>
+            )}
+          </div>
         </div>
       )}
 
-      {!readOnly && (
-        <>
-          {/* Lunch add-on */}
-          <div className="glass-card rounded-2xl p-4 flex items-center justify-between gap-3">
-            <div>
-              <p className="text-sm font-medium">{lang === "cn" ? "午餐加购（可选）" : "Lunch add-on (optional)"}</p>
-              <p className="text-xs text-muted-foreground">RM {lunchPrice.toFixed(2)} / {lang === "cn" ? "份" : "set"}</p>
-            </div>
-            <Stepper value={lunchQty} min={0} max={Math.max(seatCount, 0) || 4} onChange={setLunchQty} />
-          </div>
-
-          {/* Selected + email + price */}
+      {/* ── Step 3: order summary (email + mandatory no-refund gate) ── */}
+      {phase === "summary" && (
+        <div className="space-y-3">
+          <button type="button" onClick={() => setPhase("addons")} className="inline-flex items-center gap-1 text-sm text-muted-foreground hover:text-foreground">
+            <ArrowLeft className="w-4 h-4" /> {lang === "cn" ? "上一步 · 改午餐" : "Back · edit lunch"}
+          </button>
           <div className="glass-card rounded-2xl p-5 space-y-3">
+            <p className="font-display font-bold">{lang === "cn" ? "订单摘要" : "Order summary"}</p>
             {seatSelection && (
               <p className="text-sm">
-                {lang === "cn" ? "已选座位" : "Selected"}: {selected.length ? <span className="font-medium">{selected.map((s) => s.label).join("、")}</span> : <span className="text-muted-foreground">{lang === "cn" ? "（请在上方选座）" : "(pick seats above)"}</span>}
+                {lang === "cn" ? "座位" : "Seats"}: <span className="font-medium">{selected.map((s) => s.label).join("、") || "—"}</span>
               </p>
             )}
-            <div>
-              <label className="text-sm font-medium">{lang === "cn" ? "邮箱" : "Email"}</label>
-              <input
-                type="email"
-                value={email}
-                onChange={(e) => setEmail(e.target.value)}
-                placeholder="you@example.com"
-                className="mt-1 w-full rounded-xl border border-border/60 bg-background px-3 py-2 text-sm outline-none focus:border-primary"
-              />
-            </div>
-
-            <div className="text-sm space-y-1 pt-1">
+            <div className="text-sm space-y-1">
               <Row l={lang === "cn" ? "座位" : "Seats"} r={`${seatCount}${freeUsed > 0 ? `（${lang === "cn" ? "免费" : "free"} ${freeUsed}${paidSeats > 0 ? ` · ${lang === "cn" ? "付费" : "paid"} ${paidSeats}` : ""}）` : ""}`} />
               {lunchQty > 0 && <Row l={lang === "cn" ? "午餐" : "Lunch"} r={`${lunchQty} × RM ${lunchPrice.toFixed(2)}`} />}
               {total > 0 && <Row l="SST 8%" r={`RM ${sst.toFixed(2)}`} />}
               <Row l={lang === "cn" ? "合计" : "Total"} r={total > 0 ? `RM ${total.toFixed(2)}` : lang === "cn" ? "免费" : "Free"} bold />
             </div>
-
+            <div>
+              <label className="text-sm font-medium">{lang === "cn" ? "邮箱" : "Email"}</label>
+              <input
+                type="email"
+                value={email}
+                onChange={(e) => { setEmail(e.target.value); if (emailError) setEmailError(null); }}
+                placeholder="you@example.com"
+                className={`mt-1 w-full rounded-xl border bg-background px-3 py-2 text-sm outline-none focus:border-primary ${emailError ? "border-destructive" : "border-border/60"}`}
+              />
+              <p className="text-xs text-muted-foreground mt-1">{lang === "cn" ? "报名成功后二维码门票会显示在下一页，请截图保存。" : "Your QR ticket shows on the next page — screenshot it."}</p>
+              {emailError && <p className="text-xs text-destructive mt-1">{emailError}</p>}
+            </div>
+            <div className="rounded-xl border border-destructive/40 bg-destructive/10 p-3 space-y-2">
+              <div className="flex items-start gap-2">
+                <AlertTriangle className="w-4 h-4 text-destructive shrink-0 mt-0.5" />
+                <p className="text-sm text-destructive font-medium">
+                  {lang === "cn" ? "付款一旦完成，恕不退款。请在继续前仔细确认您的订单。" : "Once payment is made, no refund will be issued. Please review your order carefully before proceeding."}
+                </p>
+              </div>
+              <label className="flex items-center gap-2 text-sm font-medium cursor-pointer">
+                <input
+                  type="checkbox"
+                  checked={acknowledged}
+                  onChange={(e) => { setAcknowledged(e.target.checked); if (policyError) setPolicyError(null); }}
+                  className="w-4 h-4 rounded border-border accent-primary"
+                />
+                {lang === "cn" ? "我已知悉不退款政策" : "I acknowledge the no-refund policy"}
+              </label>
+              {policyError && <p className="text-xs text-destructive">{policyError}</p>}
+            </div>
             <button
               type="button"
-              disabled={submitting || seatCount < 1}
-              onClick={submit}
+              disabled={submitting}
+              onClick={handleSubmit}
               className="w-full h-11 rounded-full bg-primary text-primary-foreground text-sm font-bold shadow-sm disabled:opacity-50 flex items-center justify-center gap-2"
             >
               {submitting ? <Loader2 className="w-4 h-4 animate-spin" /> : null}
               {total > 0
-                ? lang === "cn"
-                  ? `去付款 RM ${total.toFixed(2)}`
-                  : `Pay RM ${total.toFixed(2)}`
-                : lang === "cn"
-                  ? "确认免费报名"
-                  : "Confirm free booking"}
+                ? lang === "cn" ? `去付款 RM ${total.toFixed(2)}` : `Pay RM ${total.toFixed(2)}`
+                : lang === "cn" ? "确认免费报名" : "Confirm free booking"}
             </button>
           </div>
-        </>
+        </div>
+      )}
+
+      {/* Lunch-count mismatch confirm (lightweight, self-contained) — portalled
+          to body so the transformed/overflow-hidden event card can't clip it. */}
+      {mismatchOpen && createPortal(
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm p-4" onClick={() => setMismatchOpen(false)}>
+          <div className="w-full max-w-sm rounded-2xl bg-background p-5 shadow-2xl" onClick={(e) => e.stopPropagation()}>
+            <p className="font-bold">{lang === "cn" ? "午餐份数与人数不一致" : "Lunch count doesn't match"}</p>
+            <p className="text-sm text-muted-foreground mt-1">
+              {lang === "cn"
+                ? `你有 ${seatCount} 张票，但订购了 ${lunchQty} 份午餐，确定继续吗？`
+                : `You have ${seatCount} ticket${seatCount === 1 ? "" : "s"} but ordered ${lunchQty} lunch. Continue?`}
+            </p>
+            <div className="flex gap-2 mt-4">
+              <button type="button" onClick={() => setMismatchOpen(false)} className="flex-1 h-10 rounded-xl bg-muted text-sm font-medium">{lang === "cn" ? "返回修改" : "Go back"}</button>
+              <button type="button" onClick={() => { setMismatchOpen(false); setPhase("summary"); }} className="flex-1 h-10 rounded-xl bg-primary text-primary-foreground text-sm font-medium">{lang === "cn" ? "确定继续" : "Continue"}</button>
+            </div>
+          </div>
+        </div>,
+        document.body,
       )}
     </div>
   );
