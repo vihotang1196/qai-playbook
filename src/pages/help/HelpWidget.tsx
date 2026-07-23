@@ -79,9 +79,9 @@ export default function HelpWidget() {
 
   return (
     <div className="min-h-screen px-4 sm:px-6 pb-16 pt-24 md:pt-28">
-      {/* Centered single column (max-w-2xl ≈ 672px) — focused, with side
-          whitespace; shared by all three tabs (header + tabs + content). */}
-      <div className="max-w-2xl mx-auto">
+      {/* Centered column (max-w-3xl ≈ 768px) — wide enough to feel roomy; shared
+          by all three tabs (header + full-width tab bar + content). */}
+      <div className="max-w-3xl mx-auto">
         {/* Header */}
         <div className="flex items-center gap-3 mb-4">
           <div
@@ -100,8 +100,8 @@ export default function HelpWidget() {
           </div>
         </div>
 
-        {/* Tabs */}
-        <div className="flex gap-1.5 mb-4">
+        {/* Tabs — full-width segmented bar: 3 equal columns filling the container. */}
+        <div className="grid grid-cols-3 gap-2 mb-4">
           {tabs.map((t) => {
             const active = tab === t.key;
             const Icon = t.icon;
@@ -109,7 +109,7 @@ export default function HelpWidget() {
               <button
                 key={t.key}
                 onClick={() => setTab(t.key)}
-                className={`flex items-center gap-1.5 px-3.5 py-2 rounded-xl text-sm font-medium transition-colors ${
+                className={`flex items-center justify-center gap-1.5 px-3 py-2.5 rounded-xl text-sm font-medium transition-colors ${
                   active ? "bg-primary text-primary-foreground shadow-sm" : "glass-card text-muted-foreground hover:text-foreground"
                 }`}
               >
