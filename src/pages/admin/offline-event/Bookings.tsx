@@ -216,8 +216,10 @@ export default function OfflineEventBookings() {
                 <tr className="text-left text-xs text-muted-foreground border-b border-border/40">
                   <th className="px-4 py-2 font-medium">报名码</th>
                   <th className="px-4 py-2 font-medium">邮箱</th>
+                  <th className="px-4 py-2 font-medium">子账号</th>
                   <th className="px-4 py-2 font-medium">活动</th>
                   <th className="px-4 py-2 font-medium">座位</th>
+                  <th className="px-4 py-2 font-medium">午餐</th>
                   <th className="px-4 py-2 font-medium text-right">金额</th>
                   <th className="px-4 py-2 font-medium">状态</th>
                   <th className="px-4 py-2 font-medium">签到</th>
@@ -233,8 +235,10 @@ export default function OfflineEventBookings() {
                   >
                     <td className="px-4 py-2 font-mono text-xs">{b.booking_id}</td>
                     <td className="px-4 py-2 truncate max-w-[160px]">{b.email || "—"}</td>
+                    <td className="px-4 py-2 font-mono text-[11px] text-muted-foreground truncate max-w-[120px]" title={b.ghl_location_id || undefined}>{b.ghl_location_id || "—"}</td>
                     <td className="px-4 py-2 truncate max-w-[160px]">{b.event_label}</td>
                     <td className="px-4 py-2 tabular-nums">{b.seats.length}</td>
+                    <td className="px-4 py-2 tabular-nums text-xs">{b.lunch_qty > 0 ? `${b.lunch_qty} 份` : <span className="text-muted-foreground">—</span>}</td>
                     <td className="px-4 py-2 text-right tabular-nums">{b.total > 0 ? `RM ${b.total.toFixed(2)}` : "免费"}</td>
                     <td className="px-4 py-2">
                       <span className={`inline-block rounded-full px-2 py-0.5 text-[11px] ${STATUS_META[b.status].cls}`}>
