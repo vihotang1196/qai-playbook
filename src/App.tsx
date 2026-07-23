@@ -66,10 +66,10 @@ const LocationIdKeeper = () => {
 };
 
 // Need 1 — per-sub-account default landing page. The agency-wide fallback used
-// when a sub-account never set one.
-// TODO (owner's chosen fallback = Helpdesk): now that Helpdesk is merged in and
-// /help is routed, this can be flipped to "/help".
-const DEFAULT_FALLBACK_PATH = "/";
+// when a sub-account never set one. Owner's chosen fallback = Helpdesk; /help is
+// now routed (Helpdesk merged in), so a sub-account that never set a default
+// lands on the Help Center.
+const DEFAULT_FALLBACK_PATH = "/help";
 
 // Module-level guard: React StrictMode double-mounts the effect, so this stops a
 // double-fire. It resets on a full page reload (so REOPENING Playbook re-applies
