@@ -256,7 +256,7 @@ function EventCard({
             </div>
           ) : null}
           {notice && <p className="mb-3 text-sm text-muted-foreground">{notice}</p>}
-          <EventBooking lang={lang} locationId={locationId} ctx={ctx} event={event} readOnly={displayOnly} onBooked={onBooked} />
+          <EventBooking lang={lang} locationId={locationId} ctx={ctx} event={event} readOnly={displayOnly} onBooked={onBooked} onExit={onToggle} />
         </div>
       )}
     </div>
@@ -273,6 +273,7 @@ function EventBooking({
   event,
   readOnly,
   onBooked,
+  onExit,
 }: {
   lang: "cn" | "en";
   locationId: string;
@@ -280,6 +281,7 @@ function EventBooking({
   event: OeEvent;
   readOnly: boolean;
   onBooked: () => void;
+  onExit?: () => void;
 }) {
   const seatSelection = event.seat_selection_enabled !== false;
   const [mapState, setMapState] = useState<
@@ -394,8 +396,18 @@ function EventBooking({
     }
   }
 
+  // Return from the success ticket to the event list: clear this event's form
+  // state, then collapse the card (onExit) so the customer sees the full list.
+  const handleBack = () => {
+    setDone(null);
+    setSelected([]);
+    setLunchQty(0);
+    setEmail("");
+    onExit?.();
+  };
+
   // ── Success (free booking confirmed) ──
-  if (done) return <QrTicket lang={lang} booking={done} paid={false} />;
+  if (done) return <QrTicket lang={lang} booking={done} paid={false} onBack={handleBack} />;
 
   // ── Booking form (seat select + lunch + email) ──
   return (

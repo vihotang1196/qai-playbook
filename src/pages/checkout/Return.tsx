@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from "react";
-import { useSearchParams, Link } from "react-router-dom";
+import { useSearchParams, Link, useNavigate } from "react-router-dom";
 import { Loader2, AlertCircle, XCircle } from "lucide-react";
 import { useLang } from "@/i18n/LanguageContext";
 import { resolveLocationId } from "@/lib/ghl";
@@ -21,6 +21,7 @@ const MAX_TRIES = 15; // ~30s at 2s intervals
 
 export default function CheckoutReturn() {
   const { lang } = useLang();
+  const navigate = useNavigate();
   const [params] = useSearchParams();
   const bookingCode = params.get("booking") || "";
   const sessionId = params.get("session") || "";
@@ -79,7 +80,7 @@ export default function CheckoutReturn() {
     <div className="min-h-screen px-4 sm:px-6 pb-16 pt-24 md:pt-28">
       <div className="max-w-md mx-auto">
         {status === "confirmed" && booking ? (
-          <QrTicket lang={lang} booking={booking} paid />
+          <QrTicket lang={lang} booking={booking} paid onBack={() => navigate("/events")} />
         ) : status === "cancelled" ? (
           <Notice
             icon={<XCircle className="w-6 h-6" />}
