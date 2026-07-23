@@ -240,6 +240,19 @@
     color: transparent;
   }
 
+  /* Coral gradient fill for buttons / badges (e.g. copywriter section markers,
+     loading spinner). White text over the warm coral gradient. */
+  .btn-gradient {
+    background: var(--gradient-warm);
+    color: #fff;
+    box-shadow: 0 8px 24px rgba(255, 61, 110, 0.28);
+    transition: transform 0.3s ease, box-shadow 0.3s ease;
+  }
+  .btn-gradient:hover {
+    transform: translateY(-1px);
+    box-shadow: 0 12px 32px rgba(255, 61, 110, 0.34);
+  }
+
   .card-hover {
     transition: transform 400ms cubic-bezier(0.16, 1, 0.3, 1), box-shadow 400ms ease;
   }

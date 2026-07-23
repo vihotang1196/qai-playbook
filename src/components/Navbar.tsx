@@ -40,6 +40,11 @@ const navLinks: NavItem[] = [
   { label: { en: "Credits", cn: "额度" }, href: "/credits", isRoute: true, noSemibold: true },
   { label: { en: "Upgrade", cn: "升级" }, href: "/upgrade", isRoute: true, noSemibold: true },
   { label: { en: "Affiliate", cn: "伙伴" }, href: "/affiliate", isRoute: true, noSemibold: true },
+  // Tools / 小工具 — entry HIDDEN from the navbar for now so the copywriter
+  // isn't publicly discoverable/abusable (it burns Claude/MiniMax credits)
+  // before GHL usage limits exist. The /tools + /copywriter routes stay live
+  // and reachable by direct URL. Re-enable this line to show the entry again.
+  // { label: { en: "Tools", cn: "小工具" }, href: "/tools", isRoute: true, noSemibold: true },
 ];
 
 type ToolItem = {

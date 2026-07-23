@@ -11,6 +11,8 @@ import DFY from "./pages/DFY.tsx";
 import Credits from "./pages/Credits.tsx";
 import Upgrade from "./pages/Upgrade.tsx";
 import Affiliate from "./pages/Affiliate.tsx";
+import Tools from "./pages/Tools.tsx";
+import Copywriter from "./pages/Copywriter.tsx";
 import NotFound from "./pages/NotFound.tsx";
 import ReviewBoostAdminShell from "./components/review-boost/AdminShell";
 import ReviewBoostLanding from "./pages/review-boost/Landing";
@@ -186,6 +188,12 @@ const App = () => (
               {/* Guides — full-page help guides (from the navbar 指南 dropdown).
                   Public (no gate). */}
               <Route path="/guides/:slug" element={<GuidePage />} />
+
+              {/* Copywriter — /tools hub + /copywriter. Public. The 小工具 navbar
+                  entry for copywriter stays a Coming-Soon placeholder (NOT exposed)
+                  until it gets identity + rate-limiting, to avoid AI-credit abuse. */}
+              <Route path="/tools" element={<Tools />} />
+              <Route path="/copywriter" element={<Copywriter />} />
 
               {/* Review Boost — CUSTOMER (sub-account) app only. Identity = URL
                   location_id. Agency god-view (all sub-accounts / cross-client
