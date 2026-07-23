@@ -28,13 +28,14 @@ type NavItem = {
   external?: string;
   isRoute?: boolean;
   noSemibold?: boolean;
+  withLocation?: boolean; // append ?location_id= so the tool recognises the sub-account
 };
 
 const navLinks: NavItem[] = [
   { label: t.nav.home, href: "#hero" },
-  // Help Center — external for now (support.qiai.tech). When Helpdesk merges to
-  // main it becomes the internal /help page; until then this branch has no /help.
-  { label: { en: "Help Center", cn: "帮助中心" }, external: "https://support.qiai.tech", noSemibold: true },
+  // Help Center — the internal Helpdesk page (/help). withLocation carries the GHL
+  // location_id so the shared help center recognises the sub-account.
+  { label: { en: "Help Center", cn: "帮助中心" }, href: "/help", isRoute: true, noSemibold: true, withLocation: true },
   { label: { en: "DFY", cn: "DFY" }, href: "/dfy", isRoute: true, noSemibold: true },
   { label: { en: "Credits", cn: "额度" }, href: "/credits", isRoute: true, noSemibold: true },
   { label: { en: "Upgrade", cn: "升级" }, href: "/upgrade", isRoute: true, noSemibold: true },
@@ -77,6 +78,10 @@ const Navbar = () => {
     if (tool.withLocation && locId) return `${tool.href}?location_id=${encodeURIComponent(locId)}`;
     return tool.href ?? tool.base ?? "#";
   };
+  // Route nav links: append the location_id for withLocation links (e.g. Help
+  // Center /help) so the tool recognises the sub-account; others unchanged.
+  const routeHref = (link: NavItem) =>
+    link.withLocation && locId && link.href ? `${link.href}?location_id=${encodeURIComponent(locId)}` : (link.href ?? "#");
 
   const handleNavClick = (e: React.MouseEvent<HTMLAnchorElement>, link: NavItem) => {
     if (link.isRoute) return; // normal navigation for route links
@@ -122,7 +127,7 @@ const Navbar = () => {
               <a
                 key={link.label.en}
                 id={`nav-${link.href?.replace("/", "")}`}
-                href={link.href}
+                href={routeHref(link)}
                 className={`text-sm text-foreground hover:text-accent-foreground transition-colors duration-300 ${link.noSemibold ? "" : "font-semibold"}`}
               >
                 {link.label[lang]}
@@ -252,7 +257,7 @@ const Navbar = () => {
             ) : (
               <a
                 key={link.label.en}
-                href={link.isRoute ? link.href : (isHome ? link.href : "/" + link.href)}
+                href={link.isRoute ? routeHref(link) : (isHome ? link.href : "/" + link.href)}
                 className={`block text-sm transition-colors ${link.isRoute ? "text-foreground hover:text-accent-foreground" : "text-muted-foreground hover:text-foreground"}`}
                 onClick={(e) => { handleNavClick(e, link); setMobileOpen(false); }}
               >

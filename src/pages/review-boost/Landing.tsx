@@ -71,8 +71,8 @@ export default function ReviewBoostLanding() {
           <Info className="w-5 h-5 text-primary shrink-0 mt-0.5" />
           <p className="text-sm text-muted-foreground leading-relaxed">
             {lang === "cn"
-              ? "请从你的 GoHighLevel 后台打开这个工具——它会自动带上你的身份，进入你自己的后台。"
-              : "Open this tool from your GoHighLevel account — it loads your own admin automatically."}
+              ? "请从你的 QAI 后台打开这个工具——它会自动带上你的身份，进入你自己的后台。"
+              : "Open this tool from your QAI account — it loads your own admin automatically."}
           </p>
         </div>
       )}

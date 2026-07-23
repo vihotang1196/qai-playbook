@@ -75,8 +75,8 @@ function LocationHeader() {
           <p className="font-display font-semibold text-sm">Review Boost</p>
           <p className="text-xs text-muted-foreground">
             {lang === "cn"
-              ? "请从你的 GoHighLevel 后台打开此工具。"
-              : "Open this tool from your GoHighLevel account."}
+              ? "请从你的 QAI 后台打开此工具。"
+              : "Open this tool from your QAI account."}
           </p>
         </div>
       </div>
@@ -106,8 +106,8 @@ function LocationHeader() {
             location_id: <span className="font-mono">{locationId || "(none)"}</span>
             {" — "}
             {lang === "cn"
-              ? "请从你的 GoHighLevel 后台重新打开。"
-              : "Please reopen it from your GoHighLevel account."}
+              ? "请从你的 QAI 后台重新打开。"
+              : "Please reopen it from your QAI account."}
           </p>
         </div>
       </div>

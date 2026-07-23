@@ -37,6 +37,17 @@ import OESettings from "./pages/admin/offline-event/Settings";
 import OEFloorPlans from "./pages/admin/offline-event/FloorPlans";
 import EventsPage from "./pages/events/EventsPage";
 import CheckoutReturn from "./pages/checkout/Return";
+import HelpdeskAdminShell from "./components/helpdesk/HelpdeskAdminShell";
+import HelpdeskOverview from "./pages/admin/helpdesk/Overview";
+import HelpdeskKnowledge from "./pages/admin/helpdesk/Knowledge";
+import HelpdeskArticleView from "./pages/admin/helpdesk/ArticleView";
+import HelpdeskAiTest from "./pages/admin/helpdesk/AiTest";
+import HelpdeskSettings from "./pages/admin/helpdesk/Settings";
+import HelpdeskConversations from "./pages/admin/helpdesk/Conversations";
+import HelpdeskAnalytics from "./pages/admin/helpdesk/Analytics";
+import HelpdeskUpdates from "./pages/admin/helpdesk/Updates";
+import HelpWidget from "./pages/help/HelpWidget";
+import GuidePage from "./pages/guides/GuidePage";
 import { rememberLocationId, resolveLocationId, getDefaultPage } from "@/lib/ghl";
 
 const ScrollToTop = () => {
@@ -46,8 +57,8 @@ const ScrollToTop = () => {
 };
 
 /** Stash the GHL location_id on EVERY route so tools reached via the shared
- *  navbar (which drops the query string) still recover identity. Mirrors
- *  feat/helpdesk — shared, tool-neutral. */
+ *  navbar (which drops the query string) still recover identity. Shared,
+ *  tool-neutral (Offline Event, Helpdesk, Review Boost all rely on it). */
 const LocationIdKeeper = () => {
   const { pathname, search } = useLocation();
   useEffect(() => { rememberLocationId(search, pathname); }, [pathname, search]);
@@ -56,9 +67,8 @@ const LocationIdKeeper = () => {
 
 // Need 1 — per-sub-account default landing page. The agency-wide fallback used
 // when a sub-account never set one.
-// TEMPORARY: "/" (homepage) on this branch because /help (Helpdesk) isn't routed
-// here yet. TODO: change to "/help" once Helpdesk merges to main — the owner's
-// chosen fallback is Helpdesk.
+// TODO (owner's chosen fallback = Helpdesk): now that Helpdesk is merged in and
+// /help is routed, this can be flipped to "/help".
 const DEFAULT_FALLBACK_PATH = "/";
 
 // Module-level guard: React StrictMode double-mounts the effect, so this stops a
@@ -135,6 +145,19 @@ const App = () => (
                 <Route path="check-in" element={<OECheckIn />} />
                 <Route path="settings" element={<OESettings />} />
               </Route>
+              {/* Helpdesk admin — the shared help center is managed only by
+                  signed-in platform admins, so it lives INSIDE the portal
+                  (reusing the one login + guard) rather than in a customer route. */}
+              <Route path="helpdesk" element={<HelpdeskAdminShell />}>
+                <Route index element={<HelpdeskOverview />} />
+                <Route path="knowledge" element={<HelpdeskKnowledge />} />
+                <Route path="knowledge/:articleId" element={<HelpdeskArticleView />} />
+                <Route path="chat" element={<HelpdeskAiTest />} />
+                <Route path="conversations" element={<HelpdeskConversations />} />
+                <Route path="analytics" element={<HelpdeskAnalytics />} />
+                <Route path="updates" element={<HelpdeskUpdates />} />
+                <Route path="settings" element={<HelpdeskSettings />} />
+              </Route>
             </Route>
 
             {/* All other routes share the Layout shell (continuous background + Navbar + Footer). */}
@@ -151,6 +174,15 @@ const App = () => (
               {/* Stripe hosted-Checkout return landing. Polls the webhook-confirmed
                   booking, then shows its QR e-ticket. */}
               <Route path="/checkout/return" element={<CheckoutReturn />} />
+
+              {/* Helpdesk — customer help center. INSIDE Layout so it wears the
+                  Playbook navbar/footer. GHL-only: identity = URL location_id
+                  (trust-the-URL); no location_id → a "请从 GHL 打开" block. */}
+              <Route path="/help" element={<HelpWidget />} />
+
+              {/* Guides — full-page help guides (from the navbar 指南 dropdown).
+                  Public (no gate). */}
+              <Route path="/guides/:slug" element={<GuidePage />} />
 
               {/* Review Boost — CUSTOMER (sub-account) app only. Identity = URL
                   location_id. Agency god-view (all sub-accounts / cross-client

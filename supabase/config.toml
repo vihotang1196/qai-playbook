@@ -46,3 +46,22 @@ verify_jwt = false
 # confirmed / expired bookings cancelled + releases their seats.
 [functions.oe-stripe-webhook]
 verify_jwt = false
+
+# Helpdesk admin (agency-internal — the shared help center). Anon-callable at the
+# gateway; the REAL gate is requireAdmin() inside. Runs with the service role;
+# the frontend never touches hd_ tables directly.
+[functions.helpdesk-admin]
+verify_jwt = false
+
+# Helpdesk AI chat (public "Angel AI"). Anon-callable — the widget + the admin
+# test page both call it. Runs with the service role to read the KB (RLS-locked)
+# and log conversations. Reads ANTHROPIC_API_KEY secret.
+[functions.helpdesk-chat]
+verify_jwt = false
+
+# Helpdesk PUBLIC read API — the customer help center (widget) reads the shared
+# KB through here. Anon-callable; runs with the service role internally. READ
+# ONLY (listFolders / listArticles / getArticle); no writes, no secrets, no
+# per-location scoping (the help center is agency-wide shared content).
+[functions.helpdesk]
+verify_jwt = false
