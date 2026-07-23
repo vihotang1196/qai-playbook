@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { Loader2, AlertCircle, CreditCard, ShieldCheck, ShieldAlert, Save, Check } from "lucide-react";
+import { Loader2, AlertCircle, CreditCard, ShieldCheck, ShieldAlert, Save, Check, Search } from "lucide-react";
 import {
   getSettings,
   updateSettings,
@@ -7,6 +7,7 @@ import {
   listSubaccountSettings,
   updateSubaccountSettings,
   deleteSubaccountSettings,
+  listLocations,
   type OeSettingsResponse,
   type OeStripeMode,
   type OeSubaccountRow,
@@ -27,6 +28,7 @@ const LIVE_CONFIRM = "正式";
 export default function OfflineEventSettings() {
   const [resp, setResp] = useState<OeSettingsResponse | null>(null);
   const [subs, setSubs] = useState<OeSubaccountRow[]>([]);
+  const [locNames, setLocNames] = useState<Record<string, string>>({});
   const [err, setErr] = useState<string | null>(null);
 
   // charge settings form
@@ -58,6 +60,20 @@ export default function OfflineEventSettings() {
       .catch((e) => setErr(e instanceof Error ? e.message : "加载失败"));
   };
   useEffect(load, []);
+
+  // Best-effort sub-account name map (so the location_id lookup can show which
+  // business it is). Loaded once; failure is non-fatal — the lookup still works.
+  useEffect(() => {
+    listLocations()
+      .then((locs) => {
+        const m: Record<string, string> = {};
+        for (const l of locs) if (l.business_name) m[l.location_id] = l.business_name;
+        setLocNames(m);
+      })
+      .catch(() => {
+        /* names are optional */
+      });
+  }, []);
 
   const saveCharges = async () => {
     setSaving(true);
@@ -95,10 +111,17 @@ export default function OfflineEventSettings() {
     }
   };
 
+  // Upsert one sub-account's free allowance (works for any location_id, even one
+  // without an existing override row — the backend action upserts). Shared by the
+  // overrides list and the location_id lookup.
+  const saveAllowance = async (locationId: string, ft: number, fs: number) => {
+    await updateSubaccountSettings(locationId, ft, fs);
+    load();
+  };
+
   const saveSub = async (row: OeSubaccountRow, ft: number, fs: number) => {
     try {
-      await updateSubaccountSettings(row.location_id, ft, fs);
-      load();
+      await saveAllowance(row.location_id, ft, fs);
     } catch (e) {
       setErr(e instanceof Error ? e.message : "保存失败");
     }
@@ -215,6 +238,14 @@ export default function OfflineEventSettings() {
         </button>
       </div>
 
+      {/* ── Look up / adjust ANY sub-account by location_id ── */}
+      <SubAccountLookup
+        defaults={{ tickets: resp.settings.default_free_tickets, seats: resp.settings.default_free_seats }}
+        overrides={subs}
+        nameFor={(id) => locNames[id] ?? null}
+        onSave={saveAllowance}
+      />
+
       {/* ── Per-sub-account free allowance overrides ── */}
       <div className="glass-card rounded-2xl p-5">
         <p className="font-display font-bold mb-1">各子账号免费额度（覆盖全局默认）</p>
@@ -227,6 +258,121 @@ export default function OfflineEventSettings() {
           </div>
         )}
       </div>
+    </div>
+  );
+}
+
+/**
+ * Look up any sub-account by location_id and adjust its free allowance. Works
+ * even for a location_id with no override row yet (shows the global default;
+ * saving upserts a per-account override). Reads the already-loaded overrides +
+ * name map — no extra backend action.
+ */
+function SubAccountLookup({
+  defaults,
+  overrides,
+  nameFor,
+  onSave,
+}: {
+  defaults: { tickets: string; seats: string };
+  overrides: OeSubaccountRow[];
+  nameFor: (id: string) => string | null;
+  onSave: (locationId: string, ft: number, fs: number) => Promise<void>;
+}) {
+  const [q, setQ] = useState("");
+  const [found, setFound] = useState<
+    | null
+    | { locationId: string; name: string | null; hasOverride: boolean; ft: string; fs: string }
+  >(null);
+  const [saving, setSaving] = useState(false);
+  const [saved, setSaved] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  const doFind = () => {
+    const id = q.trim();
+    setSaved(false);
+    setError(null);
+    if (!id) {
+      setFound(null);
+      return;
+    }
+    const ov = overrides.find((r) => r.location_id === id);
+    setFound({
+      locationId: id,
+      name: ov?.business_name ?? nameFor(id),
+      hasOverride: !!ov,
+      ft: String(ov ? ov.free_tickets : defaults.tickets),
+      fs: String(ov ? ov.free_seats : defaults.seats),
+    });
+  };
+
+  const doSave = async () => {
+    if (!found) return;
+    setSaving(true);
+    setSaved(false);
+    setError(null);
+    try {
+      const ft = Math.max(0, Math.floor(Number(found.ft) || 0));
+      const fs = Math.max(0, Math.floor(Number(found.fs) || 0));
+      await onSave(found.locationId, ft, fs);
+      setFound({ ...found, hasOverride: true, ft: String(ft), fs: String(fs) });
+      setSaved(true);
+      setTimeout(() => setSaved(false), 2500);
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "保存失败");
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  return (
+    <div className="glass-card rounded-2xl p-5">
+      <p className="font-display font-bold mb-1">按 location_id 查找 / 调整额度</p>
+      <p className="text-xs text-muted-foreground mb-3">输入某个子账号的 location_id，查看并调整它的免费额度（没设过覆盖的也能直接设）。</p>
+      <div className="flex gap-2">
+        <div className="relative flex-1">
+          <Search className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground" />
+          <input
+            value={q}
+            onChange={(e) => setQ(e.target.value)}
+            onKeyDown={(e) => e.key === "Enter" && doFind()}
+            placeholder="输入 location_id…"
+            className="w-full h-10 rounded-xl border border-border bg-background pl-9 pr-3 text-sm font-mono"
+          />
+        </div>
+        <button onClick={doFind} className="h-10 px-4 rounded-xl bg-primary text-primary-foreground text-sm font-medium flex items-center gap-1.5">
+          <Search className="w-4 h-4" /> 查找
+        </button>
+      </div>
+
+      {found && (
+        <div className="mt-4 rounded-xl border border-border/60 bg-muted/30 p-4 space-y-3">
+          <div>
+            <p className="font-medium text-sm">{found.name || "（未知名称）"}</p>
+            <p className="text-[11px] text-muted-foreground font-mono break-all">{found.locationId}</p>
+            <p className={`text-xs mt-1 ${found.hasOverride ? "text-primary" : "text-muted-foreground"}`}>
+              {found.hasOverride
+                ? "已设覆盖额度"
+                : `当前使用全局默认（${defaults.tickets} 票 / ${defaults.seats} 座），保存后为它单独设定`}
+            </p>
+          </div>
+          <div className="flex items-end gap-3 flex-wrap">
+            <label className="text-[11px] text-muted-foreground">
+              免费票（张）
+              <input value={found.ft} onChange={(e) => setFound({ ...found, ft: e.target.value })} inputMode="numeric" className="mt-1 block w-20 h-9 rounded-lg border border-border bg-background px-2 text-sm" />
+            </label>
+            <label className="text-[11px] text-muted-foreground">
+              免费座位（个）
+              <input value={found.fs} onChange={(e) => setFound({ ...found, fs: e.target.value })} inputMode="numeric" className="mt-1 block w-20 h-9 rounded-lg border border-border bg-background px-2 text-sm" />
+            </label>
+            <button onClick={doSave} disabled={saving} className="h-9 px-4 rounded-lg bg-primary text-primary-foreground text-sm font-medium flex items-center gap-1.5 disabled:opacity-40">
+              {saving ? <Loader2 className="w-4 h-4 animate-spin" /> : saved ? <Check className="w-4 h-4" /> : <Save className="w-4 h-4" />}
+              {saved ? "已保存" : "保存"}
+            </button>
+          </div>
+          {error && <p className="text-sm text-destructive">{error}</p>}
+        </div>
+      )}
     </div>
   );
 }
