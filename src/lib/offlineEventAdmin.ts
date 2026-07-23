@@ -1,4 +1,5 @@
 import { getSupabase } from "@/lib/supabase";
+import type { OeFloorPlanLayout } from "@/lib/offlineEvent";
 
 // Offline Event admin data API — wraps the requireAdmin-gated `offline-event-admin`
 // edge fn (same pattern as adminApi.ts / the helpdesk-admin client). invoke
@@ -11,18 +12,23 @@ async function callOeAdmin<T>(action: string, payload: Record<string, unknown> =
     body: { action, ...payload },
   });
   if (error) {
-    // Surface the server's {error} (e.g. not_authorized) when present.
+    // Surface the server's {error} (e.g. not_authorized) when present, and
+    // attach the full parsed body as `.detail` so callers can read extra fields
+    // (e.g. saveFloorPlan's booked_seats_removed → { missing: [...] }).
     let msg = error instanceof Error ? error.message : "request failed";
+    let body: unknown = null;
     try {
       const ctx = (error as { context?: Response }).context;
       if (ctx && typeof ctx.json === "function") {
-        const b = await ctx.json();
-        if (b?.error) msg = String(b.error);
+        body = await ctx.json();
+        if ((body as { error?: string })?.error) msg = String((body as { error: string }).error);
       }
     } catch {
       /* keep generic */
     }
-    throw new Error(msg);
+    const err = new Error(msg) as Error & { detail?: unknown };
+    if (body) err.detail = body;
+    throw err;
   }
   if (data && typeof data === "object" && "error" in data && (data as { error?: string }).error) {
     throw new Error((data as { error: string }).error);
@@ -370,4 +376,40 @@ export async function deleteBookingHard(bookingId: string): Promise<{ ok: boolea
 /** Permanently delete a sub-account's free-allowance override row. */
 export async function deleteSubaccountSettings(locationId: string): Promise<{ ok: boolean }> {
   return await callOeAdmin("deleteSubaccountSettings", { locationId });
+}
+
+// ── P8 floor-plan management ────────────────────────────────────────────────
+
+export type OeAdminFloorPlan = {
+  id: string;
+  name: string;
+  is_default: boolean;
+  layout_data: OeFloorPlanLayout;
+  physical_seats: number;
+  used_by: string[]; // event labels
+  used_by_count: number;
+  booked_seats: number;
+};
+
+export async function listFloorPlans(): Promise<OeAdminFloorPlan[]> {
+  const { plans } = await callOeAdmin<{ plans: OeAdminFloorPlan[] }>("listFloorPlans");
+  return plans ?? [];
+}
+
+/** Create (id null/"") or update a floor plan. Server recomputes physical_seats
+ *  and blocks removing/disabling a currently-booked seat. */
+export async function saveFloorPlan(id: string | null, name: string, layout: OeFloorPlanLayout): Promise<{ ok: boolean; id: string }> {
+  return await callOeAdmin("saveFloorPlan", { id: id ?? "", name, layout });
+}
+
+export async function deleteFloorPlan(id: string): Promise<{ ok: boolean }> {
+  return await callOeAdmin("deleteFloorPlan", { id });
+}
+
+export async function setDefaultFloorPlan(id: string): Promise<{ ok: boolean }> {
+  return await callOeAdmin("setDefaultFloorPlan", { id });
+}
+
+export async function duplicateFloorPlan(id: string, name: string): Promise<{ ok: boolean; id: string }> {
+  return await callOeAdmin("duplicateFloorPlan", { id, name });
 }

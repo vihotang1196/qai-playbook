@@ -4,9 +4,9 @@ Rebuild of **Offline Event** (5th migrated tool) into this Playbook project,
 ported from a Lovable export. It is a **line-up event booking system**: pick an
 event date → choose seats on a floor-plan seat map → add lunch → **pay via
 Stripe (MYR + 8% SST)** → get a **QR e-ticket on the web page** → staff **scan
-the QR to check in** (2-day event: day1/day2). **IN PROGRESS — P0–P7 DONE (booking +
+the QR to check in** (2-day event: day1/day2). **IN PROGRESS — P0–P8 DONE (booking +
 payment + e-ticket + check-in + full admin: bookings/manual-add/change/events/settings +
-test data cleaned); P8 (floor-plan visual editor) + P9 (polish + merge) remain.**
+floor-plan visual editor + test data cleaned); only P9 (polish + merge to main) remains.**
 
 This file records the owner's locked decisions, the old-version facts, and the
 phased plan so a new session can pick up without re-researching.
@@ -399,9 +399,26 @@ e-ticket+check-in → admin+seat editor → polish.
     "Ong pei shirl"** (qRI68jTZHoSutcigyIhn). **Verified:** Overview → 0 bookings / 0 confirmed
     / 0 pending / 0 claimed seats / RM 0.00, with the 3 seed events + 1 hall intact; only
     "Ong pei shirl" remains in sub-account settings. Clean slate for launch. tsc clean.
-- [ ] **P8 — Admin: floor-plan visual editor.** Full drag-drop `FloorPlanEditor`
-  (add/remove tables, cluster 4 / long 6, disabled seats, rows/cols, stage/door);
-  floor-plan CRUD + set default + link to events; recompute `physical_seats` on save.
+- [x] **P8 — Admin: floor-plan visual editor (DONE 2026-07-22).** admin fn:
+  `listFloorPlans` (+ per-plan used-by events + booked-seat count), `saveFloorPlan`
+  (create/update; recomputes `physical_seats` = enabled-seat count; **booked-seat
+  protection**), `deleteFloorPlan` (blocked if default or in-use), `setDefaultFloorPlan`
+  (partial unique index → one default), `duplicateFloorPlan`. All audited. Front
+  `FloorPlans.tsx` list (new blank / duplicate / edit / set-default / delete) +
+  `FloorPlanEditor.tsx` (grid: click cell→add table, click table→config popover with
+  label + shape 2/4/6 + per-seat disable/enable + remove; columns/rows; stage/door;
+  **live SeatMap preview** reusing the customer component). Replaces the OEFloorPlans
+  placeholder; sections.tsx deleted (all sub-pages now real); App.tsx rewired. Linking a
+  plan to an event stays in the P7b event editor (floor-plan dropdown). **Precise booked-seat
+  protection (owner-approved):** on save, every seat currently booked on any event using the
+  plan must still be ENABLED; else 409 `booked_seats_removed` + a `missing:[{seat,event}]`
+  list (surfaced via callOeAdmin `.detail`); unbooked edits are free. Guarantees
+  physical_seats ≥ claimed. **Verified live** (owner session, API + UI): default-delete
+  guard (is_default); duplicate copies 91 seats; created temp plan+event+booking, disabling
+  the booked "G1 Seat 1" → blocked with the exact seat+event, disabling an unbooked seat →
+  allowed; then temp booking/event/plan cleaned (back to 1 plan). UI: list shows QAI Hall
+  (28 桌·91 座·3 活动); editor renders 28-table grid + controls + 91-seat live preview +
+  table config panel (label/shape/seat-toggle/remove); tsc clean; no console errors.
 - [ ] **P9 — Polish + merge.** `/tools` cards, copy polish, merge to `main`.
 
 ## oe_ table map (old → new; built in P1)

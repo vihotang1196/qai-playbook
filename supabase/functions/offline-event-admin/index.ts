@@ -102,6 +102,65 @@ function validateEvent(p: any): string | null {
   return null;
 }
 
+// ── Floor-plan helpers (P8) ────────────────────────────────────────────────
+type OeLayoutTable = {
+  id: string; label: string; shape: "cluster" | "long"; col: number; row: number;
+  seats: number[]; missingSeats: number[]; disabledSeats: number[];
+};
+type OeLayout = { columns: number; rows: number; stage: boolean; door: string; tables: OeLayoutTable[] };
+
+/** Sanitize a layout from the editor into the stored shape (mirrors the client
+ *  normalizeLayout). Drops empty/duplicate table ids; clamps grid + seat nums. */
+// deno-lint-ignore no-explicit-any
+function normalizeLayoutServer(raw: any): OeLayout {
+  const clampInt = (v: unknown, d: number, min: number, max: number) => {
+    const n = Math.floor(Number(v));
+    return Number.isFinite(n) ? Math.max(min, Math.min(max, n)) : d;
+  };
+  const tablesIn = Array.isArray(raw?.tables) ? raw.tables : [];
+  const seen = new Set<string>();
+  const tables: OeLayoutTable[] = [];
+  for (const t of tablesIn) {
+    const id = String(t?.id ?? "").trim();
+    if (!id || seen.has(id)) continue;
+    seen.add(id);
+    const shape: "cluster" | "long" = t?.shape === "long" ? "long" : "cluster";
+    const maxSeat = shape === "long" ? 6 : 4;
+    const seats = Array.isArray(t?.seats)
+      ? [...new Set(t.seats.map(Number).filter((n: number) => n >= 1 && n <= maxSeat))]
+      : [1, 2, 3, 4];
+    tables.push({
+      id,
+      label: (String(t?.label ?? id).trim() || id).slice(0, 20),
+      shape,
+      col: clampInt(t?.col, 1, 1, 12),
+      row: clampInt(t?.row, 0, 0, 11),
+      seats: seats.length ? (seats as number[]) : [1, 2, 3, 4],
+      missingSeats: Array.isArray(t?.missingSeats) ? t.missingSeats.map(Number).filter((n: number) => n >= 1 && n <= 6) : [],
+      disabledSeats: Array.isArray(t?.disabledSeats) ? t.disabledSeats.map(Number).filter((n: number) => n >= 1 && n <= 6) : [],
+    });
+  }
+  return {
+    columns: clampInt(raw?.columns, 6, 1, 12),
+    rows: clampInt(raw?.rows, 5, 1, 12),
+    stage: raw?.stage !== false,
+    door: raw?.door === "none" || raw?.door === "bottom-center" ? raw.door : "bottom-right",
+    tables,
+  };
+}
+
+/** Enabled seat LABELS ("G5 Seat 1") — physical seats minus missing/disabled.
+ *  Its size = physical_seats (denormalized capacity); used for booked-seat protection. */
+function enabledSeatLabels(layout: OeLayout): Set<string> {
+  const set = new Set<string>();
+  for (const t of layout.tables) {
+    const disabled = new Set(t.disabledSeats);
+    const missing = new Set(t.missingSeats);
+    for (const n of t.seats) if (!disabled.has(n) && !missing.has(n)) set.add(`${t.id} Seat ${n}`);
+  }
+  return set;
+}
+
 serve(async (req) => {
   if (req.method === "OPTIONS") return new Response(null, { headers: corsHeaders });
 
@@ -811,6 +870,133 @@ serve(async (req) => {
         if (error) throw error;
         await logAudit(sb, admin, "oe_delete_subaccount", { location_id: locId }, locId);
         return json({ ok: true });
+      }
+
+      // ═══ P8 — Floor-plan management ════════════════════════════════════════
+
+      // ── List plans (+ which events use each + their booked-seat count) ───
+      case "listFloorPlans": {
+        const { data: plans, error } = await sb
+          .from("oe_floor_plans")
+          .select("*")
+          .order("is_default", { ascending: false })
+          .order("name", { ascending: true });
+        if (error) throw error;
+        const list = plans ?? [];
+        const ids = list.map((p) => p.id as string);
+
+        const evByPlan: Record<string, { id: string; label: string }[]> = {};
+        const eventIds: string[] = [];
+        if (ids.length) {
+          const { data: events } = await sb.from("oe_events").select("id, display_label, floor_plan_id").in("floor_plan_id", ids);
+          for (const e of events ?? []) {
+            if (!e.floor_plan_id) continue;
+            (evByPlan[e.floor_plan_id as string] ??= []).push({ id: e.id as string, label: e.display_label as string });
+            eventIds.push(e.id as string);
+          }
+        }
+        const bookedByEvent: Record<string, number> = {};
+        if (eventIds.length) {
+          const { data: seats } = await sb.from("oe_booked_seats").select("event_id").in("event_id", eventIds);
+          for (const s of seats ?? []) bookedByEvent[s.event_id as string] = (bookedByEvent[s.event_id as string] || 0) + 1;
+        }
+        const out = list.map((p) => {
+          const evs = evByPlan[p.id as string] ?? [];
+          return {
+            ...p,
+            used_by: evs.map((e) => e.label),
+            used_by_count: evs.length,
+            booked_seats: evs.reduce((n, e) => n + (bookedByEvent[e.id] || 0), 0),
+          };
+        });
+        return json({ plans: out });
+      }
+
+      // ── Create or update a plan (+ recompute seats + booked-seat guard) ──
+      case "saveFloorPlan": {
+        const id = String(body?.id || "").trim(); // "" = create
+        const name = String(body?.name || "").trim();
+        if (!name) return json({ error: "name_required" }, 400);
+        if (!body?.layout || typeof body.layout !== "object") return json({ error: "layout_required" }, 400);
+        const layout = normalizeLayoutServer(body.layout);
+        const enabled = enabledSeatLabels(layout);
+        const physicalSeats = enabled.size;
+
+        // Booked-seat protection: on UPDATE, every seat currently booked on any
+        // event using this plan MUST still be enabled in the new layout.
+        if (id) {
+          const { data: evs } = await sb.from("oe_events").select("id, display_label").eq("floor_plan_id", id);
+          const eventIds = (evs ?? []).map((e) => e.id as string);
+          if (eventIds.length) {
+            const { data: seats } = await sb.from("oe_booked_seats").select("seat_label, event_id").in("event_id", eventIds);
+            const evLabel: Record<string, string> = Object.fromEntries((evs ?? []).map((e) => [e.id as string, e.display_label as string]));
+            const missing: { seat: string; event: string }[] = [];
+            for (const s of seats ?? []) {
+              if (!enabled.has(s.seat_label as string)) missing.push({ seat: s.seat_label as string, event: evLabel[s.event_id as string] ?? "" });
+            }
+            if (missing.length) return json({ error: "booked_seats_removed", missing: missing.slice(0, 50) }, 409);
+          }
+        }
+
+        const nowIso = new Date().toISOString();
+        const rowData = { name, layout_data: layout, physical_seats: physicalSeats, updated_at: nowIso };
+        if (id) {
+          const { data, error } = await sb.from("oe_floor_plans").update(rowData).eq("id", id).select("id").maybeSingle();
+          if (error) throw error;
+          if (!data) return json({ error: "not_found" }, 404);
+          await logAudit(sb, admin, "oe_update_floor_plan", { id, name, physical_seats: physicalSeats });
+          return json({ ok: true, id });
+        }
+        const { data, error } = await sb.from("oe_floor_plans").insert({ ...rowData, is_default: false }).select("id").single();
+        if (error) throw error;
+        await logAudit(sb, admin, "oe_create_floor_plan", { id: data.id, name, physical_seats: physicalSeats });
+        return json({ ok: true, id: data.id });
+      }
+
+      // ── Delete a plan (blocked if default or used by any event) ──────────
+      case "deleteFloorPlan": {
+        const id = String(body?.id || "").trim();
+        if (!id) return json({ error: "id_required" }, 400);
+        const { data: p } = await sb.from("oe_floor_plans").select("id, is_default").eq("id", id).maybeSingle();
+        if (!p) return json({ error: "not_found" }, 404);
+        if (p.is_default) return json({ error: "is_default" }, 400);
+        const { count } = await sb.from("oe_events").select("id", { count: "exact", head: true }).eq("floor_plan_id", id);
+        if ((count ?? 0) > 0) return json({ error: "in_use", count: count ?? 0 }, 400);
+        const { error } = await sb.from("oe_floor_plans").delete().eq("id", id);
+        if (error) throw error;
+        await logAudit(sb, admin, "oe_delete_floor_plan", { id });
+        return json({ ok: true });
+      }
+
+      // ── Set the default plan (partial unique index → at most one) ────────
+      case "setDefaultFloorPlan": {
+        const id = String(body?.id || "").trim();
+        if (!id) return json({ error: "id_required" }, 400);
+        const nowIso = new Date().toISOString();
+        await sb.from("oe_floor_plans").update({ is_default: false, updated_at: nowIso }).eq("is_default", true);
+        const { data, error } = await sb.from("oe_floor_plans").update({ is_default: true, updated_at: nowIso }).eq("id", id).select("id").maybeSingle();
+        if (error) throw error;
+        if (!data) return json({ error: "not_found" }, 404);
+        await logAudit(sb, admin, "oe_set_default_floor_plan", { id });
+        return json({ ok: true });
+      }
+
+      // ── Duplicate a plan ─────────────────────────────────────────────────
+      case "duplicateFloorPlan": {
+        const id = String(body?.id || "").trim();
+        const name = String(body?.name || "").trim();
+        if (!id) return json({ error: "id_required" }, 400);
+        if (!name) return json({ error: "name_required" }, 400);
+        const { data: src } = await sb.from("oe_floor_plans").select("layout_data, physical_seats").eq("id", id).maybeSingle();
+        if (!src) return json({ error: "not_found" }, 404);
+        const { data, error } = await sb
+          .from("oe_floor_plans")
+          .insert({ name, layout_data: src.layout_data, physical_seats: src.physical_seats, is_default: false })
+          .select("id")
+          .single();
+        if (error) throw error;
+        await logAudit(sb, admin, "oe_duplicate_floor_plan", { from: id, id: data.id, name });
+        return json({ ok: true, id: data.id });
       }
 
       default:
