@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { X, Plus, Trash2, Loader2, Save, LayoutGrid } from "lucide-react";
 import { SeatMap } from "./SeatMap";
-import { layoutToSeatGroups, type OeFloorPlanLayout, type OeFloorPlanTable } from "@/lib/offlineEvent";
+import { layoutToSeatGroups, type OeFloorPlanLayout, type OeFloorPlanTable, type OeDoorPos } from "@/lib/offlineEvent";
 import { saveFloorPlan } from "@/lib/offlineEventAdmin";
 
 /**
@@ -138,10 +138,45 @@ export default function FloorPlanEditor({ open, plan, onClose, onSaved }: Props)
               <input type="number" min={1} max={12} value={layout.rows} onChange={(e) => patchLayout({ rows: Math.max(1, Math.min(12, Number(e.target.value) || 1)) })} className={inp} />
             </div>
           </div>
-          <div className="flex items-center gap-5 text-sm">
-            <label className="flex items-center gap-2"><input type="checkbox" checked={layout.stage} onChange={(e) => patchLayout({ stage: e.target.checked })} /> 舞台</label>
-            <label className="flex items-center gap-2"><input type="checkbox" checked={layout.door !== "none"} onChange={(e) => patchLayout({ door: e.target.checked ? "bottom-right" : "none" })} /> 门</label>
-            <span className="ml-auto text-xs text-muted-foreground font-semibold">{layout.tables.length} 桌 · {totalSeats} 座</span>
+          {/* Venue elements: stage / door position / divider */}
+          <div className="rounded-2xl border border-border/60 bg-muted/30 p-3 space-y-2 text-sm">
+            <div className="flex items-center gap-3 flex-wrap">
+              <label className="flex items-center gap-1.5"><input type="checkbox" checked={layout.stage} onChange={(e) => patchLayout({ stage: e.target.checked })} /> 舞台</label>
+              {layout.stage && (
+                <select value={layout.stagePosition ?? "top"} onChange={(e) => patchLayout({ stagePosition: e.target.value as "top" | "bottom" })} className="h-8 rounded-lg border border-border bg-background px-2 text-xs">
+                  <option value="top">顶部</option>
+                  <option value="bottom">底部</option>
+                </select>
+              )}
+              <span className="ml-2 text-muted-foreground">门:</span>
+              <select value={layout.door} onChange={(e) => patchLayout({ door: e.target.value as OeDoorPos })} className="h-8 rounded-lg border border-border bg-background px-2 text-xs">
+                <option value="none">无</option>
+                <option value="bottom-right">右下</option>
+                <option value="bottom-center">中下</option>
+                <option value="bottom-left">左下</option>
+                <option value="top">顶部</option>
+              </select>
+              <span className="ml-auto text-xs text-muted-foreground font-semibold">{layout.tables.length} 桌 · {totalSeats} 座</span>
+            </div>
+            <div className="flex items-center gap-3 flex-wrap">
+              <label className="flex items-center gap-1.5">
+                <input
+                  type="checkbox"
+                  checked={!!layout.divider?.enabled}
+                  onChange={(e) => patchLayout({ divider: { enabled: e.target.checked, axis: layout.divider?.axis ?? "vertical", pos: layout.divider?.pos ?? 50 } })}
+                /> 虚线边界
+              </label>
+              {layout.divider?.enabled && (
+                <>
+                  <select value={layout.divider.axis} onChange={(e) => patchLayout({ divider: { ...layout.divider!, axis: e.target.value as "vertical" | "horizontal" } })} className="h-8 rounded-lg border border-border bg-background px-2 text-xs">
+                    <option value="vertical">竖线</option>
+                    <option value="horizontal">横线</option>
+                  </select>
+                  <input type="range" min={0} max={100} value={layout.divider.pos} onChange={(e) => patchLayout({ divider: { ...layout.divider!, pos: Number(e.target.value) } })} className="flex-1 min-w-[120px]" />
+                  <span className="text-xs text-muted-foreground tabular-nums w-10 text-right">{layout.divider.pos}%</span>
+                </>
+              )}
+            </div>
           </div>
 
           {/* Grid */}
@@ -229,7 +264,7 @@ export default function FloorPlanEditor({ open, plan, onClose, onSaved }: Props)
           <div>
             <p className="text-[11px] uppercase tracking-wider text-muted-foreground font-semibold mb-1">实时预览（顾客所见）</p>
             <div className="overflow-auto rounded-2xl">
-              <SeatMap seatGroups={previewGroups} selectedSeatIds={[]} selectedGroupId={null} onToggleSeat={() => {}} warning={null} maxSelectable={0} columns={layout.columns} rows={layout.rows} showDoor={layout.door !== "none"} />
+              <SeatMap seatGroups={previewGroups} selectedSeatIds={[]} selectedGroupId={null} onToggleSeat={() => {}} warning={null} maxSelectable={0} columns={layout.columns} rows={layout.rows} door={layout.door} stage={layout.stage} stagePosition={layout.stagePosition} divider={layout.divider} />
             </div>
           </div>
 

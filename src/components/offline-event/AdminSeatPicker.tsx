@@ -108,7 +108,10 @@ export default function AdminSeatPicker({ eventId, excludeBookingId, maxSelectab
       maxSelectable={maxSelectable}
       columns={normLayout.columns}
       rows={normLayout.rows}
-      showDoor={normLayout.door !== "none"}
+      door={normLayout.door}
+      stage={normLayout.stage}
+      stagePosition={normLayout.stagePosition}
+      divider={normLayout.divider}
     />
   );
 }

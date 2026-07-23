@@ -419,6 +419,22 @@ e-ticket+check-in → admin+seat editor → polish.
   allowed; then temp booking/event/plan cleaned (back to 1 plan). UI: list shows QAI Hall
   (28 桌·91 座·3 活动); editor renders 28-table grid + controls + 91-seat live preview +
   table config panel (label/shape/seat-toggle/remove); tsc clean; no console errors.
+  - [x] **P8b — Adjustable door/stage/divider position (DONE 2026-07-22, owner ask).**
+    Owner wanted freer venue elements (not just on/off). Chose the **middle option** (not a
+    full free-drag canvas — that stays for the design pass). Extended `layout`: `door`
+    (none/bottom-right/bottom-center/bottom-left/top), `stagePosition` (top/bottom), `divider`
+    ({enabled, axis vertical/horizontal, pos 0-100%}). Updated offlineEvent.ts normalizeLayout
+    (+ types, backward-compat), the shared **SeatMap** (renders stage top/bottom, door at any
+    of the 5 positions, configurable dashed divider — legacy auto-75%-with-long-table kept when
+    unconfigured; also FIXED a latent gap where the stage always showed regardless of the
+    toggle — now honours `stage`), FloorPlanEditor (door/stage-pos selects + divider on/off +
+    axis + position slider, live preview), and normalizeLayoutServer (admin fn preserves the
+    new fields). Props threaded to SeatMap from EventsPage (customer) + AdminSeatPicker + editor.
+    **Verified live:** config round-trips through save (door=bottom-left, stage=bottom,
+    divider vertical@60%); customer /events seat map still renders (91 seats, stage, entrance,
+    legend) + seat click selects (backward-compat OK); editor shows the new controls +
+    enabling the divider live-adds the dashed line; tsc clean; no console errors. Solid "wall"
+    bar stays fixed (moving it = the deferred free-drag rewrite).
 - [ ] **P9 — Polish + merge.** `/tools` cards, copy polish, merge to `main`.
 
 ## oe_ table map (old → new; built in P1)

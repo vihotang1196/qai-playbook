@@ -29,6 +29,7 @@ import {
   type OeSeatGroup,
   type OeSeat,
   type OeBooking,
+  type OeFloorPlanLayout,
 } from "@/lib/offlineEvent";
 
 /**
@@ -285,7 +286,7 @@ function EventBooking({
     | { kind: "loading" }
     | { kind: "error"; msg: string }
     | { kind: "noplan" }
-    | { kind: "ready"; groups: OeSeatGroup[]; columns: number; rows: number; showDoor: boolean }
+    | { kind: "ready"; groups: OeSeatGroup[]; layout: OeFloorPlanLayout }
   >({ kind: "loading" });
   const [selected, setSelected] = useState<SelSeat[]>([]);
   const [qty, setQty] = useState(1); // for seat-selection-disabled events
@@ -314,7 +315,7 @@ function EventBooking({
           return;
         }
         const { groups, layout } = layoutToSeatGroups(floorPlan.layout_data, bookedSeats);
-        setMapState({ kind: "ready", groups, columns: layout.columns, rows: layout.rows, showDoor: layout.door !== "none" });
+        setMapState({ kind: "ready", groups, layout });
       })
       .catch((e) => setMapState({ kind: "error", msg: e instanceof Error ? e.message : "加载失败" }));
   }, [locationId, event.id, seatSelection]);
@@ -414,9 +415,12 @@ function EventBooking({
             onToggleSeat={toggleSeat}
             warning={null}
             maxSelectable={cap}
-            columns={mapState.columns}
-            rows={mapState.rows}
-            showDoor={mapState.showDoor}
+            columns={mapState.layout.columns}
+            rows={mapState.layout.rows}
+            door={mapState.layout.door}
+            stage={mapState.layout.stage}
+            stagePosition={mapState.layout.stagePosition}
+            divider={mapState.layout.divider}
             readOnly={readOnly}
           />
         )

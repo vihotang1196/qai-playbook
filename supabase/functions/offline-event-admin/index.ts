@@ -107,7 +107,10 @@ type OeLayoutTable = {
   id: string; label: string; shape: "cluster" | "long"; col: number; row: number;
   seats: number[]; missingSeats: number[]; disabledSeats: number[];
 };
-type OeLayout = { columns: number; rows: number; stage: boolean; door: string; tables: OeLayoutTable[] };
+type OeLayout = {
+  columns: number; rows: number; stage: boolean; stagePosition?: string; door: string;
+  divider?: { enabled: boolean; axis: string; pos: number }; tables: OeLayoutTable[];
+};
 
 /** Sanitize a layout from the editor into the stored shape (mirrors the client
  *  normalizeLayout). Drops empty/duplicate table ids; clamps grid + seat nums. */
@@ -140,11 +143,23 @@ function normalizeLayoutServer(raw: any): OeLayout {
       disabledSeats: Array.isArray(t?.disabledSeats) ? t.disabledSeats.map(Number).filter((n: number) => n >= 1 && n <= 6) : [],
     });
   }
+  const DOOR = ["none", "bottom-right", "bottom-center", "bottom-left", "top"];
+  const d = raw?.divider;
+  const divider =
+    d && typeof d === "object"
+      ? {
+          enabled: !!d.enabled,
+          axis: d.axis === "horizontal" ? "horizontal" : "vertical",
+          pos: Number.isFinite(Number(d.pos)) ? Math.max(0, Math.min(100, Number(d.pos))) : 50,
+        }
+      : undefined;
   return {
     columns: clampInt(raw?.columns, 6, 1, 12),
     rows: clampInt(raw?.rows, 5, 1, 12),
     stage: raw?.stage !== false,
-    door: raw?.door === "none" || raw?.door === "bottom-center" ? raw.door : "bottom-right",
+    stagePosition: raw?.stagePosition === "bottom" ? "bottom" : "top",
+    door: DOOR.includes(raw?.door) ? raw.door : "bottom-right",
+    ...(divider ? { divider } : {}),
     tables,
   };
 }

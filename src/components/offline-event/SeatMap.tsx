@@ -3,7 +3,7 @@ import { AlertCircle, ZoomIn, ZoomOut, Maximize2 } from "lucide-react";
 import { useLang } from "@/i18n/LanguageContext";
 import { useRef, useState, useEffect, useMemo, memo, type PointerEvent as ReactPointerEvent } from "react";
 import { useIsMobile } from "@/hooks/use-mobile";
-import type { OeSeatGroup as SeatGroup, OeSeat as Seat } from "@/lib/offlineEvent";
+import type { OeSeatGroup as SeatGroup, OeSeat as Seat, OeDoorPos, OeDivider } from "@/lib/offlineEvent";
 
 // Ported verbatim (visual) from the old Lovable "offline-class" SeatMap — the
 // owner will do a unified design pass later. Only change: the old app's i18n
@@ -24,6 +24,15 @@ interface Props {
   rows?: number;
   /** When false, hide the door pill. */
   showDoor?: boolean;
+  /** Door position (overrides showDoor when given). */
+  door?: OeDoorPos;
+  /** Show the stage bar (default true). */
+  stage?: boolean;
+  /** Stage position relative to the seats (default top). */
+  stagePosition?: "top" | "bottom";
+  /** Optional dashed boundary line. When omitted, a vertical line auto-draws at
+   *  75% only if a long table exists (legacy). */
+  divider?: OeDivider;
   /** Read-only mode: seats are visible but not clickable. */
   readOnly?: boolean;
 }
@@ -32,7 +41,7 @@ const DEFAULT_COLS = 6;
 const DEFAULT_ROWS = 5;
 const CLICK_SCALE_THRESHOLD = 0.6; // below this, taps don't select seats
 
-export function SeatMap({ seatGroups, selectedSeatIds, selectedGroupId, onToggleSeat, warning, maxSelectable = 4, columns, rows, showDoor = true, readOnly = false }: Props) {
+export function SeatMap({ seatGroups, selectedSeatIds, selectedGroupId, onToggleSeat, warning, maxSelectable = 4, columns, rows, showDoor = true, door, stage = true, stagePosition = "top", divider, readOnly = false }: Props) {
   const { lang } = useLang();
   const isMobile = useIsMobile();
   const COLS = columns && columns > 0 ? columns : DEFAULT_COLS;
@@ -148,6 +157,27 @@ export function SeatMap({ seatGroups, selectedSeatIds, selectedGroupId, onToggle
 
   const seatWord = lang === "cn" ? "座位" : "Seat";
 
+  // ── Configurable venue elements (P8b) ──
+  const stageAtTop = stage && stagePosition !== "bottom";
+  const stageAtBottom = stage && stagePosition === "bottom";
+  const doorPos: OeDoorPos = door ?? (showDoor ? "bottom-right" : "none");
+  const doorAtTop = doorPos === "top";
+  const doorAtBottom = doorPos === "bottom-left" || doorPos === "bottom-center" || doorPos === "bottom-right";
+  const doorJustify = doorPos === "bottom-left" ? "justify-start" : doorPos === "bottom-right" ? "justify-end" : "justify-center";
+  // Legacy fallback: auto vertical line at 75% only when a long table exists.
+  const dividerCfg: OeDivider = divider ?? { enabled: hasLongTable, axis: "vertical", pos: 75 };
+
+  const stageBar = (
+    <div className="cv-stage cv-stage-enter h-14 rounded-2xl flex items-center justify-center font-semibold tracking-[0.3em] text-[hsl(0_0%_10%)] border border-[hsl(346_85%_75%/0.5)] backdrop-blur-2xl shadow-[inset_0_1px_0_hsl(0_0%_100%/0.8),inset_0_-1px_2px_hsl(16_90%_72%/0.22),0_10px_30px_-8px_hsl(346_85%_70%/0.35)] bg-[linear-gradient(180deg,hsl(340_100%_94%/0.75)_0%,hsl(340_95%_88%/0.65)_50%,hsl(16_100%_82%/0.55)_100%)]" style={{ animationDelay: "500ms" }}>
+      <span className="drop-shadow-sm">{lang === "cn" ? "舞台" : "STAGE"}</span>
+    </div>
+  );
+  const doorPill = (
+    <div className="w-[88px] h-[36px] flex items-center justify-center px-2 rounded-xl text-[hsl(0_0%_10%)] text-xs font-bold tracking-wider text-center border border-[hsl(346_85%_75%/0.55)] backdrop-blur-xl shadow-[inset_0_1px_0_hsl(0_0%_100%/0.85),0_6px_18px_-4px_hsl(346_85%_70%/0.35)] bg-[linear-gradient(180deg,hsl(340_100%_94%/0.85)_0%,hsl(340_95%_88%/0.75)_50%,hsl(16_100%_82%/0.65)_100%)]">
+      {lang === "cn" ? "入口" : "ENTRANCE"}
+    </div>
+  );
+
   return (
     <div
       className="rounded-3xl p-4 sm:p-12 relative overflow-hidden border border-white/60 backdrop-blur-2xl shadow-[0_24px_70px_-20px_hsl(220_40%_30%/0.18),inset_0_1px_0_hsl(0_0%_100%/0.9),inset_0_-1px_0_hsl(220_30%_70%/0.2)]"
@@ -160,14 +190,8 @@ export function SeatMap({ seatGroups, selectedSeatIds, selectedGroupId, onToggle
         ].join(","),
       }}
     >
-      {/* Stage — desktop only */}
-      {!isMobile && (
-        <div className="relative mb-12">
-          <div className="cv-stage cv-stage-enter h-14 rounded-2xl flex items-center justify-center font-semibold tracking-[0.3em] text-[hsl(0_0%_10%)] border border-[hsl(346_85%_75%/0.5)] backdrop-blur-2xl shadow-[inset_0_1px_0_hsl(0_0%_100%/0.8),inset_0_-1px_2px_hsl(16_90%_72%/0.22),0_10px_30px_-8px_hsl(346_85%_70%/0.35)] bg-[linear-gradient(180deg,hsl(340_100%_94%/0.75)_0%,hsl(340_95%_88%/0.65)_50%,hsl(16_100%_82%/0.55)_100%)]" style={{ animationDelay: "500ms" }}>
-            <span className="drop-shadow-sm">{lang === "cn" ? "舞台" : "STAGE"}</span>
-          </div>
-        </div>
-      )}
+      {/* Stage (top) — desktop only (doesn't scale with pan/zoom) */}
+      {!isMobile && stageAtTop && <div className="relative mb-12">{stageBar}</div>}
 
       {warning && (
         <div className="mb-4 flex items-center gap-2 px-4 py-2.5 rounded-lg bg-destructive/10 border border-destructive text-destructive text-sm font-medium animate-in fade-in slide-in-from-top-1">
@@ -221,17 +245,17 @@ export function SeatMap({ seatGroups, selectedSeatIds, selectedGroupId, onToggle
           }
         >
           <div className="relative mx-auto" style={isMobile ? { width: `${MOBILE_CHART_WIDTH}px` } : { width: `${CHART_WIDTH}px`, maxWidth: "100%" }}>
-            {/* Mobile stage — inside the transformed container */}
-            {isMobile && (
-              <div className="relative mb-8">
-                <div className="cv-stage cv-stage-enter h-14 rounded-2xl flex items-center justify-center font-semibold tracking-[0.3em] text-[hsl(0_0%_10%)] border border-[hsl(346_85%_75%/0.5)] backdrop-blur-2xl shadow-[inset_0_1px_0_hsl(0_0%_100%/0.8),inset_0_-1px_2px_hsl(16_90%_72%/0.22),0_10px_30px_-8px_hsl(346_85%_70%/0.35)] bg-[linear-gradient(180deg,hsl(340_100%_94%/0.75)_0%,hsl(340_95%_88%/0.65)_50%,hsl(16_100%_82%/0.55)_100%)]" style={{ animationDelay: "500ms" }}>
-                  <span className="drop-shadow-sm">{lang === "cn" ? "舞台" : "STAGE"}</span>
-                </div>
-              </div>
-            )}
+            {/* Mobile stage (top) — inside the transformed container */}
+            {isMobile && stageAtTop && <div className="relative mb-8">{stageBar}</div>}
+            {/* Door at top (any device) */}
+            {doorAtTop && <div className="flex justify-center mb-4 relative z-10">{doorPill}</div>}
             <div className="relative" style={{ paddingLeft: hasLongTable ? 28 : 0 }}>
-              {hasLongTable && (
-                <div aria-hidden="true" className="pointer-events-none absolute inset-y-0 z-0" style={{ left: `75%`, width: 0, borderLeft: "2px dashed hsl(346 85% 70% / 0.55)" }} />
+              {dividerCfg.enabled && (
+                dividerCfg.axis === "vertical" ? (
+                  <div aria-hidden="true" className="pointer-events-none absolute inset-y-0 z-0" style={{ left: `${dividerCfg.pos}%`, width: 0, borderLeft: "2px dashed hsl(346 85% 70% / 0.55)" }} />
+                ) : (
+                  <div aria-hidden="true" className="pointer-events-none absolute inset-x-0 z-0" style={{ top: `${dividerCfg.pos}%`, height: 0, borderTop: "2px dashed hsl(346 85% 70% / 0.55)" }} />
+                )
               )}
               {Array.from({ length: ROWS }, (_, rowIdx) => (
                 <div
@@ -266,18 +290,11 @@ export function SeatMap({ seatGroups, selectedSeatIds, selectedGroupId, onToggle
               ))}
             </div>
 
-            {/* Door */}
-            {showDoor && (
-              <div className="grid -mt-4 mb-1 relative z-10" style={{ gridTemplateColumns: `repeat(${COLS}, ${colUnit}px)`, columnGap: `${colGap}px` }}>
-                {Array.from({ length: Math.max(0, COLS - 2) }, (_, i) => (
-                  <div key={i} />
-                ))}
-                <div className="col-span-2 flex justify-center">
-                  <div className="w-[88px] h-[36px] flex items-center justify-center px-2 rounded-xl text-[hsl(0_0%_10%)] text-xs font-bold tracking-wider text-center border border-[hsl(346_85%_75%/0.55)] backdrop-blur-xl shadow-[inset_0_1px_0_hsl(0_0%_100%/0.85),0_6px_18px_-4px_hsl(346_85%_70%/0.35)] bg-[linear-gradient(180deg,hsl(340_100%_94%/0.85)_0%,hsl(340_95%_88%/0.75)_50%,hsl(16_100%_82%/0.65)_100%)]">
-                    {lang === "cn" ? "入口" : "ENTRANCE"}
-                  </div>
-                </div>
-              </div>
+            {/* Stage (bottom) — directly below the seats */}
+            {stageAtBottom && <div className="relative mt-6 mb-2">{stageBar}</div>}
+            {/* Door (bottom, positioned left/center/right) */}
+            {doorAtBottom && (
+              <div className={`flex ${doorJustify} -mt-4 mb-1 relative z-10`}>{doorPill}</div>
             )}
             {/* Wall */}
             <div className="mt-1 mb-4">

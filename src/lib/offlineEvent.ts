@@ -116,11 +116,18 @@ export type OeFloorPlanTable = {
   missingSeats: number[];
   disabledSeats: number[];
 };
+export type OeDoorPos = "none" | "bottom-right" | "bottom-center" | "bottom-left" | "top";
+export type OeDivider = { enabled: boolean; axis: "vertical" | "horizontal"; pos: number };
 export type OeFloorPlanLayout = {
   columns: number;
   rows: number;
   stage: boolean;
-  door: "bottom-right" | "bottom-center" | "none";
+  /** Where the stage sits relative to the seat rows (default top). */
+  stagePosition?: "top" | "bottom";
+  door: OeDoorPos;
+  /** Optional dashed boundary line. When absent, a vertical line auto-draws at
+   *  75% only if a long table exists (legacy behaviour). */
+  divider?: OeDivider;
   tables: OeFloorPlanTable[];
 };
 
@@ -217,6 +224,18 @@ export function seatLabel(groupId: string, seatNumber: number): string {
   return `${groupId} Seat ${seatNumber}`;
 }
 
+const DOOR_POS: OeDoorPos[] = ["none", "bottom-right", "bottom-center", "bottom-left", "top"];
+function normalizeDivider(raw: unknown): OeDivider | undefined {
+  if (!raw || typeof raw !== "object") return undefined;
+  const d = raw as Partial<OeDivider>;
+  const pos = Number(d.pos);
+  return {
+    enabled: !!d.enabled,
+    axis: d.axis === "horizontal" ? "horizontal" : "vertical",
+    pos: Number.isFinite(pos) ? Math.max(0, Math.min(100, pos)) : 50,
+  };
+}
+
 function normalizeLayout(raw: unknown): OeFloorPlanLayout {
   const l = (raw ?? {}) as Partial<OeFloorPlanLayout>;
   const tables = Array.isArray(l.tables) ? l.tables : [];
@@ -224,7 +243,9 @@ function normalizeLayout(raw: unknown): OeFloorPlanLayout {
     columns: typeof l.columns === "number" ? l.columns : 6,
     rows: typeof l.rows === "number" ? l.rows : 5,
     stage: l.stage !== false,
-    door: l.door === "none" || l.door === "bottom-center" ? l.door : "bottom-right",
+    stagePosition: l.stagePosition === "bottom" ? "bottom" : "top",
+    door: DOOR_POS.includes(l.door as OeDoorPos) ? (l.door as OeDoorPos) : "bottom-right",
+    divider: normalizeDivider(l.divider),
     tables: tables.map((t) => ({
       id: String((t as OeFloorPlanTable).id),
       label: String((t as OeFloorPlanTable).label ?? (t as OeFloorPlanTable).id),
