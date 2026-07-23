@@ -268,6 +268,10 @@ serve(async (req) => {
     const channel = (String(body?.channel || "web").slice(0, 32)) || "web";
     const locationId = body?.locationId ? String(body.locationId) : null;
     const visitorId = String(body?.visitorId || "").trim() || `anon-${crypto.randomUUID().slice(0, 8)}`;
+    // Need 2 — GHL staff who's asking (attribution; from the menu-link merge
+    // fields, passed by the widget). Recorded on the conversation at creation.
+    const askerEmail = body?.askerEmail ? String(body.askerEmail).trim().slice(0, 320) : null;
+    const askerName = body?.askerName ? String(body.askerName).trim().slice(0, 200) : null;
     let conversationId = body?.conversationId ? String(body.conversationId) : null;
 
     const sb = serviceClient();
@@ -276,7 +280,7 @@ serve(async (req) => {
     if (!conversationId) {
       const { data, error } = await sb
         .from("hd_conversations")
-        .insert({ visitor_id: visitorId, channel, location_id: locationId, status: "open" })
+        .insert({ visitor_id: visitorId, channel, location_id: locationId, status: "open", asker_email: askerEmail, asker_name: askerName })
         .select("id")
         .single();
       if (error) throw error;

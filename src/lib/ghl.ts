@@ -81,6 +81,53 @@ export function resolveLocationId(
   return getLocationIdFromUrl(pathname, search) || getStoredLocationId();
 }
 
+// ── GHL staff identity (Need 2 — helpdesk per-staff attribution) ─────────────
+// The GHL Custom Menu Link can also carry the logged-in staff via merge fields:
+//   ?location_id={{location.id}}&staff_email={{user.email}}&staff_name={{user.name}}
+// ({{user.id}} is NOT a Custom-Menu-Link merge field, so email is the identifier.)
+// Same trust-the-URL posture + tab-session persistence as location_id, so it
+// survives the navbar's query-dropping navigation. Used for attribution only.
+const STAFF_EMAIL_KEY = "pb_staff_email";
+const STAFF_NAME_KEY = "pb_staff_name";
+
+export type GhlStaff = { email: string; name: string };
+
+/** Read staff_email / staff_name from the URL query. */
+export function getStaffFromUrl(
+  search: string = typeof window !== "undefined" ? window.location.search : "",
+): GhlStaff {
+  const p = new URLSearchParams(search);
+  return { email: (p.get("staff_email") || "").trim(), name: (p.get("staff_name") || "").trim() };
+}
+
+/** Stash staff identity for the tab session the first time it's in the URL (so
+ *  it survives navbar navigation that drops the query string). Only writes when a
+ *  value is present — never clears a previously-seen staff. */
+export function rememberStaff(
+  search: string = typeof window !== "undefined" ? window.location.search : "",
+): void {
+  try {
+    const { email, name } = getStaffFromUrl(search);
+    if (email) sessionStorage.setItem(STAFF_EMAIL_KEY, email);
+    if (name) sessionStorage.setItem(STAFF_NAME_KEY, name);
+  } catch {
+    /* sessionStorage unavailable — URL-only fallback */
+  }
+}
+
+/** Staff from the URL if present, else the one stashed this tab session. */
+export function resolveStaff(
+  search: string = typeof window !== "undefined" ? window.location.search : "",
+): GhlStaff {
+  const fromUrl = getStaffFromUrl(search);
+  if (fromUrl.email || fromUrl.name) return fromUrl;
+  try {
+    return { email: sessionStorage.getItem(STAFF_EMAIL_KEY) || "", name: sessionStorage.getItem(STAFF_NAME_KEY) || "" };
+  } catch {
+    return { email: "", name: "" };
+  }
+}
+
 const EMBED_KEY = "rb_embed";
 
 function queryIsEmbed(search: string): boolean {

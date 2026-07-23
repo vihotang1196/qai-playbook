@@ -185,6 +185,8 @@ export async function getStorageUsage(): Promise<{ bytes: number; files: number 
 export type ConversationRow = {
   id: string;
   visitor_id: string;
+  asker_email: string | null; // GHL staff who asked (Need 2), null for pre-feature / anon
+  asker_name: string | null;
   channel: string;
   location_id: string | null;
   business_name: string | null;

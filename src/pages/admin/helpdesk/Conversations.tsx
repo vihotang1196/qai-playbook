@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
-import { ArrowLeft, Bot, Loader2, MessageSquare, ThumbsDown, ThumbsUp, User } from "lucide-react";
+import { ArrowLeft, Bot, Loader2, MessageSquare, Search, ThumbsDown, ThumbsUp, User } from "lucide-react";
 import { toast } from "sonner";
 import {
   getConversation,
@@ -9,6 +9,7 @@ import {
 } from "@/lib/helpdeskAdmin";
 import Markdown from "@/components/helpdesk/Markdown";
 import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
 
 /**
  * Conversations admin (`/admin/helpdesk/conversations`). Lists real visitor
@@ -26,6 +27,20 @@ function fmt(ts: string): string {
   }
 }
 
+// Need 2 — who asked. Conversations created BEFORE the feature launched predate
+// per-staff attribution, so an empty asker shows "—" (unknown); created after,
+// an empty asker is a genuine anonymous visitor ("匿名访客").
+const ASKER_CUTOFF = "2026-07-23T00:00:00Z";
+function askerLabel(c: { asker_name: string | null; asker_email: string | null; created_at: string }): string {
+  if (c.asker_name?.trim()) return c.asker_name.trim();
+  if (c.asker_email?.trim()) return c.asker_email.trim();
+  try {
+    return new Date(c.created_at).getTime() >= new Date(ASKER_CUTOFF).getTime() ? "匿名访客" : "—";
+  } catch {
+    return "—";
+  }
+}
+
 export default function HelpdeskConversations() {
   const [selectedId, setSelectedId] = useState<string | null>(null);
   if (selectedId) return <Thread id={selectedId} onBack={() => setSelectedId(null)} />;
@@ -36,18 +51,22 @@ function ConvList({ onOpen }: { onOpen: (id: string) => void }) {
   const [rows, setRows] = useState<ConversationRow[]>([]);
   const [loading, setLoading] = useState(true);
   const [includeTest, setIncludeTest] = useState(false);
+  const [query, setQuery] = useState(""); // filter by staff (email/name) or visitor id
 
   useEffect(() => {
     let cancelled = false;
     setLoading(true);
-    listConversations({ includeTest, limit: 100 })
-      .then((r) => !cancelled && setRows(r))
-      .catch((e) => !cancelled && toast.error(e instanceof Error ? e.message : "加载失败"))
-      .finally(() => !cancelled && setLoading(false));
+    const t = setTimeout(() => {
+      listConversations({ includeTest, query: query.trim(), limit: 100 })
+        .then((r) => !cancelled && setRows(r))
+        .catch((e) => !cancelled && toast.error(e instanceof Error ? e.message : "加载失败"))
+        .finally(() => !cancelled && setLoading(false));
+    }, query ? 300 : 0); // debounce while typing
     return () => {
       cancelled = true;
+      clearTimeout(t);
     };
-  }, [includeTest]);
+  }, [includeTest, query]);
 
   return (
     <div className="space-y-3">
@@ -57,6 +76,15 @@ function ConvList({ onOpen }: { onOpen: (id: string) => void }) {
           <input type="checkbox" checked={includeTest} onChange={(e) => setIncludeTest(e.target.checked)} />
           含内部测试
         </label>
+      </div>
+      <div className="relative">
+        <Search className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground" />
+        <Input
+          value={query}
+          onChange={(e) => setQuery(e.target.value)}
+          placeholder="按 staff（邮箱/姓名）或访客 ID 搜索…"
+          className="pl-9"
+        />
       </div>
 
       {loading ? (
@@ -78,7 +106,8 @@ function ConvList({ onOpen }: { onOpen: (id: string) => void }) {
               <div className="min-w-0 flex-1">
                 <p className="text-sm truncate">{c.question || <span className="text-muted-foreground">（无提问）</span>}</p>
                 <p className="text-xs text-muted-foreground mt-0.5 truncate">
-                  {fmt(c.updated_at)} · {CHANNEL_LABEL[c.channel] || c.channel}
+                  <span className="font-medium text-foreground">{askerLabel(c)}</span>
+                  {` · ${fmt(c.updated_at)} · ${CHANNEL_LABEL[c.channel] || c.channel}`}
                   {c.business_name ? ` · ${c.business_name}` : c.location_id ? ` · ${c.location_id}` : ""}
                   {` · ${c.messageCount} 条`}
                 </p>
@@ -133,6 +162,8 @@ function Thread({ id, onBack }: { id: string; onBack: () => void }) {
               : detail.conversation.location_id
                 ? ` · ${detail.conversation.location_id}`
                 : ""}
+            {" · 提问人 "}
+            <span className="font-medium text-foreground">{askerLabel(detail.conversation)}</span>
             {` · 访客 ${detail.conversation.visitor_id}`}
           </div>
           <div className="space-y-4">

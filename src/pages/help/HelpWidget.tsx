@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
 import { BookOpen, Check, Copy, LifeBuoy, Megaphone, MessageCircle } from "lucide-react";
 import { useLang } from "@/i18n/LanguageContext";
-import { resolveLocationId, fetchLocation, type GhlLocation } from "@/lib/ghl";
+import { resolveLocationId, resolveStaff, fetchLocation, type GhlLocation } from "@/lib/ghl";
 import HelpChat from "./HelpChat";
 import HelpBrowse from "./HelpBrowse";
 import HelpUpdates from "./HelpUpdates";
@@ -57,6 +57,9 @@ function useHelpLocation() {
 export default function HelpWidget() {
   const { lang } = useLang();
   const { locationId, location } = useHelpLocation();
+  // Need 2 — the GHL staff who's asking (from the menu-link merge fields), for
+  // attribution. Read once (stable for the tab session), same as location_id.
+  const [staff] = useState(() => resolveStaff());
   const [tab, setTab] = useState<Tab>("chat");
   const [articleId, setArticleId] = useState<string | null>(null);
 
@@ -123,7 +126,13 @@ export default function HelpWidget() {
         {/* Content */}
         {tab === "chat" ? (
           <div className="h-[68vh] min-h-[420px]">
-            <HelpChat lang={lang} locationId={locationId} onOpenArticle={openArticle} />
+            <HelpChat
+              lang={lang}
+              locationId={locationId}
+              staffEmail={staff.email}
+              staffName={staff.name}
+              onOpenArticle={openArticle}
+            />
           </div>
         ) : tab === "browse" ? (
           <HelpBrowse

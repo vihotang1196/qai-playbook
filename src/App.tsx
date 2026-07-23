@@ -48,7 +48,7 @@ import HelpdeskAnalytics from "./pages/admin/helpdesk/Analytics";
 import HelpdeskUpdates from "./pages/admin/helpdesk/Updates";
 import HelpWidget from "./pages/help/HelpWidget";
 import GuidePage from "./pages/guides/GuidePage";
-import { rememberLocationId, resolveLocationId, getDefaultPage } from "@/lib/ghl";
+import { rememberLocationId, rememberStaff, resolveLocationId, getDefaultPage } from "@/lib/ghl";
 
 const ScrollToTop = () => {
   const { pathname } = useLocation();
@@ -61,7 +61,10 @@ const ScrollToTop = () => {
  *  tool-neutral (Offline Event, Helpdesk, Review Boost all rely on it). */
 const LocationIdKeeper = () => {
   const { pathname, search } = useLocation();
-  useEffect(() => { rememberLocationId(search, pathname); }, [pathname, search]);
+  useEffect(() => {
+    rememberLocationId(search, pathname);
+    rememberStaff(search); // Need 2: keep the GHL staff (staff_email/name) too
+  }, [pathname, search]);
   return null;
 };
 

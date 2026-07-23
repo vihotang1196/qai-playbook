@@ -32,10 +32,14 @@ function getVisitorId(): string {
 export default function HelpChat({
   lang,
   locationId,
+  staffEmail,
+  staffName,
   onOpenArticle,
 }: {
   lang: "cn" | "en";
   locationId: string;
+  staffEmail?: string;
+  staffName?: string;
   onOpenArticle: (id: string) => void;
 }) {
   const [turns, setTurns] = useState<Turn[]>([]);
@@ -79,6 +83,8 @@ export default function HelpChat({
         visitorId: visitorId.current,
         locationId: locationId || null,
         channel: "widget",
+        askerEmail: staffEmail || null,
+        askerName: staffName || null,
       });
       setConversationId(reply.conversationId);
       setTurns((t) => [...t, { role: "assistant", content: reply.answer, sources: reply.sources }]);

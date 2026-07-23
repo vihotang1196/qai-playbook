@@ -13,6 +13,8 @@ export async function sendChat(params: {
   visitorId?: string;
   locationId?: string | null;
   channel?: string;
+  askerEmail?: string | null; // GHL staff who's asking (attribution; Need 2)
+  askerName?: string | null;
 }): Promise<ChatReply> {
   const { data, error } = await getSupabase().functions.invoke("helpdesk-chat", {
     body: {
@@ -21,6 +23,8 @@ export async function sendChat(params: {
       visitorId: params.visitorId,
       locationId: params.locationId ?? null,
       channel: params.channel ?? "web",
+      askerEmail: params.askerEmail ?? null,
+      askerName: params.askerName ?? null,
     },
   });
   if (error) {

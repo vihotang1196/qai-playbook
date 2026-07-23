@@ -605,12 +605,17 @@ serve(async (req) => {
 
         let q = sb
           .from("hd_conversations")
-          .select("id, visitor_id, visitor_name, status, channel, location_id, created_at, updated_at")
+          .select("id, visitor_id, visitor_name, asker_email, asker_name, status, channel, location_id, created_at, updated_at")
           .order("updated_at", { ascending: false })
           .limit(limit);
         if (channel) q = q.eq("channel", channel);
         else if (!includeTest) q = q.neq("channel", "admin-test");
-        if (query) q = q.ilike("visitor_id", `%${query}%`);
+        if (query) {
+          // Filter by visitor id OR the asking staff (email/name). Sanitised
+          // against PostgREST or()-injection (strip commas/parens).
+          const safe = query.replace(/[,()]/g, "").slice(0, 100);
+          if (safe) q = q.or(`visitor_id.ilike.%${safe}%,asker_email.ilike.%${safe}%,asker_name.ilike.%${safe}%`);
+        }
         const { data: convs, error } = await q;
         if (error) throw error;
         const list = convs || [];
@@ -640,6 +645,8 @@ serve(async (req) => {
         const rows = list.map((c) => ({
           id: c.id,
           visitor_id: c.visitor_id,
+          asker_email: c.asker_email ?? null,
+          asker_name: c.asker_name ?? null,
           channel: c.channel,
           location_id: c.location_id,
           business_name: c.location_id ? nameByLoc[c.location_id] || null : null,
@@ -658,7 +665,7 @@ serve(async (req) => {
         if (!id) return json({ error: "id required" }, 400);
         const { data: conv, error } = await sb
           .from("hd_conversations")
-          .select("id, visitor_id, visitor_name, status, channel, location_id, created_at, updated_at")
+          .select("id, visitor_id, visitor_name, asker_email, asker_name, status, channel, location_id, created_at, updated_at")
           .eq("id", id)
           .maybeSingle();
         if (error) throw error;
