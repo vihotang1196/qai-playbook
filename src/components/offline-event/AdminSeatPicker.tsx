@@ -109,6 +109,7 @@ export default function AdminSeatPicker({ eventId, excludeBookingId, maxSelectab
       columns={normLayout.columns}
       rows={normLayout.rows}
       door={normLayout.door}
+      doorPos={normLayout.doorPos}
       stage={normLayout.stage}
       stagePosition={normLayout.stagePosition}
       divider={normLayout.divider}

@@ -3,7 +3,7 @@ import { AlertCircle, ZoomIn, ZoomOut, Maximize2 } from "lucide-react";
 import { useLang } from "@/i18n/LanguageContext";
 import { useRef, useState, useEffect, useMemo, memo, type PointerEvent as ReactPointerEvent } from "react";
 import { useIsMobile } from "@/hooks/use-mobile";
-import type { OeSeatGroup as SeatGroup, OeSeat as Seat, OeDoorPos, OeDivider } from "@/lib/offlineEvent";
+import type { OeSeatGroup as SeatGroup, OeSeat as Seat, OeDoorEdge, OeDivider } from "@/lib/offlineEvent";
 
 // Ported verbatim (visual) from the old Lovable "offline-class" SeatMap — the
 // owner will do a unified design pass later. Only change: the old app's i18n
@@ -24,8 +24,10 @@ interface Props {
   rows?: number;
   /** When false, hide the door pill. */
   showDoor?: boolean;
-  /** Door position (overrides showDoor when given). */
-  door?: OeDoorPos;
+  /** Which edge the door sits on (overrides showDoor when given). */
+  door?: OeDoorEdge;
+  /** Door position along its edge, 0-100% (default ~85%). */
+  doorPos?: number;
   /** Show the stage bar (default true). */
   stage?: boolean;
   /** Stage position relative to the seats (default top). */
@@ -41,7 +43,7 @@ const DEFAULT_COLS = 6;
 const DEFAULT_ROWS = 5;
 const CLICK_SCALE_THRESHOLD = 0.6; // below this, taps don't select seats
 
-export function SeatMap({ seatGroups, selectedSeatIds, selectedGroupId, onToggleSeat, warning, maxSelectable = 4, columns, rows, showDoor = true, door, stage = true, stagePosition = "top", divider, readOnly = false }: Props) {
+export function SeatMap({ seatGroups, selectedSeatIds, selectedGroupId, onToggleSeat, warning, maxSelectable = 4, columns, rows, showDoor = true, door, doorPos, stage = true, stagePosition = "top", divider, readOnly = false }: Props) {
   const { lang } = useLang();
   const isMobile = useIsMobile();
   const COLS = columns && columns > 0 ? columns : DEFAULT_COLS;
@@ -160,10 +162,10 @@ export function SeatMap({ seatGroups, selectedSeatIds, selectedGroupId, onToggle
   // ── Configurable venue elements (P8b) ──
   const stageAtTop = stage && stagePosition !== "bottom";
   const stageAtBottom = stage && stagePosition === "bottom";
-  const doorPos: OeDoorPos = door ?? (showDoor ? "bottom-right" : "none");
-  const doorAtTop = doorPos === "top";
-  const doorAtBottom = doorPos === "bottom-left" || doorPos === "bottom-center" || doorPos === "bottom-right";
-  const doorJustify = doorPos === "bottom-left" ? "justify-start" : doorPos === "bottom-right" ? "justify-end" : "justify-center";
+  const doorEdge: OeDoorEdge = door ?? (showDoor ? "bottom" : "none");
+  const doorPct = typeof doorPos === "number" ? Math.max(0, Math.min(100, doorPos)) : 85;
+  const doorAtTop = doorEdge === "top";
+  const doorAtBottom = doorEdge === "bottom";
   // Legacy fallback: auto vertical line at 75% only when a long table exists.
   const dividerCfg: OeDivider = divider ?? { enabled: hasLongTable, axis: "vertical", pos: 75 };
 
@@ -247,8 +249,12 @@ export function SeatMap({ seatGroups, selectedSeatIds, selectedGroupId, onToggle
           <div className="relative mx-auto" style={isMobile ? { width: `${MOBILE_CHART_WIDTH}px` } : { width: `${CHART_WIDTH}px`, maxWidth: "100%" }}>
             {/* Mobile stage (top) — inside the transformed container */}
             {isMobile && stageAtTop && <div className="relative mb-8">{stageBar}</div>}
-            {/* Door at top (any device) */}
-            {doorAtTop && <div className="flex justify-center mb-4 relative z-10">{doorPill}</div>}
+            {/* Door at top edge, positioned along it by doorPct% */}
+            {doorAtTop && (
+              <div className="relative h-9 mb-4 z-10">
+                <div className="absolute -translate-x-1/2" style={{ left: `${doorPct}%` }}>{doorPill}</div>
+              </div>
+            )}
             <div className="relative" style={{ paddingLeft: hasLongTable ? 28 : 0 }}>
               {dividerCfg.enabled && (
                 dividerCfg.axis === "vertical" ? (
@@ -292,9 +298,11 @@ export function SeatMap({ seatGroups, selectedSeatIds, selectedGroupId, onToggle
 
             {/* Stage (bottom) — directly below the seats */}
             {stageAtBottom && <div className="relative mt-6 mb-2">{stageBar}</div>}
-            {/* Door (bottom, positioned left/center/right) */}
+            {/* Door at bottom edge, positioned along it by doorPct% */}
             {doorAtBottom && (
-              <div className={`flex ${doorJustify} -mt-4 mb-1 relative z-10`}>{doorPill}</div>
+              <div className="relative h-9 -mt-2 mb-1 z-10">
+                <div className="absolute -translate-x-1/2" style={{ left: `${doorPct}%` }}>{doorPill}</div>
+              </div>
             )}
             {/* Wall */}
             <div className="mt-1 mb-4">

@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { X, Plus, Trash2, Loader2, Save, LayoutGrid } from "lucide-react";
 import { SeatMap } from "./SeatMap";
-import { layoutToSeatGroups, type OeFloorPlanLayout, type OeFloorPlanTable, type OeDoorPos } from "@/lib/offlineEvent";
+import { layoutToSeatGroups, normalizeLayout, type OeFloorPlanLayout, type OeFloorPlanTable, type OeDoorEdge } from "@/lib/offlineEvent";
 import { saveFloorPlan } from "@/lib/offlineEventAdmin";
 
 /**
@@ -46,7 +46,9 @@ export default function FloorPlanEditor({ open, plan, onClose, onSaved }: Props)
   useEffect(() => {
     if (open) {
       setName(plan.name);
-      setLayout(JSON.parse(JSON.stringify(plan.layout)));
+      // Normalize on load so legacy door values (bottom-right, …) map to the
+      // edge + doorPos model and the controls match.
+      setLayout(normalizeLayout(plan.layout));
       setSelId(null);
       setErr(null);
       setBlocked(null);
@@ -149,13 +151,17 @@ export default function FloorPlanEditor({ open, plan, onClose, onSaved }: Props)
                 </select>
               )}
               <span className="ml-2 text-muted-foreground">门:</span>
-              <select value={layout.door} onChange={(e) => patchLayout({ door: e.target.value as OeDoorPos })} className="h-8 rounded-lg border border-border bg-background px-2 text-xs">
+              <select value={layout.door} onChange={(e) => patchLayout({ door: e.target.value as OeDoorEdge })} className="h-8 rounded-lg border border-border bg-background px-2 text-xs">
                 <option value="none">无</option>
-                <option value="bottom-right">右下</option>
-                <option value="bottom-center">中下</option>
-                <option value="bottom-left">左下</option>
-                <option value="top">顶部</option>
+                <option value="bottom">底边</option>
+                <option value="top">顶边</option>
               </select>
+              {layout.door !== "none" && (
+                <>
+                  <input type="range" min={0} max={100} value={layout.doorPos ?? 85} onChange={(e) => patchLayout({ doorPos: Number(e.target.value) })} className="w-28" title="门沿边滑动位置" />
+                  <span className="text-xs text-muted-foreground tabular-nums w-9 text-right">{layout.doorPos ?? 85}%</span>
+                </>
+              )}
               <span className="ml-auto text-xs text-muted-foreground font-semibold">{layout.tables.length} 桌 · {totalSeats} 座</span>
             </div>
             <div className="flex items-center gap-3 flex-wrap">
@@ -264,7 +270,7 @@ export default function FloorPlanEditor({ open, plan, onClose, onSaved }: Props)
           <div>
             <p className="text-[11px] uppercase tracking-wider text-muted-foreground font-semibold mb-1">实时预览（顾客所见）</p>
             <div className="overflow-auto rounded-2xl">
-              <SeatMap seatGroups={previewGroups} selectedSeatIds={[]} selectedGroupId={null} onToggleSeat={() => {}} warning={null} maxSelectable={0} columns={layout.columns} rows={layout.rows} door={layout.door} stage={layout.stage} stagePosition={layout.stagePosition} divider={layout.divider} />
+              <SeatMap seatGroups={previewGroups} selectedSeatIds={[]} selectedGroupId={null} onToggleSeat={() => {}} warning={null} maxSelectable={0} columns={layout.columns} rows={layout.rows} door={layout.door} doorPos={layout.doorPos} stage={layout.stage} stagePosition={layout.stagePosition} divider={layout.divider} />
             </div>
           </div>
 

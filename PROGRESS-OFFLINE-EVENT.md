@@ -435,6 +435,25 @@ e-ticket+check-in → admin+seat editor → polish.
     legend) + seat click selects (backward-compat OK); editor shows the new controls +
     enabling the divider live-adds the dashed line; tsc clean; no console errors. Solid "wall"
     bar stays fixed (moving it = the deferred free-drag rewrite).
+  - [x] **P8c — Door position slider (DONE 2026-07-22, owner refinement).** Owner wanted the
+    door to slide along its edge (not 5 fixed spots). Reworked `door` from the P8b 5-value enum
+    to **edge (`none`/`bottom`/`top`) + `doorPos` 0-100% slider** (same UX as the divider). SeatMap
+    renders the door pill positioned at `doorPos%` on the chosen edge. `normalizeLayout` (client)
+    + `normalizeLayoutServer` (admin) **map legacy bottom-left/center/right/top → edge + %** (15/50/85,
+    back-compat); `normalizeLayout` now exported + used by the editor on load so the seeded hall's
+    `bottom-right` shows correctly. Editor: 门 select (无/底边/顶边) + position slider. Props threaded
+    (EventsPage, AdminSeatPicker, editor). **Verified live:** door round-trips (bottom@30%); legacy
+    `bottom-right`→bottom/85; editor slider live-moves the door pill (15%→70%); customer /events seat
+    map intact (91 seats, door@85%, seat-select works, no errors); tsc clean.
+  - **Webhook RECONNECTED (owner enabling it 2026-07-22).** The `oe-stripe-webhook` fn was
+    already code-complete (signature-verified confirm/expire, idempotent) — just dormant (no secret,
+    no Stripe endpoint). Redeployed; config.toml comment updated to the platform secret names. It
+    reads `platformWebhookSecret(mode)` = `STRIPE_WEBHOOK_SECRET_{TEST,LIVE}` (OE_ fallback). **Owner
+    action to activate:** (1) set `STRIPE_WEBHOOK_SECRET_TEST` + `STRIPE_WEBHOOK_SECRET_LIVE` in
+    Supabase secrets; (2) in Stripe (TEST + LIVE dashboards separately) add a webhook endpoint →
+    `https://hkqzzfyigmvisaftdmwh.supabase.co/functions/v1/oe-stripe-webhook`, events
+    `checkout.session.completed` + `checkout.session.expired`. Complements (doesn't replace) the
+    return-page verify — both idempotent, whichever fires first wins.
 - [ ] **P9 — Polish + merge.** `/tools` cards, copy polish, merge to `main`.
 
 ## oe_ table map (old → new; built in P1)

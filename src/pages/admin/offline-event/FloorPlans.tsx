@@ -19,7 +19,7 @@ import FloorPlanEditor from "@/components/offline-event/FloorPlanEditor";
  */
 
 function blankLayout(): OeFloorPlanLayout {
-  return { columns: 6, rows: 5, stage: true, door: "bottom-right", tables: [] };
+  return { columns: 6, rows: 5, stage: true, stagePosition: "top", door: "bottom", doorPos: 85, tables: [] };
 }
 
 export default function OfflineEventFloorPlans() {

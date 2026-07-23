@@ -116,7 +116,8 @@ export type OeFloorPlanTable = {
   missingSeats: number[];
   disabledSeats: number[];
 };
-export type OeDoorPos = "none" | "bottom-right" | "bottom-center" | "bottom-left" | "top";
+/** Which edge the door sits on (or none). It then slides along that edge via doorPos. */
+export type OeDoorEdge = "none" | "bottom" | "top";
 export type OeDivider = { enabled: boolean; axis: "vertical" | "horizontal"; pos: number };
 export type OeFloorPlanLayout = {
   columns: number;
@@ -124,7 +125,9 @@ export type OeFloorPlanLayout = {
   stage: boolean;
   /** Where the stage sits relative to the seat rows (default top). */
   stagePosition?: "top" | "bottom";
-  door: OeDoorPos;
+  door: OeDoorEdge;
+  /** Door position along its edge, 0-100% (left→right). Default ~85%. */
+  doorPos?: number;
   /** Optional dashed boundary line. When absent, a vertical line auto-draws at
    *  75% only if a long table exists (legacy behaviour). */
   divider?: OeDivider;
@@ -224,7 +227,25 @@ export function seatLabel(groupId: string, seatNumber: number): string {
   return `${groupId} Seat ${seatNumber}`;
 }
 
-const DOOR_POS: OeDoorPos[] = ["none", "bottom-right", "bottom-center", "bottom-left", "top"];
+/** Map any stored door value (new edge, or legacy bottom-left/center/right/top)
+ *  to { door: edge, doorPos: % }. Legacy positions become sensible % defaults. */
+function normalizeDoor(rawDoor: unknown, rawDoorPos: unknown): { door: OeDoorEdge; doorPos: number } {
+  let door: OeDoorEdge = "bottom";
+  let pos = 85;
+  switch (String(rawDoor ?? "")) {
+    case "none": door = "none"; break;
+    case "top": door = "top"; pos = 50; break;
+    case "bottom": door = "bottom"; pos = 50; break;
+    case "bottom-left": door = "bottom"; pos = 15; break;
+    case "bottom-center": door = "bottom"; pos = 50; break;
+    case "bottom-right": door = "bottom"; pos = 85; break;
+    default: door = "bottom"; pos = 85;
+  }
+  const p = Number(rawDoorPos);
+  if (Number.isFinite(p)) pos = Math.max(0, Math.min(100, p));
+  return { door, doorPos: pos };
+}
+
 function normalizeDivider(raw: unknown): OeDivider | undefined {
   if (!raw || typeof raw !== "object") return undefined;
   const d = raw as Partial<OeDivider>;
@@ -236,7 +257,7 @@ function normalizeDivider(raw: unknown): OeDivider | undefined {
   };
 }
 
-function normalizeLayout(raw: unknown): OeFloorPlanLayout {
+export function normalizeLayout(raw: unknown): OeFloorPlanLayout {
   const l = (raw ?? {}) as Partial<OeFloorPlanLayout>;
   const tables = Array.isArray(l.tables) ? l.tables : [];
   return {
@@ -244,7 +265,7 @@ function normalizeLayout(raw: unknown): OeFloorPlanLayout {
     rows: typeof l.rows === "number" ? l.rows : 5,
     stage: l.stage !== false,
     stagePosition: l.stagePosition === "bottom" ? "bottom" : "top",
-    door: DOOR_POS.includes(l.door as OeDoorPos) ? (l.door as OeDoorPos) : "bottom-right",
+    ...normalizeDoor(l.door, l.doorPos),
     divider: normalizeDivider(l.divider),
     tables: tables.map((t) => ({
       id: String((t as OeFloorPlanTable).id),

@@ -418,6 +418,7 @@ function EventBooking({
             columns={mapState.layout.columns}
             rows={mapState.layout.rows}
             door={mapState.layout.door}
+            doorPos={mapState.layout.doorPos}
             stage={mapState.layout.stage}
             stagePosition={mapState.layout.stagePosition}
             divider={mapState.layout.divider}

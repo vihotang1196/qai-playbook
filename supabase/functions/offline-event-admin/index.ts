@@ -108,7 +108,7 @@ type OeLayoutTable = {
   seats: number[]; missingSeats: number[]; disabledSeats: number[];
 };
 type OeLayout = {
-  columns: number; rows: number; stage: boolean; stagePosition?: string; door: string;
+  columns: number; rows: number; stage: boolean; stagePosition?: string; door: string; doorPos?: number;
   divider?: { enabled: boolean; axis: string; pos: number }; tables: OeLayoutTable[];
 };
 
@@ -143,7 +143,20 @@ function normalizeLayoutServer(raw: any): OeLayout {
       disabledSeats: Array.isArray(t?.disabledSeats) ? t.disabledSeats.map(Number).filter((n: number) => n >= 1 && n <= 6) : [],
     });
   }
-  const DOOR = ["none", "bottom-right", "bottom-center", "bottom-left", "top"];
+  // Door edge + position along it (maps legacy bottom-left/center/right/top).
+  let doorEdge = "bottom";
+  let doorPos = 85;
+  switch (String(raw?.door ?? "")) {
+    case "none": doorEdge = "none"; break;
+    case "top": doorEdge = "top"; doorPos = 50; break;
+    case "bottom": doorEdge = "bottom"; doorPos = 50; break;
+    case "bottom-left": doorEdge = "bottom"; doorPos = 15; break;
+    case "bottom-center": doorEdge = "bottom"; doorPos = 50; break;
+    case "bottom-right": doorEdge = "bottom"; doorPos = 85; break;
+    default: doorEdge = "bottom"; doorPos = 85;
+  }
+  { const p = Number(raw?.doorPos); if (Number.isFinite(p)) doorPos = Math.max(0, Math.min(100, p)); }
+
   const d = raw?.divider;
   const divider =
     d && typeof d === "object"
@@ -158,7 +171,8 @@ function normalizeLayoutServer(raw: any): OeLayout {
     rows: clampInt(raw?.rows, 5, 1, 12),
     stage: raw?.stage !== false,
     stagePosition: raw?.stagePosition === "bottom" ? "bottom" : "top",
-    door: DOOR.includes(raw?.door) ? raw.door : "bottom-right",
+    door: doorEdge,
+    doorPos,
     ...(divider ? { divider } : {}),
     tables,
   };
