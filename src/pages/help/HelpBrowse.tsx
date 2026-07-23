@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useState } from "react";
 import { ArrowLeft, ChevronRight, FileText, FolderOpen, Loader2, Search } from "lucide-react";
 import {
   getArticle,
@@ -13,13 +13,20 @@ import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 
 /**
- * 浏览教程 tab — browse the shared knowledge base by category folder, open one
- * to read (read-only render via the shared Markdown component; images + <video>
- * show). Reads through the PUBLIC helpdesk fn (never the RLS-locked hd_ tables).
+ * 浏览教程 tab — TWO-LEVEL browse of the shared knowledge base:
+ *   L1 category home  → a card per folder (name + article count)
+ *   L2 folder articles → that folder's article list (+ back to categories)
+ *   L3 article reader  → read one article (+ back to where you were)
+ * Searching from L1 shows matching articles flat (cross-category). Reads through
+ * the PUBLIC helpdesk fn (never the RLS-locked hd_ tables).
  *
  * `articleId` is controlled by the shell so an AI-answer source link can open an
- * article here; null = show the folder list.
+ * article here. The selected folder lives HERE (not in a child) so returning
+ * from an article lands back on the folder you were browsing, not the home.
  */
+
+const UNCAT = "__uncategorized__"; // sentinel folder key for articles with no folder
+
 export default function HelpBrowse({
   lang,
   articleId,
@@ -31,16 +38,12 @@ export default function HelpBrowse({
   onOpenArticle: (id: string) => void;
   onBack: () => void;
 }) {
-  if (articleId) return <ArticleReader lang={lang} id={articleId} onBack={onBack} />;
-  return <FolderList lang={lang} onOpenArticle={onOpenArticle} />;
-}
-
-function FolderList({ lang, onOpenArticle }: { lang: "cn" | "en"; onOpenArticle: (id: string) => void }) {
   const [folders, setFolders] = useState<HelpFolder[]>([]);
   const [articles, setArticles] = useState<HelpArticleListItem[]>([]);
   const [loading, setLoading] = useState(true);
   const [err, setErr] = useState<string | null>(null);
   const [query, setQuery] = useState("");
+  const [selectedKey, setSelectedKey] = useState<string | null>(null); // folder.id | UNCAT | null
 
   useEffect(() => {
     let cancelled = false;
@@ -61,25 +64,9 @@ function FolderList({ lang, onOpenArticle }: { lang: "cn" | "en"; onOpenArticle:
     };
   }, [lang]);
 
-  const groups = useMemo(() => {
-    const q = query.trim().toLowerCase();
-    const filtered = q ? articles.filter((a) => a.title.toLowerCase().includes(q)) : articles;
-    const byFolder = new Map<string, HelpArticleListItem[]>();
-    const uncategorized: HelpArticleListItem[] = [];
-    for (const a of filtered) {
-      if (a.folder_id) {
-        const arr = byFolder.get(a.folder_id) || [];
-        arr.push(a);
-        byFolder.set(a.folder_id, arr);
-      } else {
-        uncategorized.push(a);
-      }
-    }
-    const ordered = folders
-      .map((f) => ({ folder: f, items: byFolder.get(f.id) || [] }))
-      .filter((g) => g.items.length > 0);
-    return { ordered, uncategorized, total: filtered.length };
-  }, [folders, articles, query]);
+  // ── L3: article reader (shell-controlled) — folder context is preserved in
+  //    selectedKey, so onBack returns to whatever level we came from. ──
+  if (articleId) return <ArticleReader lang={lang} id={articleId} onBack={onBack} />;
 
   if (loading) {
     return (
@@ -92,38 +79,81 @@ function FolderList({ lang, onOpenArticle }: { lang: "cn" | "en"; onOpenArticle:
     return <div className="glass-card rounded-2xl p-6 text-sm">{lang === "cn" ? "加载失败：" : "Failed: "}{err}</div>;
   }
 
+  const countFor = (key: string) =>
+    articles.filter((a) => (key === UNCAT ? !a.folder_id : a.folder_id === key)).length;
+
+  const q = query.trim().toLowerCase();
+
+  // ── Search results (flat, cross-category) — takes priority over the levels ──
+  if (q) {
+    const results = articles.filter((a) => a.title.toLowerCase().includes(q));
+    return (
+      <div className="space-y-4">
+        <SearchBox value={query} onChange={setQuery} lang={lang} />
+        {results.length === 0 ? (
+          <Empty text={lang === "cn" ? "没有匹配的教程。" : "No matching guides."} />
+        ) : (
+          <div className="glass-card rounded-2xl p-2 sm:p-3">
+            <div className="flex flex-col divide-y divide-border/40">
+              {results.map((a) => (
+                <ArticleRow key={a.id} title={a.title} onClick={() => onOpenArticle(a.id)} />
+              ))}
+            </div>
+          </div>
+        )}
+      </div>
+    );
+  }
+
+  // ── L2: a selected folder's articles ──
+  if (selectedKey) {
+    const isOther = selectedKey === UNCAT;
+    const folder = folders.find((f) => f.id === selectedKey);
+    const name = isOther ? (lang === "cn" ? "其他" : "Other") : folder?.name ?? "";
+    const items = articles.filter((a) => (isOther ? !a.folder_id : a.folder_id === selectedKey));
+    return (
+      <div className="space-y-4">
+        <Button variant="ghost" size="sm" className="gap-1.5 -ml-2" onClick={() => setSelectedKey(null)}>
+          <ArrowLeft className="w-4 h-4" /> {lang === "cn" ? "返回分类" : "Back to categories"}
+        </Button>
+        <div className="glass-card rounded-2xl p-4 sm:p-5">
+          <div className="flex items-center gap-2 mb-3">
+            <FolderOpen className="w-4 h-4 text-primary shrink-0" />
+            <h3 className="font-display font-semibold">{name}</h3>
+            <span className="text-xs text-muted-foreground">· {items.length}</span>
+          </div>
+          <div className="flex flex-col divide-y divide-border/40">
+            {items.map((a) => (
+              <ArticleRow key={a.id} title={a.title} onClick={() => onOpenArticle(a.id)} />
+            ))}
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  // ── L1: category home (folders with ≥1 article + an "Other" card) ──
+  const cats = folders
+    .map((f) => ({ key: f.id, name: f.name, count: countFor(f.id) }))
+    .filter((c) => c.count > 0);
+  const otherCount = countFor(UNCAT);
+
   return (
     <div className="space-y-4">
-      <div className="relative">
-        <Search className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground" />
-        <Input
-          value={query}
-          onChange={(e) => setQuery(e.target.value)}
-          placeholder={lang === "cn" ? "搜索教程标题…" : "Search guides…"}
-          className="pl-9"
-        />
-      </div>
-
-      {groups.total === 0 ? (
-        <div className="glass-card rounded-2xl p-10 text-center text-sm text-muted-foreground">
-          {query
-            ? lang === "cn"
-              ? "没有匹配的教程。"
-              : "No matching guides."
-            : lang === "cn"
-              ? "还没有教程内容。"
-              : "No guides yet."}
-        </div>
+      <SearchBox value={query} onChange={setQuery} lang={lang} />
+      {cats.length === 0 && otherCount === 0 ? (
+        <Empty text={lang === "cn" ? "还没有教程内容。" : "No guides yet."} />
       ) : (
-        <div className="space-y-5">
-          {groups.ordered.map(({ folder, items }) => (
-            <FolderBlock key={folder.id} title={folder.name} items={items} onOpenArticle={onOpenArticle} />
+        <div className="space-y-2.5">
+          {cats.map((c) => (
+            <CategoryCard key={c.key} name={c.name} count={c.count} lang={lang} onClick={() => setSelectedKey(c.key)} />
           ))}
-          {groups.uncategorized.length > 0 && (
-            <FolderBlock
-              title={lang === "cn" ? "其他" : "Other"}
-              items={groups.uncategorized}
-              onOpenArticle={onOpenArticle}
+          {otherCount > 0 && (
+            <CategoryCard
+              name={lang === "cn" ? "其他" : "Other"}
+              count={otherCount}
+              lang={lang}
+              onClick={() => setSelectedKey(UNCAT)}
             />
           )}
         </div>
@@ -132,38 +162,68 @@ function FolderList({ lang, onOpenArticle }: { lang: "cn" | "en"; onOpenArticle:
   );
 }
 
-function FolderBlock({
-  title,
-  items,
-  onOpenArticle,
-}: {
-  title: string;
-  items: HelpArticleListItem[];
-  onOpenArticle: (id: string) => void;
-}) {
+function SearchBox({ value, onChange, lang }: { value: string; onChange: (v: string) => void; lang: "cn" | "en" }) {
   return (
-    <div className="glass-card rounded-2xl p-4 sm:p-5">
-      <div className="flex items-center gap-2 mb-3">
-        <FolderOpen className="w-4 h-4 text-primary shrink-0" />
-        <h3 className="font-display font-semibold text-sm">{title}</h3>
-        <span className="text-xs text-muted-foreground">· {items.length}</span>
-      </div>
-      <div className="flex flex-col divide-y divide-border/40">
-        {items.map((a) => (
-          <button
-            key={a.id}
-            type="button"
-            onClick={() => onOpenArticle(a.id)}
-            className="flex items-center gap-2.5 py-2.5 text-left hover:text-primary transition-colors group"
-          >
-            <FileText className="w-4 h-4 text-muted-foreground group-hover:text-primary shrink-0" />
-            <span className="text-sm flex-1 min-w-0 truncate">{a.title}</span>
-            <ChevronRight className="w-4 h-4 text-muted-foreground shrink-0" />
-          </button>
-        ))}
-      </div>
+    <div className="relative">
+      <Search className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground" />
+      <Input
+        value={value}
+        onChange={(e) => onChange(e.target.value)}
+        placeholder={lang === "cn" ? "搜索教程标题…" : "Search guides…"}
+        className="pl-9"
+      />
     </div>
   );
+}
+
+/** L1 category card — folder name + article count + chevron (image-4 style). */
+function CategoryCard({
+  name,
+  count,
+  lang,
+  onClick,
+}: {
+  name: string;
+  count: number;
+  lang: "cn" | "en";
+  onClick: () => void;
+}) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      className="w-full glass-card rounded-2xl px-4 py-3.5 flex items-center gap-3 text-left hover:bg-muted/40 transition-colors group"
+    >
+      <div className="w-9 h-9 rounded-xl bg-primary/10 flex items-center justify-center shrink-0">
+        <FolderOpen className="w-4 h-4 text-primary" />
+      </div>
+      <div className="min-w-0 flex-1">
+        <p className="font-display font-semibold text-sm truncate">{name}</p>
+        <p className="text-xs text-muted-foreground">
+          {count} {lang === "cn" ? "篇教程" : `article${count === 1 ? "" : "s"}`}
+        </p>
+      </div>
+      <ChevronRight className="w-4 h-4 text-muted-foreground group-hover:text-primary shrink-0" />
+    </button>
+  );
+}
+
+function ArticleRow({ title, onClick }: { title: string; onClick: () => void }) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      className="flex items-center gap-2.5 py-2.5 px-1.5 text-left hover:text-primary transition-colors group"
+    >
+      <FileText className="w-4 h-4 text-muted-foreground group-hover:text-primary shrink-0" />
+      <span className="text-sm flex-1 min-w-0 truncate">{title}</span>
+      <ChevronRight className="w-4 h-4 text-muted-foreground shrink-0" />
+    </button>
+  );
+}
+
+function Empty({ text }: { text: string }) {
+  return <div className="glass-card rounded-2xl p-10 text-center text-sm text-muted-foreground">{text}</div>;
 }
 
 function ArticleReader({ lang, id, onBack }: { lang: "cn" | "en"; id: string; onBack: () => void }) {
@@ -194,7 +254,7 @@ function ArticleReader({ lang, id, onBack }: { lang: "cn" | "en"; id: string; on
   return (
     <div className="space-y-4">
       <Button variant="ghost" size="sm" className="gap-1.5 -ml-2" onClick={onBack}>
-        <ArrowLeft className="w-4 h-4" /> {lang === "cn" ? "返回列表" : "Back to list"}
+        <ArrowLeft className="w-4 h-4" /> {lang === "cn" ? "返回" : "Back"}
       </Button>
 
       {loading ? (

@@ -79,7 +79,9 @@ export default function HelpWidget() {
 
   return (
     <div className="min-h-screen px-4 sm:px-6 pb-16 pt-24 md:pt-28">
-      <div className="max-w-3xl mx-auto">
+      {/* Centered single column (max-w-2xl ≈ 672px) — focused, with side
+          whitespace; shared by all three tabs (header + tabs + content). */}
+      <div className="max-w-2xl mx-auto">
         {/* Header */}
         <div className="flex items-center gap-3 mb-4">
           <div
