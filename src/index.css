@@ -5,35 +5,38 @@
 @layer base {
   :root {
     /* VisionOS near-white surface */
-    --background: 220 50% 99%;        /* #FCFDFF */
-    --foreground: 222 47% 11%;        /* #111827 */
+    /* ── Brutalist (yellow/black/white) — rebrand batch 1. Full coral-glass
+       baseline archived at git tag `backup-coral-glass`; each original noted
+       inline so both palettes are traceable (revert = reset to that tag). ── */
+    --background: 0 0% 100%;          /* white (was 220 50% 99% #FCFDFF) */
+    --foreground: 0 0% 8%;            /* ink #141414 (was 222 47% 11%) */
 
     --card: 0 0% 100%;
-    --card-foreground: 222 47% 11%;
+    --card-foreground: 0 0% 8%;       /* (was 222 47% 11%) */
 
     --popover: 0 0% 100%;
-    --popover-foreground: 222 47% 11%;
+    --popover-foreground: 0 0% 8%;    /* (was 222 47% 11%) */
 
-    --primary: 346 100% 62%;          /* #FF3D6E coral-pink */
-    --primary-foreground: 0 0% 100%;
+    --primary: 48 98% 52%;            /* brand yellow #fed50a (was coral 346 100% 62%) */
+    --primary-foreground: 0 0% 8%;    /* ink on yellow (was white 0 0% 100%) */
 
-    --secondary: 340 40% 97%;
-    --secondary-foreground: 222 47% 16%;
+    --secondary: 0 0% 96%;            /* neutral (was 340 40% 97%) */
+    --secondary-foreground: 0 0% 8%;  /* (was 222 47% 16%) */
 
-    --muted: 340 30% 96%;
-    --muted-foreground: 220 9% 46%;   /* #6B7280 */
+    --muted: 0 0% 96%;                /* neutral (was 340 30% 96%) */
+    --muted-foreground: 240 3% 36%;   /* #59595f (was 220 9% 46%) */
 
-    --accent: 330 81% 60%;            /* #EC4899 pink */
-    --accent-foreground: 0 0% 100%;
+    --accent: 48 98% 52%;             /* yellow (was pink 330 81% 60%) */
+    --accent-foreground: 0 0% 8%;     /* (was white) */
 
     --destructive: 0 84.2% 60.2%;
     --destructive-foreground: 0 0% 100%;
 
-    --border: 340 25% 92%;
-    --input: 340 25% 93%;
-    --ring: 346 100% 62%;
+    --border: 0 0% 87%;               /* neutral hairline (was pinkish 340 25% 92%) */
+    --input: 0 0% 85%;                /* (was 340 25% 93%) */
+    --ring: 48 98% 52%;               /* yellow (was coral 346 100% 62%) */
 
-    --radius: 1.5rem;                  /* 24px cards */
+    --radius: 0.75rem;                 /* 12px — crisper Brutalist (was 1.5rem/24px) */
 
     /* Glass tokens — frosted, airy */
     --glass-bg: 0 0% 100%;
@@ -48,9 +51,9 @@
                    radial-gradient(420px 420px at 108% -8%, rgba(234,226,255,0.50), transparent 70%),
                    radial-gradient(520px 360px at 50% 115%, rgba(220,230,255,0.55), transparent 70%),
                    #FCFDFF;
-    --gradient-primary: linear-gradient(135deg, #FF7E5F, #FF3D6E);
-    --gradient-accent: linear-gradient(135deg, #FF7E5F, #FF3D6E);
-    --gradient-warm: linear-gradient(135deg, #FF7E5F, #FF3D6E);
+    --gradient-primary: linear-gradient(135deg, #fed50a, #f5c400);  /* brand yellow (was coral) */
+    --gradient-accent: linear-gradient(135deg, #fed50a, #f5c400);
+    --gradient-warm: linear-gradient(135deg, #fed50a, #f5c400);
 
     --sidebar-background: 220 50% 99%;
     --sidebar-foreground: 222 47% 16%;
@@ -127,14 +130,17 @@
 
   body {
     @apply text-foreground font-sans antialiased;
-    /* Ambient background now lives in the shared <Layout> as one fixed
-       full-viewport layer; body only sets the near-white base colour. */
-    background-color: #FCFDFF;
+    font-family: "Plus Jakarta Sans", "Noto Sans SC", system-ui, sans-serif;
+    /* Brutalist dot-grid paper (batch 1). In-Layout pages get their own dot-grid
+       layer from <Layout>; this covers pages OUTSIDE Layout (admin / scan). */
+    background-color: #ffffff;
+    background-image: radial-gradient(rgba(20,20,20,0.12) 1.6px, transparent 1.7px);
+    background-size: 26px 26px;
     min-height: 100vh;
   }
 
   h1, h2, h3, h4, h5, h6 {
-    font-family: "Sora", "Plus Jakarta Sans", system-ui, sans-serif;
+    font-family: "Sora", "Noto Sans SC", "Plus Jakarta Sans", system-ui, sans-serif;
     letter-spacing: -0.02em;
   }
 }
@@ -145,35 +151,33 @@
   .font-display { font-family: "Sora", "Plus Jakarta Sans", system-ui, sans-serif; }
 
   /* VisionOS glass utilities — frosted, near-white */
+  /* ── Brutalist re-skin (batch 1): flat white surfaces, ink edges, no frost.
+     Coral-glass originals archived at tag `backup-coral-glass`. ── */
   .glass-nav {
-    backdrop-filter: blur(30px) saturate(180%);
-    -webkit-backdrop-filter: blur(30px) saturate(180%);
-    background: rgba(255,255,255,0.72);
-    border-bottom: 1px solid rgba(255,255,255,0.6);
-    box-shadow: 0 6px 24px rgba(40,40,90,0.05);
+    backdrop-filter: blur(8px);
+    -webkit-backdrop-filter: blur(8px);
+    background: rgba(255,255,255,0.94);
+    border-bottom: 2px solid #141414;   /* hard ink edge (was 1px frosted white) */
+    box-shadow: none;
   }
 
   .glass-panel {
-    background: rgba(255,255,255,0.55);
-    backdrop-filter: blur(30px) saturate(180%);
-    -webkit-backdrop-filter: blur(30px) saturate(180%);
-    border: 1px solid rgba(255,255,255,0.55);
-    box-shadow: 0 10px 40px rgba(40,40,90,0.06);
-    border-radius: 2rem;
+    background: #ffffff;
+    border: 1px solid rgba(20,20,20,0.10);
+    box-shadow: 0 8px 28px rgba(20,20,20,0.06);
+    border-radius: 1.5rem;
   }
 
   .glass-card {
-    background: rgba(255,255,255,0.55);
-    backdrop-filter: blur(30px) saturate(180%);
-    -webkit-backdrop-filter: blur(30px) saturate(180%);
-    border: 1px solid rgba(255,255,255,0.55);
-    box-shadow: 0 10px 40px rgba(40,40,90,0.06);
-    border-radius: 1.5rem;
-    transition: transform 400ms cubic-bezier(0.16,1,0.3,1), box-shadow 400ms ease;
+    background: #ffffff;
+    border: 1px solid rgba(20,20,20,0.10);
+    box-shadow: 0 8px 28px rgba(20,20,20,0.06);
+    border-radius: 1.375rem;
+    transition: transform 300ms ease, box-shadow 300ms ease;
   }
   .glass-card:hover {
-    transform: translateY(-6px);
-    box-shadow: 0 24px 60px rgba(74,76,150,0.14);
+    transform: translateY(-4px);
+    box-shadow: 0 14px 36px rgba(20,20,20,0.10);
   }
 
   /* Category-tinted glass — used ALONGSIDE .glass-card on the homepage
@@ -207,30 +211,26 @@
   }
 
   .glass-soft {
-    background: rgba(255,255,255,0.45);
-    backdrop-filter: blur(22px) saturate(170%);
-    -webkit-backdrop-filter: blur(22px) saturate(170%);
-    border: 1px solid rgba(255,255,255,0.5);
-    border-radius: 1rem;
+    background: #ffffff;
+    border: 1px solid rgba(20,20,20,0.10);
+    border-radius: 0.75rem;
   }
 
   /* Frosted-glass form control — inputs / textareas / select triggers.
      Replaces the old solid grey-bordered field. 16px radius, faint border,
      coral focus ring (#FF3D6E). */
   .glass-input {
-    background: rgba(255,255,255,0.6);
-    backdrop-filter: blur(20px) saturate(160%);
-    -webkit-backdrop-filter: blur(20px) saturate(160%);
-    border: 1px solid rgba(255,255,255,0.6);
-    border-radius: 16px;
-    transition: border-color 0.18s ease-out, box-shadow 0.18s ease-out, background 0.18s ease-out;
+    background: #ffffff;
+    border: 2px solid #141414;
+    border-radius: 12px;
+    transition: box-shadow 0.18s ease-out, border-color 0.18s ease-out;
   }
   .glass-input:focus,
   .glass-input:focus-visible,
   .glass-input:focus-within {
     outline: none;
-    border-color: hsl(346 100% 62% / 0.6);
-    box-shadow: 0 0 0 3px hsl(346 100% 62% / 0.15);
+    border-color: #141414;
+    box-shadow: 0 0 0 3px hsl(48 98% 52% / 0.55);  /* yellow focus ring (was coral) */
   }
 
   .gradient-text {
@@ -243,14 +243,19 @@
   /* Coral gradient fill for buttons / badges (e.g. copywriter section markers,
      loading spinner). White text over the warm coral gradient. */
   .btn-gradient {
-    background: var(--gradient-warm);
-    color: #fff;
-    box-shadow: 0 8px 24px rgba(255, 61, 110, 0.28);
-    transition: transform 0.3s ease, box-shadow 0.3s ease;
+    background: #fed50a;
+    color: #141414;
+    border: 2px solid #141414;
+    box-shadow: 4px 4px 0 #141414;
+    transition: transform 0.14s ease, box-shadow 0.14s ease;
   }
   .btn-gradient:hover {
-    transform: translateY(-1px);
-    box-shadow: 0 12px 32px rgba(255, 61, 110, 0.34);
+    transform: translate(-2px, -2px);
+    box-shadow: 6px 6px 0 #141414;
+  }
+  .btn-gradient:active {
+    transform: translate(4px, 4px);
+    box-shadow: 0 0 0 #141414;
   }
 
   .card-hover {

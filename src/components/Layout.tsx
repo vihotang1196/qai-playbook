@@ -20,15 +20,18 @@ const Layout = () => {
     // is always pushed to the very bottom with no whitespace below it. (100vh
     // adapts to the window, so full-screen and half/short windows both stick.)
     <div className="relative flex min-h-screen flex-col overflow-x-hidden">
-      {/* Continuous ambient light layer. Near-white base (#FCFDFF) with three
-          soft corner glows — top-left pink, top-right lilac, bottom blue-lilac
-          — each ≤0.3 opacity, ~100px blur, partly off-canvas so the centre of
-          the screen always stays near-white. Never a solid colour block. */}
-      <div aria-hidden className="pointer-events-none fixed inset-0 -z-10 bg-[#FCFDFF]">
-        <div className="absolute -top-[15vh] -left-[10vw] w-[60vw] h-[60vh] rounded-full bg-[#FCE4F1] opacity-30 blur-[100px]" />
-        <div className="absolute -top-[12vh] -right-[12vw] w-[55vw] h-[55vh] rounded-full bg-[#EAE2FF] opacity-25 blur-[100px]" />
-        <div className="absolute -bottom-[20vh] left-[20vw] w-[70vw] h-[55vh] rounded-full bg-[#DCE6FF] opacity-25 blur-[100px]" />
-      </div>
+      {/* Brutalist dot-grid paper background (rebrand batch 1) — one fixed
+          full-viewport layer, white base + fine ink dots. Replaces the coral
+          ambient glow (archived at tag `backup-coral-glass`). */}
+      <div
+        aria-hidden
+        className="pointer-events-none fixed inset-0 -z-10"
+        style={{
+          backgroundColor: "#ffffff",
+          backgroundImage: "radial-gradient(rgba(20,20,20,0.12) 1.6px, transparent 1.7px)",
+          backgroundSize: "26px 26px",
+        }}
+      />
 
       <Navbar />
       {/* Content region — grows to fill so the Footer sticks to the bottom. Not a
