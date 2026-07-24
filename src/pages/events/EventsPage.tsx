@@ -105,7 +105,10 @@ export default function EventsPage() {
 
 function Shell({ children }: { children: React.ReactNode }) {
   return (
-    <div className="min-h-screen px-4 sm:px-6 pb-16 pt-24 md:pt-28">
+    // Natural height (no min-h-screen) — the content sizes to itself and the
+    // footer follows it, instead of forcing a full viewport that pushes the
+    // footer a screen below a short event list. Centered column (max-w-4xl).
+    <div className="px-4 sm:px-6 pb-16 pt-24 md:pt-28">
       <div className="max-w-4xl mx-auto">{children}</div>
     </div>
   );
