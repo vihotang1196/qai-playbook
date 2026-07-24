@@ -382,6 +382,20 @@ function EventBooking({
     rootRef.current?.scrollIntoView({ behavior: "smooth", block: "start" });
   }, [phase]);
 
+  // The fixed confirm bar shows only once a seat is chosen (step 1). While it's
+  // up, reserve its height at the very bottom of the page so it never overlaps
+  // the shared footer when the user scrolls all the way down. Reset when the bar
+  // hides (seats cleared / step change / booked) or this card unmounts.
+  const barActive = phase === "selecting" && seatCount > 0 && !done;
+  useEffect(() => {
+    if (!barActive) return;
+    const prev = document.body.style.paddingBottom;
+    document.body.style.paddingBottom = "132px";
+    return () => {
+      document.body.style.paddingBottom = prev;
+    };
+  }, [barActive]);
+
   const emailValid = (v: string) => /^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(v.trim());
 
   // The actual booking call. Server decides free vs paid (authoritative);
@@ -543,7 +557,7 @@ function EventBooking({
         <>
           <div className="pb-32">{seatArea(true)}</div>
 
-          {createPortal(
+          {seatCount > 0 && createPortal(
             <div className="fixed bottom-0 left-0 right-0 z-40 px-3 sm:px-4 pb-4 pointer-events-none">
             <div className="max-w-4xl mx-auto pointer-events-auto">
               {freeRemaining > 0 && (
