@@ -49,6 +49,7 @@ import HelpdeskAnalytics from "./pages/admin/helpdesk/Analytics";
 import HelpdeskUpdates from "./pages/admin/helpdesk/Updates";
 import HelpWidget from "./pages/help/HelpWidget";
 import GuidePage from "./pages/guides/GuidePage";
+import QaiStylePreview from "./pages/QaiStylePreview";
 import { rememberLocationId, rememberStaff, resolveLocationId, getDefaultPage } from "@/lib/ghl";
 
 const ScrollToTop = () => {
@@ -130,6 +131,8 @@ const App = () => (
                 intentionally OUTSIDE the shared Layout (no site navbar/footer). */}
             <Route path="/scan/:code" element={<RBScanPage />} />
             <Route path="/thank-you/:generationId" element={<RBThankYouPage />} />
+            {/* Rebrand SAMPLE — Q.Ai Brutalist style preview (outside Layout, self-contained) */}
+            <Route path="/qai-style" element={<QaiStylePreview />} />
 
             {/* Admin Portal — platform-wide, real-login-guarded, OUTSIDE the
                 customer Layout (its own dark chrome; zero customer capability).
