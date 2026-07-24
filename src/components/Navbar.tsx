@@ -116,7 +116,7 @@ const Navbar = () => {
         </a>
 
         {/* Desktop nav */}
-        <nav id="navbar-nav" className="hidden md:flex items-center gap-8">
+        <nav id="navbar-nav" className="hidden lg:flex items-center gap-8">
           {navLinks.map((link) =>
             link.external ? (
               <a
@@ -207,7 +207,7 @@ const Navbar = () => {
           </HoverCard>
         </nav>
 
-        <div className="hidden md:flex items-center gap-2">
+        <div className="hidden lg:flex items-center gap-2">
           {locId && (
             <button
               type="button"
@@ -232,7 +232,7 @@ const Navbar = () => {
         {/* Mobile toggle */}
         <button
           onClick={() => setMobileOpen(!mobileOpen)}
-          className="md:hidden p-2"
+          className="lg:hidden p-2"
         >
           {mobileOpen ? <X size={20} /> : <Menu size={20} />}
         </button>
@@ -240,7 +240,7 @@ const Navbar = () => {
 
       {/* Mobile menu */}
       {mobileOpen && (
-        <div className="md:hidden bg-background border-t border-border px-6 py-6 space-y-4">
+        <div className="lg:hidden bg-background border-t border-border px-6 py-6 space-y-4">
           {navLinks.map((link) =>
             link.external ? (
               <a
