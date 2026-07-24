@@ -145,10 +145,7 @@ const Navbar = () => {
               </a>
             ),
           )}
-        </nav>
-
-        <div className="hidden md:flex items-center gap-2">
-          {/* Tools dropdown — the product tools; only ones live on this branch link out */}
+          {/* Tools dropdown — in the nav row, right after 伙伴; only tools live on this branch link out */}
           <HoverCard openDelay={80} closeDelay={150}>
             <HoverCardTrigger asChild>
               <button className="flex items-center gap-1 text-sm text-muted-foreground hover:text-foreground transition-colors duration-300 px-1">
@@ -205,6 +202,9 @@ const Navbar = () => {
               </div>
             </HoverCardContent>
           </HoverCard>
+        </nav>
+
+        <div className="hidden md:flex items-center gap-2">
           {locId && (
             <button
               type="button"
