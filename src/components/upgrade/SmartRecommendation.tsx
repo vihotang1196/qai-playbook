@@ -35,7 +35,7 @@ const SmartRecommendation = () => {
     <section className="max-w-3xl mx-auto px-6 mb-24">
       <div className="text-center mb-10">
         <h2 className="text-2xl sm:text-3xl font-bold mb-2">
-          🎯 {l(bi("System Recommendation", "系统建议"))}
+          {l(bi("System Recommendation", "系统建议"))}
         </h2>
         {!hideSubtitles && (
           <p className="text-muted-foreground text-sm">
@@ -65,7 +65,7 @@ const SmartRecommendation = () => {
                   <p className="font-medium text-sm">{l(s.label)}</p>
                   {active && (
                     <p className="text-xs text-accent-foreground mt-1 animate-in fade-in slide-in-from-bottom-1 duration-200">
-                      👉 {l(s.rec)}
+                      {l(s.rec)}
                     </p>
                   )}
                 </div>
@@ -76,11 +76,11 @@ const SmartRecommendation = () => {
       </div>
 
       {selected === 2 && (
-        <Card className="border-2 border-accent bg-gradient-to-br from-accent/5 via-background to-accent/5 animate-in fade-in slide-in-from-bottom-2 duration-300">
+        <Card className="border-2 border-accent bg-accent/5 animate-in fade-in slide-in-from-bottom-2 duration-300">
           <CardContent className="p-6 text-center">
             <Badge className="bg-accent text-accent-foreground border-0 text-xs mb-3">
               <Sparkles className="h-3 w-3 mr-1" />
-              🔥 {l(bi("Most Recommended", "最推荐"))}
+              {l(bi("Most Recommended", "最推荐"))}
             </Badge>
             <p className="font-bold">
               {l(bi("Expand accounts + Increase conversation capacity", "扩展账号 + 提升对话能力"))}

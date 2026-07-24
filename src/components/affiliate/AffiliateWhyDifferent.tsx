@@ -25,7 +25,7 @@ const AffiliateWhyDifferent = () => {
         <div className="grid sm:grid-cols-2 gap-5 max-w-3xl mx-auto">
           {points.map((p) => (
             <div key={p.title.en} className="flex gap-3 items-start">
-              <CheckCircle2 className="h-5 w-5 text-green-500 shrink-0 mt-0.5" />
+              <CheckCircle2 className="h-5 w-5 text-[#141414] shrink-0 mt-0.5" />
               <div>
                 <h3 className="font-semibold">{l(p.title)}</h3>
                 {!hideSubtitles && <p className="text-sm text-muted-foreground">{l(p.desc)}</p>}

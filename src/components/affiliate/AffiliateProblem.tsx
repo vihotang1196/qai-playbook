@@ -19,7 +19,7 @@ const AffiliateProblem = () => {
       <div className="max-w-4xl mx-auto px-6 text-center">
         <h2 className="text-3xl md:text-4xl font-bold mb-4">
           {l(bi("Most People", "大多数人"))}{" "}
-          <span className="text-destructive">{l(bi("Fail", "失败"))}</span>{" "}
+          <span className="text-foreground">{l(bi("Fail", "失败"))}</span>{" "}
           {l(bi("at Affiliate Marketing", "于联盟营销"))}
         </h2>
         {!hideSubtitles && (
@@ -30,8 +30,8 @@ const AffiliateProblem = () => {
 
         <div className="grid sm:grid-cols-2 gap-4 mb-14 max-w-2xl mx-auto">
           {problems.map((p) => (
-            <div key={p.en} className="flex items-start gap-3 text-left p-4 rounded-xl bg-destructive/5 border border-destructive/10">
-              <X className="h-5 w-5 text-destructive shrink-0 mt-0.5" />
+            <div key={p.en} className="flex items-start gap-3 text-left p-4 rounded-xl bg-secondary border border-[#141414]/10">
+              <X className="h-5 w-5 text-foreground shrink-0 mt-0.5" />
               <span className="text-sm">{l(p)}</span>
             </div>
           ))}

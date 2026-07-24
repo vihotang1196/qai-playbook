@@ -49,8 +49,8 @@ const AffiliateWhoIsFor = () => {
               onClick={() => setSelected(i)}
               className={`text-left p-6 rounded-2xl border-2 transition-all duration-300 ${
                 selected === i
-                  ? "border-accent bg-accent/10 shadow-lg shadow-accent/10"
-                  : "border-border hover:border-accent/50 hover:shadow-md"
+                  ? "border-accent bg-accent/10"
+                  : "border-border hover:border-accent/50"
               }`}
             >
               <o.icon className={`h-8 w-8 mb-4 ${selected === i ? "text-accent-foreground" : "text-muted-foreground"}`} />

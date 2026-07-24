@@ -7,8 +7,8 @@ const steps = [
   { icon: Users, label: bi("Get Traffic", "获取流量"), desc: bi("We guide you step-by-step", "我们一步步指导你"), color: "bg-accent" },
   { icon: Bot, label: bi("AI Follows Up", "AI 自动跟进"), desc: bi("Automatic 24/7 responses", "全天候自动回复"), color: "bg-accent" },
   { icon: MessageCircle, label: bi("AI Nurtures", "AI 培育客户"), desc: bi("Build trust on autopilot", "自动建立信任"), color: "bg-accent" },
-  { icon: DollarSign, label: bi("AI Converts", "AI 成交"), desc: bi("Close deals without hard selling", "无需硬推销即可成交"), color: "bg-green-500" },
-  { icon: DollarSign, label: bi("You Earn", "你赚积分"), desc: bi("Recurring credits", "持续积分收入"), color: "bg-green-500" },
+  { icon: DollarSign, label: bi("AI Converts", "AI 成交"), desc: bi("Close deals without hard selling", "无需硬推销即可成交"), color: "bg-[#fed50a]" },
+  { icon: DollarSign, label: bi("You Earn", "你赚积分"), desc: bi("Recurring credits", "持续积分收入"), color: "bg-[#fed50a]" },
 ];
 
 const AffiliateHowItWorks = () => {

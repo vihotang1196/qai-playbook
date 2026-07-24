@@ -126,7 +126,7 @@ export function Results({
                 >
                   <div className="mb-3 flex items-center justify-between gap-3">
                     <div className="flex items-center gap-2">
-                      <div className="font-bold text-primary">{seg.stage}</div>
+                      <div className="font-bold text-foreground">{seg.stage}</div>
                       {isBanner && (
                         <span className="rounded-full bg-primary px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wider text-primary-foreground">
                           {t.topBannerTag}
@@ -198,7 +198,7 @@ export function Results({
 
           {/* WhatsApp */}
           <div className="mb-3 flex items-center gap-2">
-            <span className="rounded-full bg-emerald-500/10 px-3 py-1 text-xs font-semibold text-emerald-700">
+            <span className="rounded-full bg-[#141414] px-3 py-1 text-xs font-semibold text-white">
               {t.autoMsgWhatsappLabel}
             </span>
           </div>
@@ -222,7 +222,7 @@ export function Results({
 
           {/* Email */}
           <div className="mb-3 flex items-center gap-2">
-            <span className="rounded-full bg-blue-500/10 px-3 py-1 text-xs font-semibold text-blue-700">
+            <span className="rounded-full bg-secondary px-3 py-1 text-xs font-semibold text-foreground">
               {t.autoMsgEmailLabel}
             </span>
           </div>

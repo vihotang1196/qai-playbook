@@ -37,7 +37,7 @@ const Credits = () => {
               bi("Full transparency on every action", "每一次操作完全透明"),
             ].map((item, i) => (
               <span key={i} className="flex items-center gap-2 text-foreground">
-                <Check className="h-4 w-4 text-emerald-500 shrink-0" />
+                <Check className="h-4 w-4 text-foreground shrink-0" />
                 {l(item)}
               </span>
             ))}

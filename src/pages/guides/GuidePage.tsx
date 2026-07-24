@@ -28,7 +28,7 @@ export default function GuidePage() {
             </p>
             <div className="flex flex-col items-center gap-2">
               {GUIDES.map((g) => (
-                <Link key={g.slug} to={`/guides/${g.slug}`} className="text-sm text-primary hover:underline">
+                <Link key={g.slug} to={`/guides/${g.slug}`} className="text-sm text-foreground hover:underline">
                   {g.title[lang]}
                 </Link>
               ))}

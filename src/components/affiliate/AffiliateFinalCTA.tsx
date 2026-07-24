@@ -33,7 +33,7 @@ const AffiliateFinalCTA = () => {
           )}
 
           <div className="flex flex-col sm:flex-row gap-3 justify-center mb-10">
-            <Button size="xl" className="shadow-xl" asChild>
+            <Button size="xl" asChild>
               <a href="https://wa.me/601112436811" target="_blank" rel="noopener noreferrer">
                 {l(bi("Apply Now", "立即申请"))} <ArrowRight className="h-4 w-4 ml-1" />
               </a>

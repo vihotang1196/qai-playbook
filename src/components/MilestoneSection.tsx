@@ -44,7 +44,7 @@ const MilestoneSection = () => {
 
         {/* Timeline */}
         <div className="relative">
-          <div className="absolute left-6 md:left-8 top-0 bottom-0 w-px bg-gradient-to-b from-accent via-accent/30 to-transparent" />
+          <div className="absolute left-6 md:left-8 top-0 bottom-0 w-px bg-[#141414]" />
 
           <div className="space-y-10">
             {r.phases.map((phase, i) => {
@@ -54,10 +54,10 @@ const MilestoneSection = () => {
                 <div key={i} className="relative pl-16 md:pl-20 group">
                   <div className={`absolute left-4 md:left-6 w-4 h-4 rounded-full ${dotColors[i]} ring-4 ring-background`} />
 
-                  <div className="vision-panel p-6 hover:border-accent/30 transition-all duration-500">
+                  <div className="vision-panel p-6 hover:border-foreground/30 transition-all duration-500">
                     <div className="flex items-center gap-3 mb-3">
-                      <Icon size={16} className="text-accent" />
-                      <span className="text-xs font-medium tracking-widest text-accent uppercase">{phase.label[lang]}</span>
+                      <Icon size={16} className="text-foreground" />
+                      <span className="text-xs font-medium tracking-widest text-foreground uppercase">{phase.label[lang]}</span>
                     </div>
                     <h3 className="text-xl font-bold text-foreground mb-3">{phase.title[lang]}</h3>
                     {!hideSubtitles && (
@@ -69,11 +69,11 @@ const MilestoneSection = () => {
                               <HoverCard key={j} openDelay={200} closeDelay={300}>
                                 <HoverCardTrigger asChild>
                                   <li
-                                    className="flex items-center gap-3 text-sm text-muted-foreground cursor-pointer hover:text-accent transition-colors group/item"
+                                    className="flex items-center gap-3 text-sm text-muted-foreground cursor-pointer hover:text-foreground transition-colors group/item"
                                     onClick={() => window.open(link, "_blank")}
                                   >
-                                    <span className="w-1 h-1 rounded-full bg-accent/50 mt-0 shrink-0 group-hover/item:bg-accent transition-colors" />
-                                    <span className="underline decoration-dotted underline-offset-4 decoration-accent/30 group-hover/item:decoration-accent">
+                                    <span className="w-1 h-1 rounded-full bg-foreground/50 mt-0 shrink-0 group-hover/item:bg-foreground transition-colors" />
+                                    <span className="underline decoration-dotted underline-offset-4 decoration-foreground/30 group-hover/item:decoration-foreground">
                                       {item[lang]}
                                     </span>
                                     <ExternalLink size={12} className="opacity-0 group-hover/item:opacity-60 transition-opacity shrink-0" />
@@ -104,7 +104,7 @@ const MilestoneSection = () => {
                           }
                           return (
                             <li key={j} className="flex items-start gap-3 text-sm text-muted-foreground">
-                              <span className="w-1 h-1 rounded-full bg-accent/50 mt-2 shrink-0" />
+                              <span className="w-1 h-1 rounded-full bg-foreground/50 mt-2 shrink-0" />
                               {item[lang]}
                             </li>
                           );

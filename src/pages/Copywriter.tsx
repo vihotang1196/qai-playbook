@@ -63,7 +63,7 @@ function LoadingView({ lang }: { lang: Language }) {
   return (
     <div className="flex min-h-[60vh] flex-col items-center justify-center px-4 text-center">
       <div className="relative">
-        <div className="absolute inset-0 animate-ping rounded-full bg-[#FF3D6E]/20" />
+        <div className="absolute inset-0 animate-ping rounded-full bg-[#fed50a]/30" />
         <div className="btn-gradient relative flex h-20 w-20 items-center justify-center rounded-full">
           <Sparkles className="h-9 w-9" />
         </div>

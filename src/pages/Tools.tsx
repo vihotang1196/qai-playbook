@@ -80,7 +80,7 @@ const Tools = () => {
                     </div>
                     <h2 className="text-xl font-bold tracking-tight">{title}</h2>
                     <p className="mt-2 flex-1 text-sm leading-relaxed text-muted-foreground">{desc}</p>
-                    <div className="mt-5 inline-flex items-center gap-1.5 text-sm font-semibold text-primary">
+                    <div className="mt-5 inline-flex items-center gap-1.5 text-sm font-semibold text-foreground">
                       {lang === "cn" ? "进入工具" : "Open tool"}
                       <ArrowRight className="h-4 w-4" />
                     </div>

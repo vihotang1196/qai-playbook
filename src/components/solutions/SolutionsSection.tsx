@@ -166,7 +166,7 @@ const SolutionsSection = () => {
               className={`px-5 py-2.5 rounded-full text-sm font-medium transition-all duration-300 border ${
                 activeFilter === f.id
                   ? "bg-foreground text-background border-foreground shadow-lg"
-                  : "bg-background/60 text-muted-foreground border-border hover:border-foreground/30 hover:text-foreground backdrop-blur-sm"
+                  : "bg-background text-muted-foreground border-border hover:border-foreground/30 hover:text-foreground"
               }`}
             >
               {f[lang]}
@@ -182,11 +182,11 @@ const SolutionsSection = () => {
               <div
                 key={card.id}
                 ref={(el) => { cardRefs.current[i] = el; }}
-                className="group relative rounded-2xl border border-border/50 bg-background/60 backdrop-blur-xl p-7 transition-all duration-500 hover:shadow-2xl hover:shadow-accent/10 hover:-translate-y-1 hover:border-accent/20 opacity-0 translate-y-6"
+                className="group relative rounded-2xl border border-border/50 bg-background p-7 transition-all duration-500 hover:-translate-y-1 hover:border-foreground/20 opacity-0 translate-y-6"
                 style={{ animationDelay: `${i * 0.1}s` }}
               >
                 {/* Glow on hover */}
-                <div className="absolute inset-0 rounded-2xl bg-gradient-to-br from-accent/5 via-transparent to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-500 pointer-events-none" />
+                <div className="absolute inset-0 rounded-2xl bg-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-500 pointer-events-none" />
 
                 <div className="relative z-10">
                   {/* Icon */}
@@ -262,10 +262,10 @@ const SolutionsSection = () => {
           {activeFilter === "all" && (
             <div
               ref={(el) => { cardRefs.current[filtered.length] = el; }}
-              className="group relative rounded-2xl border border-border/50 bg-background/60 backdrop-blur-xl p-7 transition-all duration-500 hover:shadow-2xl hover:shadow-accent/10 hover:-translate-y-1 hover:border-accent/20 opacity-0 translate-y-6 flex flex-col items-center justify-center text-center"
+              className="group relative rounded-2xl border border-border/50 bg-background p-7 transition-all duration-500 hover:-translate-y-1 hover:border-foreground/20 opacity-0 translate-y-6 flex flex-col items-center justify-center text-center"
               style={{ animationDelay: `${filtered.length * 0.1}s` }}
             >
-              <div className="absolute inset-0 rounded-2xl bg-gradient-to-br from-accent/5 via-transparent to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-500 pointer-events-none" />
+              <div className="absolute inset-0 rounded-2xl bg-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-500 pointer-events-none" />
               <div className="relative z-10 flex flex-col items-center justify-center h-full">
                 <div className="w-16 h-16 rounded-2xl bg-accent/10 flex items-center justify-center mb-6">
                   <Sparkles size={28} className="text-accent-foreground" />

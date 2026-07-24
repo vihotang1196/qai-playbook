@@ -137,8 +137,8 @@ const ServicePricingGrid = () => {
               <div className="px-7 pb-7 pt-5">
                 <h3 className="font-semibold text-lg mb-3">{l(s.title)}</h3>
                 <p className="text-sm text-muted-foreground font-mono mb-4">{s.price}</p>
-                <div className="rounded-lg bg-emerald-500/10 border border-emerald-500/20 px-4 py-3">
-                  <p className="text-sm text-emerald-700 dark:text-emerald-400 font-medium">
+                <div className="rounded-lg bg-secondary border border-[#141414] px-4 py-3">
+                  <p className="text-sm text-foreground font-medium">
                     {l(s.value)}
                   </p>
                 </div>
@@ -149,14 +149,14 @@ const ServicePricingGrid = () => {
       </div>
 
       {/* Bottom highlight */}
-      <div className="max-w-2xl mx-auto mt-14 rounded-2xl bg-gradient-to-br from-secondary/80 to-secondary/40 border border-border/40 p-8 text-center shadow-sm">
+      <div className="max-w-2xl mx-auto mt-14 rounded-2xl bg-secondary border border-border/40 p-8 text-center shadow-sm">
         <p className="text-xs uppercase tracking-widest text-muted-foreground mb-3 font-medium">
           {l(bi("Simple rule", "简单规则"))}
         </p>
         <p className="text-lg font-bold mb-1">
           {l(bi("If AI does the work → Uses credits", "AI 做的 → 消耗额度"))}
         </p>
-        <p className="text-lg font-bold text-emerald-600 dark:text-emerald-400">
+        <p className="text-lg font-bold text-foreground">
           {l(bi("If you do it manually → Free", "你手动做的 → 免费"))}
         </p>
       </div>

@@ -180,34 +180,23 @@
     box-shadow: 0 14px 36px rgba(20,20,20,0.10);
   }
 
-  /* Category-tinted glass — used ALONGSIDE .glass-card on the homepage
-     feature cards only (WhatsApp=green, Virtual=blue, Coaching=red).
-     ~10% colour over 50% white keeps the frosted, airy look; the centre
-     stays bright. Blur / shadow / radius / hover are inherited from
-     .glass-card. Declared after it so background + border-color win. */
-  .glass-card-green {
-    background: linear-gradient(0deg, rgba(34,197,94,0.10), rgba(34,197,94,0.10)), rgba(255,255,255,0.5);
-    border-color: rgba(34,197,94,0.30);
-  }
-  .glass-card-blue {
-    background: linear-gradient(0deg, rgba(59,130,246,0.10), rgba(59,130,246,0.10)), rgba(255,255,255,0.5);
-    border-color: rgba(59,130,246,0.30);
-  }
+  /* Brutalist (batch 2): the homepage feature cards drop their green/blue/red
+     tints (off-palette) → white with a hard 2px ink border so they still read
+     as distinct "blocks". Colour originals archived at tag backup-coral-glass. */
+  .glass-card-green,
+  .glass-card-blue,
   .glass-card-red {
-    background: linear-gradient(0deg, rgba(239,68,68,0.10), rgba(239,68,68,0.10)), rgba(255,255,255,0.5);
-    border-color: rgba(239,68,68,0.30);
+    background: #ffffff;
+    border: 2px solid #141414;
   }
 
-  /* Large grouping panel (Coaching Night). Lighter tint (~8%) than the
-     single cards since it covers a big area; bigger 2rem radius, soft
-     shadow, NO hover lift (it's a static container, not a tappable card). */
+  /* Coaching Night grouping panel → Brutalist emphasis block (white + hard
+     offset shadow), de-tinted + de-frosted. */
   .glass-panel-red {
-    background: linear-gradient(0deg, rgba(239,68,68,0.08), rgba(239,68,68,0.08)), rgba(255,255,255,0.55);
-    backdrop-filter: blur(30px) saturate(180%);
-    -webkit-backdrop-filter: blur(30px) saturate(180%);
-    border: 1px solid rgba(239,68,68,0.22);
-    box-shadow: 0 10px 40px rgba(40,40,90,0.06);
-    border-radius: 2rem;
+    background: #ffffff;
+    border: 2px solid #141414;
+    box-shadow: 6px 6px 0 #141414;
+    border-radius: 1.5rem;
   }
 
   .glass-soft {
@@ -334,27 +323,25 @@
      background blobs, or the page reads as separate banded blocks. */
   .vision-section { @apply relative overflow-hidden; }
 
+  /* Brutalist (batch 2): yellow pill eyebrow, ink text + border, de-frosted. */
   .vision-chip {
-    @apply inline-flex items-center gap-2 px-4 py-1.5 rounded-full text-[11px] font-medium tracking-[0.18em] uppercase text-foreground/70;
-    background: rgba(255,255,255,0.55);
-    backdrop-filter: blur(20px) saturate(180%);
-    -webkit-backdrop-filter: blur(20px) saturate(180%);
-    border: 1px solid rgba(255,255,255,0.55);
-    box-shadow: 0 4px 24px rgba(40,40,90,0.06);
+    @apply inline-flex items-center gap-2 px-4 py-1.5 rounded-full text-[12px] font-bold tracking-[0.16em] uppercase text-[#141414];
+    background: #fed50a;
+    border: 2px solid #141414;
+    box-shadow: none;
   }
 
+  /* Brutalist (batch 2): clean white card, ink hairline, soft shadow, no frost. */
   .vision-panel {
-    background: rgba(255,255,255,0.55);
-    backdrop-filter: blur(30px) saturate(180%);
-    -webkit-backdrop-filter: blur(30px) saturate(180%);
-    border: 1px solid rgba(255,255,255,0.55);
-    box-shadow: 0 10px 40px rgba(40,40,90,0.06), inset 0 1px 0 rgba(255,255,255,0.6);
-    border-radius: 2rem;
-    transition: transform 500ms cubic-bezier(0.16,1,0.3,1), box-shadow 500ms ease;
+    background: #ffffff;
+    border: 1px solid rgba(20,20,20,0.10);
+    box-shadow: 0 8px 28px rgba(20,20,20,0.06);
+    border-radius: 1.5rem;
+    transition: transform 300ms ease, box-shadow 300ms ease;
   }
   .vision-panel:hover {
-    transform: translateY(-6px);
-    box-shadow: 0 24px 60px rgba(74,76,150,0.14), inset 0 1px 0 rgba(255,255,255,0.6);
+    transform: translateY(-4px);
+    box-shadow: 0 14px 36px rgba(20,20,20,0.10);
   }
 }
 

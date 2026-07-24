@@ -40,7 +40,7 @@ const Affiliate = () => {
           href="https://wa.me/601112436811"
           target="_blank"
           rel="noopener noreferrer"
-          className="fixed bottom-6 right-6 z-50 flex items-center gap-2 bg-accent text-accent-foreground px-5 py-3 rounded-full shadow-xl hover:scale-105 transition-transform duration-300"
+          className="fixed bottom-6 right-6 z-50 flex items-center gap-2 bg-accent text-accent-foreground px-5 py-3 rounded-full transition-transform duration-300"
         >
           <MessageCircle className="h-5 w-5" />
           <span className="text-sm font-semibold">{lang === "cn" ? "立即申请" : "Apply Now"}</span>

@@ -18,12 +18,12 @@ const UpgradeCombo = () => {
 
   return (
     <section className="max-w-3xl mx-auto px-6 mb-24">
-      <Card className="relative border-2 border-accent shadow-xl rounded-2xl overflow-hidden bg-gradient-to-br from-accent/5 via-background to-accent/5">
+      <Card className="relative border-2 border-accent shadow-xl rounded-2xl overflow-hidden bg-accent/5">
         <div className="absolute top-0 left-0 right-0 h-1.5 bg-accent" />
         <CardContent className="p-8 sm:p-10">
           <Badge className="bg-accent text-accent-foreground border-0 text-xs mb-4">
             <Sparkles className="h-3 w-3 mr-1" />
-            🔥 {l(bi("Advanced Users Choose This", "进阶用户选择"))}
+            {l(bi("Advanced Users Choose This", "进阶用户选择"))}
           </Badge>
 
           <h3 className="text-2xl sm:text-3xl font-bold mb-2">
@@ -43,7 +43,7 @@ const UpgradeCombo = () => {
 
           <div className="rounded-xl bg-accent/5 border border-accent/20 p-4 mb-8 text-center">
             <p className="text-sm font-bold">
-              👉 {l(bi("More clients + Faster closings = Revenue multiplied", "更多客户 + 更快成交 = 收入放大"))}
+              {l(bi("More clients + Faster closings = Revenue multiplied", "更多客户 + 更快成交 = 收入放大"))}
             </p>
           </div>
 

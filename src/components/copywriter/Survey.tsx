@@ -44,17 +44,17 @@ function loadDraft(): SurveyInput {
   }
 }
 
-// Visual cue: empty required = red border; filled = teal border.
+// Visual cue: required fields carry an ink border in both states.
 // Use ! to override glass-input's `border` shorthand.
 const fieldCls = (v: string) =>
   v
-    ? "!border !border-teal-500 focus-visible:!ring-teal-500"
-    : "!border !border-red-400 focus-visible:!ring-red-400";
+    ? "!border !border-[#141414] focus-visible:!ring-[#141414]"
+    : "!border !border-[#141414] focus-visible:!ring-[#141414]";
 
 const groupCls = (v: string) =>
   v
-    ? "rounded-2xl border border-teal-500 p-1.5"
-    : "rounded-2xl border border-red-400 p-1.5";
+    ? "rounded-2xl border border-[#141414] p-1.5"
+    : "rounded-2xl border border-[#141414] p-1.5";
 
 export function Survey({ onSubmit }: { onSubmit: (data: SurveyInput) => void }) {
   const [data, setData] = useState<SurveyInput>(DEFAULT);
@@ -122,7 +122,7 @@ export function Survey({ onSubmit }: { onSubmit: (data: SurveyInput) => void }) 
                 onClick={() => setLanguage(l)}
                 className={`rounded-2xl px-4 py-5 text-base font-semibold transition-all duration-300 ${
                   data.language === l
-                    ? "bg-teal-50 border-2 border-teal-500 text-teal-700"
+                    ? "bg-[#fed50a] border-2 border-[#141414] text-[#141414]"
                     : "glass-input hover:-translate-y-0.5"
                 }`}
               >
@@ -192,7 +192,7 @@ export function Survey({ onSubmit }: { onSubmit: (data: SurveyInput) => void }) 
                       onClick={() => !m && setRange([25, 45])}
                       className={`rounded-xl px-3 py-2.5 text-sm font-medium transition-all duration-300 ${
                         !isUnlimited && !!data.ageRange
-                          ? "bg-teal-50 border-2 border-teal-500 text-teal-700"
+                          ? "bg-[#fed50a] border-2 border-[#141414] text-[#141414]"
                           : "glass-input hover:-translate-y-0.5"
                       }`}
                     >
@@ -203,7 +203,7 @@ export function Survey({ onSubmit }: { onSubmit: (data: SurveyInput) => void }) 
                       onClick={() => update("ageRange", t.ageUnlimited)}
                       className={`rounded-xl px-3 py-2.5 text-sm font-medium transition-all duration-300 ${
                         isUnlimited
-                          ? "bg-teal-50 border-2 border-teal-500 text-teal-700"
+                          ? "bg-[#fed50a] border-2 border-[#141414] text-[#141414]"
                           : "glass-input hover:-translate-y-0.5"
                       }`}
                     >
@@ -221,13 +221,13 @@ export function Survey({ onSubmit }: { onSubmit: (data: SurveyInput) => void }) 
                         onValueChange={setRange}
                         className="relative flex w-full touch-none select-none items-center"
                       >
-                        <SliderPrimitive.Track className="relative h-2 w-full grow overflow-hidden rounded-full bg-teal-100">
-                          <SliderPrimitive.Range className="absolute h-full bg-teal-500" />
+                        <SliderPrimitive.Track className="relative h-2 w-full grow overflow-hidden rounded-full bg-secondary">
+                          <SliderPrimitive.Range className="absolute h-full bg-[#141414]" />
                         </SliderPrimitive.Track>
-                        <SliderPrimitive.Thumb className="block h-5 w-5 rounded-full border-2 border-teal-500 bg-white shadow focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-teal-400" />
-                        <SliderPrimitive.Thumb className="block h-5 w-5 rounded-full border-2 border-teal-500 bg-white shadow focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-teal-400" />
+                        <SliderPrimitive.Thumb className="block h-5 w-5 rounded-full border-2 border-[#141414] bg-white shadow focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#141414]" />
+                        <SliderPrimitive.Thumb className="block h-5 w-5 rounded-full border-2 border-[#141414] bg-white shadow focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#141414]" />
                       </SliderPrimitive.Root>
-                      <div className="mt-3 text-center text-sm font-semibold text-teal-700">
+                      <div className="mt-3 text-center text-sm font-semibold text-[#141414]">
                         {lo} - {hi} {t.ageYearsLabel}
                       </div>
                     </div>
@@ -246,7 +246,7 @@ export function Survey({ onSubmit }: { onSubmit: (data: SurveyInput) => void }) 
                     onClick={() => update("gender", opt)}
                     className={`rounded-xl px-3 py-2.5 text-sm font-medium transition-all duration-300 ${
                       data.gender === opt
-                        ? "bg-teal-50 border-2 border-teal-500 text-teal-700"
+                        ? "bg-[#fed50a] border-2 border-[#141414] text-[#141414]"
                         : "glass-input hover:-translate-y-0.5"
                     }`}
                   >
@@ -311,7 +311,7 @@ export function Survey({ onSubmit }: { onSubmit: (data: SurveyInput) => void }) 
                     onClick={() => update("tone", opt)}
                     className={`rounded-xl px-3 py-3 text-sm font-medium transition-all duration-300 ${
                       data.tone === opt
-                        ? "bg-teal-50 border-2 border-teal-500 text-teal-700"
+                        ? "bg-[#fed50a] border-2 border-[#141414] text-[#141414]"
                         : "glass-input hover:-translate-y-0.5"
                     }`}
                   >
@@ -355,7 +355,7 @@ function Field({
     <div>
       <Label className="mb-1.5 block text-sm font-medium">
         {label}
-        {required && <span className="ml-0.5 text-destructive">*</span>}
+        {required && <span className="ml-0.5 text-foreground">*</span>}
       </Label>
       {children}
     </div>

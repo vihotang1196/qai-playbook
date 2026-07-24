@@ -47,10 +47,10 @@ const UpgradeAnalogy = () => {
             </div>
 
             <div className="hidden sm:flex items-center justify-center">
-              <ArrowRight className="h-5 w-5 text-accent" />
+              <ArrowRight className="h-5 w-5 text-foreground" />
             </div>
             <div className="flex sm:hidden items-center justify-center py-1">
-              <ArrowRight className="h-5 w-5 text-accent rotate-90" />
+              <ArrowRight className="h-5 w-5 text-foreground rotate-90" />
             </div>
 
             <div className="rounded-xl bg-accent/5 border border-accent/20 p-5 text-center">

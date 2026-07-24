@@ -35,7 +35,7 @@ const ExpansionCards = () => {
             <div className="flex items-center gap-2 mb-5">
               <Badge className="bg-accent text-accent-foreground border-0 text-xs">
                 <TrendingUp className="h-3 w-3 mr-1" />
-                📈 {l(bi("Expand Business", "扩展业务"))}
+                {l(bi("Expand Business", "扩展业务"))}
               </Badge>
             </div>
 
@@ -64,7 +64,7 @@ const ExpansionCards = () => {
 
             <div className="rounded-xl bg-accent/5 border border-accent/20 p-4 mb-6 text-center">
               <p className="text-sm font-bold">
-                👉 {l(bi("From 1 account → 6 accounts", "从 1 个账号 → 6 个账号"))}
+                {l(bi("From 1 account → 6 accounts", "从 1 个账号 → 6 个账号"))}
               </p>
             </div>
 
@@ -84,7 +84,7 @@ const ExpansionCards = () => {
             <div className="flex items-center gap-2 mb-5">
               <Badge variant="outline" className="text-xs">
                 <MessageSquare className="h-3 w-3 mr-1" />
-                💬 {l(bi("Increase Capacity", "提升处理能力"))}
+                {l(bi("Increase Capacity", "提升处理能力"))}
               </Badge>
             </div>
 
@@ -129,7 +129,7 @@ const ExpansionCards = () => {
 
             <div className="rounded-xl bg-secondary/50 border border-border/60 p-4 mb-6 text-center">
               <p className="text-sm font-bold">
-                👉 {l(bi("Not more features — more \"closing power\"", "不是更多功能，是更多「成交能力」"))}
+                {l(bi("Not more features — more \"closing power\"", "不是更多功能，是更多「成交能力」"))}
               </p>
             </div>
 

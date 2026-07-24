@@ -24,7 +24,7 @@ const AffiliateWhatAIDoes = () => {
 
         <div className="grid sm:grid-cols-2 gap-6">
           {features.map((f) => (
-            <div key={f.title.en} className="flex gap-4 p-5 rounded-2xl border hover:shadow-md transition-shadow duration-300">
+            <div key={f.title.en} className="flex gap-4 p-5 rounded-2xl border">
               <div className="w-11 h-11 rounded-xl bg-accent/15 flex items-center justify-center shrink-0">
                 <f.icon className="h-5 w-5 text-accent-foreground" />
               </div>

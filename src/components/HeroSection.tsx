@@ -249,8 +249,8 @@ const HeroSection = () => {
       {/* Two-column: WhatsApp Support + Virtual Walk-In */}
       <div id="hero-cards" className="relative z-10 w-full max-w-5xl mx-auto px-6 mt-6 md:mt-8 mb-4">
         {(isHolidayToday || upcomingHoliday) && (
-          <div className="mb-4 flex items-center justify-center gap-2 text-xs md:text-sm font-semibold text-red-600 dark:text-red-400">
-            <span className="inline-block w-2 h-2 rounded-full bg-red-500 animate-pulse" />
+          <div className="mb-4 flex items-center justify-center gap-2 text-xs md:text-sm font-semibold text-foreground">
+            <span className="inline-block w-2 h-2 rounded-full bg-[#141414] animate-pulse" />
             {isHolidayToday ? (
               <span>
                 {lang === "cn"
@@ -271,7 +271,7 @@ const HeroSection = () => {
           <div className="glass-card glass-card-green p-6 flex flex-col justify-between">
             <div>
               <div className="flex items-center gap-2 mb-3">
-                <span className="text-[10px] font-bold uppercase px-2 py-0.5 rounded bg-green-500 text-white">
+                <span className="text-[10px] font-bold uppercase px-2 py-0.5 rounded bg-[#141414] text-white">
                   {lang === "cn" ? "技术客服" : "Support"}
                 </span>
               </div>
@@ -287,7 +287,7 @@ const HeroSection = () => {
             <Button
               size="sm"
               disabled={buttonsDisabled}
-              className="w-full mt-4 bg-gradient-to-r from-[#34D399] to-[#22C55E] hover:brightness-110 text-white disabled:opacity-60 disabled:cursor-not-allowed"
+              className="w-full mt-4 bg-[#fed50a] hover:brightness-110 text-[#141414] disabled:opacity-60 disabled:cursor-not-allowed"
               onClick={() => !buttonsDisabled && window.open(WHATSAPP_LINK, "_blank")}
             >
               {buttonsDisabled
@@ -300,15 +300,15 @@ const HeroSection = () => {
           <div className="glass-card glass-card-blue p-6 flex flex-col justify-between">
             <div>
               <div className="flex items-center gap-2 mb-3">
-                <span className="text-[10px] font-bold uppercase px-2 py-0.5 rounded bg-gradient-to-r from-[#60A5FA] to-[#3B82F6] text-white">
+                <span className="text-[10px] font-bold uppercase px-2 py-0.5 rounded bg-[#141414] text-white">
                   Virtual Walk-In
                 </span>
                 {isWalkInTime ? (
-                  <span className="text-[10px] font-bold uppercase px-2 py-0.5 rounded bg-blue-500 text-white animate-pulse">
+                  <span className="text-[10px] font-bold uppercase px-2 py-0.5 rounded bg-[#141414] text-white animate-pulse">
                     LIVE
                   </span>
                 ) : (
-                  <span className="text-[10px] font-bold uppercase px-2 py-0.5 rounded bg-blue-500/15 text-blue-600">
+                  <span className="text-[10px] font-bold uppercase px-2 py-0.5 rounded bg-[#141414]/[0.06] text-foreground">
                     {lang === "cn" ? "一至五 3–5PM" : "Mon–Fri 3–5PM"}
                   </span>
                 )}
@@ -329,7 +329,7 @@ const HeroSection = () => {
             <Button
               size="sm"
               disabled={buttonsDisabled || !isWalkInTime}
-              className="w-full mt-4 bg-gradient-to-r from-[#60A5FA] to-[#3B82F6] hover:brightness-110 text-white disabled:opacity-60 disabled:cursor-not-allowed"
+              className="w-full mt-4 bg-[#fed50a] hover:brightness-110 text-[#141414] disabled:opacity-60 disabled:cursor-not-allowed"
               onClick={() => !buttonsDisabled && isWalkInTime && window.open(VIRTUAL_WALKIN_LINK, "_blank")}
             >
               {buttonsDisabled ? (
@@ -352,7 +352,7 @@ const HeroSection = () => {
             {/* Header: title + shared session-time note */}
             <div className="flex flex-col gap-1.5 sm:flex-row sm:items-center sm:justify-between mb-5">
               <div className="flex items-center gap-2.5">
-                <span className="w-2 h-2 rounded-full bg-red-500" />
+                <span className="w-2 h-2 rounded-full bg-[#141414]" />
                 <h2 className="font-display text-lg md:text-xl font-bold tracking-tight text-foreground">
                   Coaching Night{lang === "cn" && <span className="text-muted-foreground font-medium"> · 教练之夜</span>}
                 </h2>
@@ -365,10 +365,10 @@ const HeroSection = () => {
             </div>
 
             {/* Two zones: upcoming sessions | past replays */}
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-6 md:gap-8 md:divide-x divide-red-500/15">
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-6 md:gap-8 md:divide-x divide-[#141414]/10">
               {/* Left — upcoming sessions */}
               <div className="md:pr-8">
-                <p className="text-[11px] font-semibold tracking-widest uppercase text-red-600/80 mb-3">
+                <p className="text-[11px] font-semibold tracking-widest uppercase text-muted-foreground mb-3">
                   {lang === "cn" ? "即将到来" : "Upcoming"}
                 </p>
                 {(() => {
@@ -390,18 +390,18 @@ const HeroSection = () => {
                     <>
                       <div className="space-y-2">
                         {nextMondays.map((d, i) => (
-                          <div key={i} className="flex items-center justify-between gap-3 rounded-xl bg-red-500/[0.05] px-3 py-2">
+                          <div key={i} className="flex items-center justify-between gap-3 rounded-xl bg-[#141414]/[0.04] px-3 py-2">
                             <div className="flex items-center gap-2 min-w-0">
                               <span className="text-sm font-bold tracking-tight text-foreground truncate">
                                 {lang === "cn" ? `${fmtMd(d)} · 一` : `${fmtMdEn(d)} · Mon`}
                               </span>
                               {i === liveIndex && (
-                                <span className="shrink-0 text-[9px] font-bold uppercase px-1.5 py-0.5 rounded bg-red-500 text-white animate-pulse">
+                                <span className="shrink-0 text-[9px] font-bold uppercase px-1.5 py-0.5 rounded bg-[#141414] text-white animate-pulse">
                                   LIVE
                                 </span>
                               )}
                             </div>
-                            <span className="shrink-0 px-2 py-0.5 rounded-full bg-red-500/15 text-red-600 text-[11px] font-semibold">
+                            <span className="shrink-0 px-2 py-0.5 rounded-full bg-[#141414]/[0.06] text-foreground text-[11px] font-semibold">
                               {topicForMonday(d)}
                             </span>
                           </div>
@@ -411,11 +411,11 @@ const HeroSection = () => {
                         size="sm"
                         variant={anyLive ? "default" : "outline"}
                         disabled={!anyLive}
-                        className={`mt-4 w-full ${anyLive ? "bg-gradient-to-r from-[#F87171] to-[#EF4444] hover:brightness-110 text-white shadow-lg shadow-red-500/25" : "border-border text-muted-foreground/70"}`}
+                        className={`mt-4 w-full ${anyLive ? "bg-[#fed50a] hover:brightness-110 text-[#141414]" : "border-border text-muted-foreground/70"}`}
                         onClick={() => anyLive && window.open(COACHING_NIGHT_LINK, "_blank")}
                       >
                         <Video size={14} />
-                        {lang === "cn" ? "📹 进入教室" : "📹 Join Room"}
+                        {lang === "cn" ? "进入教室" : "Join Room"}
                       </Button>
                     </>
                   );
@@ -424,7 +424,7 @@ const HeroSection = () => {
 
               {/* Right — past replays */}
               <div>
-                <p className="text-[11px] font-semibold tracking-widest uppercase text-red-600/80 mb-3">
+                <p className="text-[11px] font-semibold tracking-widest uppercase text-muted-foreground mb-3">
                   {lang === "cn" ? "过往录像" : "Past Replays"}
                 </p>
                 {coachingRecordings.length === 0 ? (
@@ -438,14 +438,14 @@ const HeroSection = () => {
                         key={i}
                         type="button"
                         onClick={() => setActiveRecording(r)}
-                        className="group flex w-full items-center gap-3 rounded-xl border border-red-500/20 bg-red-500/[0.06] px-3 py-2.5 text-left transition-all duration-300 hover:bg-red-500/[0.10]"
+                        className="group flex w-full items-center gap-3 rounded-xl border border-[#141414]/20 bg-[#141414]/[0.04] px-3 py-2.5 text-left transition-all duration-300 hover:bg-[#141414]/[0.08]"
                       >
-                        <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-red-500/15 text-red-600 transition-colors group-hover:bg-red-500 group-hover:text-white">
+                        <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-[#141414]/[0.08] text-foreground transition-colors group-hover:bg-[#141414] group-hover:text-white">
                           <Play size={14} className="fill-current ml-0.5" />
                         </span>
                         <span className="flex flex-1 items-center justify-between gap-2">
                           <span className="text-sm font-semibold text-foreground">{r.date}</span>
-                          <span className="text-[11px] font-medium text-red-600">{r.topic}</span>
+                          <span className="text-[11px] font-medium text-muted-foreground">{r.topic}</span>
                         </span>
                       </button>
                     ))}

@@ -25,7 +25,7 @@ const AffiliateHero = () => {
 
             <h1 className="text-4xl md:text-5xl lg:text-[3.4rem] font-bold leading-[1.1] tracking-tight">
               {l(bi("Build Monthly Passive Income Using", "利用"))}{" "}
-              <span className="text-accent">AI</span>
+              <span className="text-foreground">AI</span>
               {lang === "cn" && " 建立每月被动收入"}
             </h1>
 
@@ -41,7 +41,7 @@ const AffiliateHero = () => {
             <div className="space-y-3">
               {checks.map((c) => (
                 <div key={c.en} className="flex items-center gap-3">
-                  <CheckCircle2 className="h-5 w-5 text-green-500 shrink-0" />
+                  <CheckCircle2 className="h-5 w-5 text-[#141414] shrink-0" />
                   <span className="text-sm font-medium">{l(c)}</span>
                 </div>
               ))}
@@ -57,11 +57,11 @@ const AffiliateHero = () => {
           </div>
 
           <div className="relative hidden lg:block">
-            <div className="rounded-2xl border bg-card p-6 shadow-2xl shadow-accent/5">
+            <div className="rounded-2xl border border-[#141414] bg-white p-6 shadow-[6px_6px_0_#141414]">
               <div className="flex items-center gap-2 mb-6">
-                <div className="w-3 h-3 rounded-full bg-red-400" />
-                <div className="w-3 h-3 rounded-full bg-yellow-400" />
-                <div className="w-3 h-3 rounded-full bg-green-400" />
+                <div className="w-3 h-3 rounded-full bg-[#141414]" />
+                <div className="w-3 h-3 rounded-full bg-[#fed50a]" />
+                <div className="w-3 h-3 rounded-full bg-[#141414]" />
                 <span className="text-xs text-muted-foreground ml-2">{l(bi("AI Dashboard", "AI 控制台"))}</span>
               </div>
 
@@ -94,7 +94,7 @@ const AffiliateHero = () => {
               </div>
             </div>
 
-            <div className="absolute -bottom-4 -left-4 bg-green-500 text-white text-xs font-bold px-4 py-2 rounded-full shadow-lg animate-pulse">
+            <div className="absolute -bottom-4 -left-4 bg-[#fed50a] text-[#141414] text-xs font-bold px-4 py-2 rounded-full animate-pulse">
               +800 Credits {l(bi("earned today", "今日获得"))}
             </div>
           </div>

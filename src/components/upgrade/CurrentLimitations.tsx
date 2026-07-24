@@ -24,13 +24,13 @@ const CurrentLimitations = () => {
         </h2>
       </div>
 
-      <Card className="border border-destructive/20 bg-destructive/[0.03] rounded-2xl">
+      <Card className="border border-[#141414] bg-secondary rounded-2xl">
         <CardContent className="p-8">
           <div className="grid sm:grid-cols-2 gap-4">
             {pains.map((p, i) => (
               <div key={i} className="flex items-start gap-3">
-                <div className="h-6 w-6 rounded-full bg-destructive/10 flex items-center justify-center shrink-0 mt-0.5">
-                  <X className="h-3.5 w-3.5 text-destructive" />
+                <div className="h-6 w-6 rounded-full bg-white flex items-center justify-center shrink-0 mt-0.5">
+                  <X className="h-3.5 w-3.5 text-foreground" />
                 </div>
                 <span className="text-sm font-medium">{l(p)}</span>
               </div>

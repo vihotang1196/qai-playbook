@@ -70,7 +70,7 @@ function computeRecommendation(a: number[]): "dfy" | "dwy" {
 
 /* ─── Floating Cards (Hero) ─── */
 const FloatingCard = ({ children, className = "" }: { children: React.ReactNode; className?: string }) => (
-  <div className={`absolute rounded-2xl border border-border/30 bg-background/80 backdrop-blur-xl shadow-2xl p-4 ${className}`}>
+  <div className={`absolute rounded-2xl border border-[rgba(20,20,20,0.10)] bg-white shadow-2xl p-4 ${className}`}>
     {children}
   </div>
 );
@@ -101,11 +101,11 @@ const DFY = () => {
 
         <FloatingCard className="hidden lg:block top-32 left-[8%] w-48">
           <div className="flex items-center gap-2 mb-2">
-            <MessageCircle size={14} className="text-green-500" />
+            <MessageCircle size={14} className="text-foreground" />
             <span className="text-[10px] font-medium text-muted-foreground">WhatsApp Chat</span>
           </div>
           <div className="space-y-1.5">
-            <div className="bg-green-500/10 rounded-lg px-3 py-1.5 text-[11px] text-foreground">
+            <div className="bg-secondary rounded-lg px-3 py-1.5 text-[11px] text-foreground">
               {lang === "cn" ? "你好！我有兴趣 👋" : "Hi! I'm interested 👋"}
             </div>
             <div className="bg-accent/20 rounded-lg px-3 py-1.5 text-[11px] text-foreground ml-4">
@@ -122,7 +122,7 @@ const DFY = () => {
             </span>
           </div>
           <div className="flex items-center gap-2">
-            <div className="w-2 h-2 rounded-full bg-green-500 animate-pulse" />
+            <div className="w-2 h-2 rounded-full bg-foreground animate-pulse" />
             <span className="text-[11px] text-foreground">
               {lang === "cn" ? "正在自动回复 23 条对话" : "Auto-replying to 23 chats"}
             </span>
@@ -153,13 +153,13 @@ const DFY = () => {
             {lang === "cn" ? (
               <>
                 把你的 WhatsApp 变成{" "}
-                <span className="text-transparent bg-clip-text bg-gradient-to-r from-accent-foreground to-accent">销售机器</span>
+                <span className="text-foreground">销售机器</span>
                 {" "}— 无需雇人
               </>
             ) : (
               <>
                 Turn Your WhatsApp Into a{" "}
-                <span className="text-transparent bg-clip-text bg-gradient-to-r from-accent-foreground to-accent">Sales Machine</span>
+                <span className="text-foreground">Sales Machine</span>
                 {" "}— Without Hiring a Team
               </>
             )}
@@ -173,7 +173,7 @@ const DFY = () => {
           )}
           <div className="flex flex-col sm:flex-row items-center justify-center gap-4">
             <a href="#smart-choice">
-              <Button size="lg" className="bg-accent text-accent-foreground hover:bg-accent/90 font-bold text-base px-8 py-6 shadow-[0_0_30px_rgba(254,213,10,0.3)]">
+              <Button size="lg" className="bg-accent text-accent-foreground hover:bg-accent/90 font-bold text-base px-8 py-6">
                 {lang === "cn" ? "开始配置" : "Get My Setup"}
                 <ArrowRight size={18} className="ml-2" />
               </Button>
@@ -204,13 +204,13 @@ const DFY = () => {
 
           <div className="max-w-lg mx-auto">
             {quizStep === -1 && !quizResult && (
-              <Button size="lg" onClick={() => setQuizStep(0)} className="bg-accent text-accent-foreground hover:bg-accent/90 font-bold px-10 py-6 shadow-[0_0_30px_rgba(254,213,10,0.2)]">
+              <Button size="lg" onClick={() => setQuizStep(0)} className="bg-accent text-accent-foreground hover:bg-accent/90 font-bold px-10 py-6">
                 <Sparkles size={18} className="mr-2" /> {lang === "cn" ? "开始测试" : "Start Quiz"}
               </Button>
             )}
 
             {quizStep >= 0 && !quizResult && (
-              <div className="rounded-2xl border border-border/50 bg-card/50 backdrop-blur-sm p-8 text-left space-y-6">
+              <div className="rounded-2xl border border-[rgba(20,20,20,0.10)] bg-white p-8 text-left space-y-6">
                 <div className="flex items-center justify-between">
                   <span className="text-xs text-muted-foreground">Q{quizStep + 1} / 3</span>
                   <div className="h-1.5 w-24 bg-foreground/10 rounded-full overflow-hidden">
@@ -223,7 +223,7 @@ const DFY = () => {
                     <button
                       key={i}
                       onClick={() => handleQuizAnswer(i)}
-                      className="w-full text-left px-5 py-4 rounded-xl border border-border/50 bg-background/60 text-sm hover:border-accent/50 hover:bg-accent/5 transition-all"
+                      className="w-full text-left px-5 py-4 rounded-xl border border-border/50 bg-white text-sm hover:border-accent/50 hover:bg-accent/5 transition-all"
                     >
                       {tx(lang, opt)}
                     </button>
@@ -233,7 +233,7 @@ const DFY = () => {
             )}
 
             {quizResult && (
-              <div className="rounded-2xl border border-accent/30 bg-accent/5 backdrop-blur-sm p-8 text-center space-y-6">
+              <div className="rounded-2xl border border-accent/30 bg-accent/5 p-8 text-center space-y-6">
                 <div className="w-16 h-16 rounded-2xl bg-accent/20 flex items-center justify-center mx-auto">
                   {quizResult === "dfy" ? <Zap size={28} className="text-accent-foreground" /> : <BookOpen size={28} className="text-accent-foreground" />}
                 </div>
@@ -287,7 +287,7 @@ const DFY = () => {
 
           <div className="grid sm:grid-cols-2 lg:grid-cols-4 gap-6 items-end">
             {/* CARD 1 — Basic DFY */}
-            <div className="rounded-2xl border border-border/50 bg-card/80 backdrop-blur-sm p-7 space-y-5 hover:-translate-y-1 hover:shadow-lg transition-all duration-300">
+            <div className="rounded-2xl border border-[rgba(20,20,20,0.10)] bg-white p-7 space-y-5 hover:-translate-y-1 hover:shadow-lg transition-all duration-300">
               <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-foreground/5 text-[11px] font-medium">
                 {lang === "cn" ? "入门" : "Starter"}
               </div>
@@ -319,9 +319,9 @@ const DFY = () => {
             </div>
 
             {/* CARD 2 — DWY (MAIN) */}
-            <div className="relative rounded-2xl border-2 border-accent/60 bg-card/80 backdrop-blur-sm p-8 space-y-5 hover:-translate-y-2 hover:shadow-[0_0_50px_rgba(254,213,10,0.2)] transition-all duration-300 sm:col-span-2 lg:col-span-1 scale-[1.05] origin-bottom z-10">
+            <div className="relative rounded-2xl border-2 border-[#141414] bg-white p-8 space-y-5 hover:-translate-y-2 shadow-[6px_6px_0_#141414] transition-all duration-300 sm:col-span-2 lg:col-span-1 scale-[1.05] origin-bottom z-10">
               <div className="absolute -top-3.5 right-6 px-3 py-1 rounded-full bg-accent text-accent-foreground text-[10px] font-bold uppercase tracking-wider shadow-lg">
-                🔥 {lang === "cn" ? "最受欢迎" : "Most Popular"}
+                {lang === "cn" ? "最受欢迎" : "Most Popular"}
               </div>
               <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-accent/10 text-[11px] font-medium text-accent-foreground">
                 <Star size={12} /> {lang === "cn" ? "最受欢迎" : "Most Popular"}
@@ -347,7 +347,7 @@ const DFY = () => {
                 ))}
               </ul>
               <a href="https://wa.me/601154050265" target="_blank" rel="noopener noreferrer" className="block">
-                <Button className="w-full bg-accent text-accent-foreground hover:bg-accent/90 font-bold py-5 shadow-[0_0_20px_rgba(254,213,10,0.3)]">
+                <Button className="w-full bg-accent text-accent-foreground hover:bg-accent/90 font-bold py-5">
                   {lang === "cn" ? "开始搭建" : "Start Building"} <ArrowRight size={14} className="ml-1" />
                 </Button>
               </a>
@@ -357,7 +357,7 @@ const DFY = () => {
             </div>
 
             {/* CARD 3 — Full Funnel DFY */}
-            <div className="rounded-2xl border border-border/50 bg-card/80 backdrop-blur-sm p-7 space-y-5 hover:-translate-y-1 hover:shadow-lg transition-all duration-300">
+            <div className="rounded-2xl border border-[rgba(20,20,20,0.10)] bg-white p-7 space-y-5 hover:-translate-y-1 hover:shadow-lg transition-all duration-300">
               <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-accent/10 text-[11px] font-medium text-accent-foreground">
                 <BarChart3 size={12} /> {lang === "cn" ? "适合扩展" : "Best For Scaling"}
               </div>
@@ -389,7 +389,7 @@ const DFY = () => {
             </div>
 
             {/* CARD 4 — Custom DFY */}
-            <div className="rounded-2xl border border-border/50 bg-card/80 backdrop-blur-sm p-7 space-y-5 hover:-translate-y-1 hover:shadow-lg transition-all duration-300">
+            <div className="rounded-2xl border border-[rgba(20,20,20,0.10)] bg-white p-7 space-y-5 hover:-translate-y-1 hover:shadow-lg transition-all duration-300">
               <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-foreground/5 text-[11px] font-medium">
                 <Shield size={12} /> {lang === "cn" ? "高级" : "Advanced"}
               </div>
@@ -527,7 +527,7 @@ const DFY = () => {
                 stars: 5,
               },
             ].map((t) => (
-              <div key={t.name} className="rounded-2xl border border-border/50 bg-card/80 backdrop-blur-sm p-6 space-y-4 hover:border-border hover:shadow-lg transition-all duration-300">
+              <div key={t.name} className="rounded-2xl border border-[rgba(20,20,20,0.10)] bg-white p-6 space-y-4 hover:border-border hover:shadow-lg transition-all duration-300">
                 <div className="flex gap-0.5">
                   {Array.from({ length: t.stars }).map((_, i) => (
                     <Star key={i} size={14} className="fill-accent text-accent" />

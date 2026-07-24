@@ -27,7 +27,7 @@ const CopyableUrl = ({ url }: { url: string }) => {
   return (
     <div className="flex items-center gap-2 bg-muted/50 rounded-lg px-3 py-2 text-sm font-mono">
       <span className="truncate flex-1">{url}</span>
-      <button onClick={handleCopy} className="flex-shrink-0 text-accent hover:text-accent/80 transition-colors" aria-label="copy">
+      <button onClick={handleCopy} className="flex-shrink-0 text-foreground hover:text-foreground/80 transition-colors" aria-label="copy">
         {copied ? <Check size={16} /> : <Copy size={16} />}
       </button>
     </div>
@@ -50,17 +50,17 @@ const smsUsageSections = [
 function SMSGuidelineContent({ lang }: { lang: Lang }) {
   return (
     <div className="flex flex-col gap-5">
-      <p className="text-base font-semibold text-accent">
+      <p className="text-base font-semibold text-foreground">
         {lang === "cn" ? "WhatsApp/WhatsApp Business 连接指南" : "WhatsApp/WhatsApp Business Setup Guide"}
       </p>
 
       <div>
-        <p className="text-sm font-semibold text-foreground mb-3">{lang === "cn" ? "🔗 连接 WhatsApp" : "🔗 Connect WhatsApp"}</p>
+        <p className="text-sm font-semibold text-foreground mb-3">{lang === "cn" ? "连接 WhatsApp" : "Connect WhatsApp"}</p>
         <div className="space-y-3">
           {smsSteps.map((s, i) => (
             <div key={i} className="flex gap-3">
               <div className="flex-shrink-0 w-7 h-7 rounded-lg bg-accent/10 flex items-center justify-center mt-0.5">
-                <span className="text-[11px] font-bold text-accent">{i + 1}</span>
+                <span className="text-[11px] font-bold text-foreground">{i + 1}</span>
               </div>
               <div>
                 <p className="text-sm font-semibold text-foreground">{s.title[lang]}</p>
@@ -74,7 +74,7 @@ function SMSGuidelineContent({ lang }: { lang: Lang }) {
       <div className="h-px bg-border" />
 
       <div>
-        <p className="text-sm font-semibold text-foreground mb-1">{lang === "cn" ? "📲 如何使用" : "📲 How to Use"}</p>
+        <p className="text-sm font-semibold text-foreground mb-1">{lang === "cn" ? "如何使用" : "How to Use"}</p>
         <p className="text-sm text-muted-foreground mb-3">{lang === "cn" ? "SMS = WhatsApp/WhatsApp Business 平台" : "SMS = WhatsApp/WhatsApp Business Platform"}</p>
         <div className="space-y-3">
           {smsUsageSections.map((s, i) => {
@@ -82,7 +82,7 @@ function SMSGuidelineContent({ lang }: { lang: Lang }) {
             return (
               <div key={i} className="flex gap-3">
                 <div className="flex-shrink-0 w-7 h-7 rounded-lg bg-accent/10 flex items-center justify-center mt-0.5">
-                  <Icon size={15} className="text-accent" />
+                  <Icon size={15} className="text-foreground" />
                 </div>
                 <div>
                   <p className="text-sm font-semibold text-foreground">{s.title[lang]}</p>
@@ -95,7 +95,7 @@ function SMSGuidelineContent({ lang }: { lang: Lang }) {
       </div>
 
       <div className="bg-accent/5 rounded-xl p-4 space-y-2">
-        <p className="text-sm font-semibold text-foreground">{lang === "cn" ? "💡 重要提示" : "💡 Important Tips"}</p>
+        <p className="text-sm font-semibold text-foreground">{lang === "cn" ? "重要提示" : "Important Tips"}</p>
         <p className="text-sm text-muted-foreground leading-relaxed">
           {lang === "cn"
             ? "一个账号默认只有一个 WhatsApp 集成，一个管理员可以访问此页面。如需更多管理员，请联系技术团队。"
@@ -108,8 +108,8 @@ function SMSGuidelineContent({ lang }: { lang: Lang }) {
         </p>
       </div>
 
-      <div className="bg-destructive/5 rounded-xl p-4 space-y-2">
-        <p className="text-sm font-semibold text-foreground">{lang === "cn" ? "⚠️ WhatsApp 账号被封怎么办？" : "⚠️ WhatsApp Account Banned?"}</p>
+      <div className="bg-secondary border border-[#141414]/10 rounded-xl p-4 space-y-2">
+        <p className="text-sm font-semibold text-foreground">{lang === "cn" ? "WhatsApp 账号被封怎么办？" : "WhatsApp Account Banned?"}</p>
         <p className="text-sm text-muted-foreground leading-relaxed">
           {lang === "cn"
             ? '如果显示 "This account is not allowed to use WhatsApp"，可以尝试申诉：'
@@ -158,12 +158,12 @@ function WAvsWABAContent({ lang }: { lang: Lang }) {
       </div>
 
       <div>
-        <p className="text-sm font-semibold text-foreground mb-2">{lang === "cn" ? "📊 对比表" : "📊 Comparison"}</p>
+        <p className="text-sm font-semibold text-foreground mb-2">{lang === "cn" ? "对比表" : "Comparison"}</p>
         <div className="rounded-xl border border-border overflow-hidden">
           <div className="grid grid-cols-3 bg-muted/50 text-xs font-semibold text-foreground">
             <div className="px-3 py-2 border-r border-border">{lang === "cn" ? "项目" : "Feature"}</div>
             <div className="px-3 py-2 border-r border-border">WA/WA BS</div>
-            <div className="px-3 py-2 text-accent">WABA</div>
+            <div className="px-3 py-2 text-foreground">WABA</div>
           </div>
           {wabaComparisonRows.map((row, i) => (
             <div key={i} className="grid grid-cols-3 text-xs text-muted-foreground border-t border-border">
@@ -176,7 +176,7 @@ function WAvsWABAContent({ lang }: { lang: Lang }) {
       </div>
 
       <div className="bg-accent/5 rounded-xl p-4 space-y-1.5">
-        <p className="text-sm font-semibold text-foreground">{lang === "cn" ? "💰 WABA 收费说明" : "💰 WABA Pricing"}</p>
+        <p className="text-sm font-semibold text-foreground">{lang === "cn" ? "WABA 收费说明" : "WABA Pricing"}</p>
         <p className="text-sm text-muted-foreground leading-relaxed">
           {lang === "cn"
             ? "WABA 费用由 Meta 官方收取，非额外收费。系统通过官方 API 发送信息。"
@@ -203,7 +203,7 @@ function PayexSenangpayContent({ lang }: { lang: Lang }) {
 
       <div className="space-y-3">
         <div className="flex items-center gap-2">
-          <CreditCard size={16} className="text-accent" />
+          <CreditCard size={16} className="text-foreground" />
           <p className="text-sm font-semibold text-foreground">PAYEX</p>
         </div>
         <div className="rounded-xl overflow-hidden border border-border">
@@ -221,7 +221,7 @@ function PayexSenangpayContent({ lang }: { lang: Lang }) {
 
       <div className="space-y-3">
         <div className="flex items-center gap-2">
-          <CreditCard size={16} className="text-accent" />
+          <CreditCard size={16} className="text-foreground" />
           <p className="text-sm font-semibold text-foreground">SENANGPAY</p>
         </div>
         <div className="rounded-xl overflow-hidden border border-border">
