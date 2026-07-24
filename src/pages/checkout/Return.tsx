@@ -105,7 +105,7 @@ export default function CheckoutReturn() {
           />
         ) : (
           <div className="glass-card rounded-3xl p-8 sm:p-10 text-center">
-            <Loader2 className="w-6 h-6 animate-spin mx-auto text-primary" />
+            <Loader2 className="w-6 h-6 animate-spin mx-auto text-foreground" />
             <h1 className="text-lg font-display font-bold mt-4">{lang === "cn" ? "付款处理中…" : "Processing payment…"}</h1>
             <p className="text-sm text-muted-foreground mt-1">
               {lang === "cn"
@@ -133,8 +133,8 @@ function Notice({
   return (
     <div className="glass-card rounded-3xl p-8 sm:p-10 text-center">
       <div
-        className="w-14 h-14 rounded-2xl flex items-center justify-center mx-auto mb-5 text-white"
-        style={{ background: "linear-gradient(135deg, #f59e0b, #d97706)" }}
+        className="w-14 h-14 rounded-2xl flex items-center justify-center mx-auto mb-5 text-[#fed50a]"
+        style={{ background: "#141414" }}
       >
         {icon}
       </div>

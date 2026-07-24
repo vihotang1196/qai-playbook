@@ -42,7 +42,7 @@ export function MyBookings({
         <div className="glass-card rounded-3xl p-5 sm:p-6 bg-background/95">
           <div className="flex items-center justify-between mb-4">
             <div className="flex items-center gap-2">
-              <Ticket className="w-5 h-5 text-primary" />
+              <Ticket className="w-5 h-5 text-foreground" />
               <h2 className="text-lg font-display font-bold">{lang === "cn" ? "我的报名" : "My bookings"}</h2>
             </div>
             <button
@@ -60,7 +60,7 @@ export function MyBookings({
               <button
                 type="button"
                 onClick={() => setSelected(null)}
-                className="mb-3 inline-flex items-center gap-1 text-sm font-medium text-primary hover:opacity-80"
+                className="mb-3 inline-flex items-center gap-1 text-sm font-medium text-foreground hover:opacity-80"
               >
                 <ChevronLeft className="w-4 h-4" />
                 {lang === "cn" ? "返回列表" : "Back to list"}

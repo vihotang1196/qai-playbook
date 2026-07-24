@@ -29,8 +29,8 @@ export function QrTicket({
   return (
     <div className="glass-card rounded-2xl p-6 text-center">
       <div
-        className="w-12 h-12 rounded-2xl flex items-center justify-center mx-auto mb-3 text-white"
-        style={{ background: "linear-gradient(135deg, #22c55e, #16a34a)" }}
+        className="w-12 h-12 rounded-2xl flex items-center justify-center mx-auto mb-3 text-[#fed50a]"
+        style={{ background: "#141414" }}
       >
         <PartyPopper className="w-6 h-6" />
       </div>
@@ -49,7 +49,7 @@ export function QrTicket({
             {lang === "cn" ? "座位" : "Seats"}: {booking.seats.join("、")}
           </p>
         )}
-        <p className={`mt-0.5 font-medium ${isPaid ? "text-primary" : "text-emerald-600"}`}>
+        <p className="mt-0.5 font-medium text-foreground">
           {isPaid
             ? lang === "cn"
               ? `已付款 RM ${booking.total.toFixed(2)}`
