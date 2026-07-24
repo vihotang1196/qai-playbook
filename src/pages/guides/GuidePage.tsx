@@ -14,8 +14,8 @@ export default function GuidePage() {
   const guide = slug ? getGuide(slug) : undefined;
 
   return (
-    <div className="min-h-screen px-4 sm:px-6 pb-16 pt-24 md:pt-28">
-      <div className="max-w-3xl mx-auto">
+    <div className="px-4 sm:px-6 pb-16 pt-24 md:pt-28">
+      <div className="max-w-4xl mx-auto">
         <Link to="/" className="inline-flex items-center gap-1.5 text-sm text-muted-foreground hover:text-foreground mb-4">
           <ArrowLeft className="w-4 h-4" /> {lang === "cn" ? "返回首页" : "Back to home"}
         </Link>
