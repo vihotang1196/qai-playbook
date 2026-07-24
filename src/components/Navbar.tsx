@@ -33,6 +33,9 @@ const navLinks: NavItem[] = [
   // Help Center — the internal Helpdesk page (/help). withLocation carries the GHL
   // location_id so the shared help center recognises the sub-account.
   { label: { en: "Help Center", cn: "帮助中心" }, href: "/help", isRoute: true, noSemibold: true, withLocation: true },
+  // Offline Event — promoted from the 小工具 dropdown to the main menu (owner ask).
+  // withLocation carries the GHL location_id so the tool recognises the sub-account.
+  { label: { en: "Offline Event", cn: "线下活动报名" }, href: "/events", isRoute: true, noSemibold: true, withLocation: true },
   { label: { en: "DFY", cn: "DFY" }, href: "/dfy", isRoute: true, noSemibold: true },
   { label: { en: "Credits", cn: "额度" }, href: "/credits", isRoute: true, noSemibold: true },
   { label: { en: "Upgrade", cn: "升级" }, href: "/upgrade", isRoute: true, noSemibold: true },
@@ -55,9 +58,9 @@ type ToolItem = {
 // Product tools grouped under the "小工具 / Tools" dropdown. Only tools that
 // actually exist on THIS branch are real links (they carry the GHL location_id);
 // copywriter / WhatsApp are Coming-Soon placeholders (NO link) until the branches
-// merge to main so nothing dead is publicly clickable.
+// merge to main so nothing dead is publicly clickable. (Offline Event was promoted
+// to the main menu, so it's no longer listed here — one entry only, no duplicate.)
 const toolLinks: ToolItem[] = [
-  { label: { en: "Offline Event", cn: "线下活动报名" }, href: "/events", withLocation: true },
   { label: { en: "Review Boost", cn: "Review Boost" }, base: "/review-boost", withLocationPath: true },
 ];
 const comingSoonTools: { label: { en: string; cn: string } }[] = [
