@@ -1,5 +1,5 @@
 import { NavLink } from "react-router-dom";
-import { LayoutDashboard, Megaphone, Layers, Settings, Star } from "lucide-react";
+import { LayoutDashboard, Megaphone, Layers, Star } from "lucide-react";
 import { useLang } from "@/i18n/LanguageContext";
 import { useLocationContext } from "@/hooks/useLocationContext";
 
@@ -19,7 +19,6 @@ export default function AdminSidebar() {
     { to: `/review-boost/location/${locationId}/dashboard`, icon: LayoutDashboard, label: { cn: "面板", en: "Dashboard" } },
     { to: `/review-boost/location/${locationId}/campaigns`, icon: Megaphone, label: { cn: "活动", en: "Campaigns" } },
     { to: `/review-boost/location/${locationId}/platforms`, icon: Layers, label: { cn: "平台", en: "Platforms" } },
-    { to: `/review-boost/location/${locationId}/settings`, icon: Settings, label: { cn: "设置", en: "Settings" } },
   ];
 
   return (

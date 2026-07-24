@@ -23,7 +23,6 @@ import RBCampaignDetail from "./pages/review-boost/CampaignDetail";
 import RBScanPage from "./pages/review-boost/ScanPage";
 import RBThankYouPage from "./pages/review-boost/ThankYouPage";
 import RBLocationDashboard from "./pages/review-boost/LocationDashboard";
-import { LocationSettings as RBLocationSettings } from "./pages/review-boost/pages";
 import AdminLayout from "./components/admin/AdminLayout";
 import AdminLogin from "./pages/admin/AdminLogin";
 import AdminHome from "./pages/admin/AdminHome";
@@ -208,7 +207,6 @@ const App = () => (
                 <Route path="/review-boost/location/:locationId/campaigns/:id/edit" element={<RBLocationCampaignCreate />} />
                 <Route path="/review-boost/location/:locationId/campaigns/:id" element={<RBCampaignDetail />} />
                 <Route path="/review-boost/location/:locationId/platforms" element={<LocationPlatforms />} />
-                <Route path="/review-boost/location/:locationId/settings" element={<RBLocationSettings />} />
               </Route>
 
               {/* ADD ALL CUSTOM ROUTES ABOVE THE CATCH-ALL "*" ROUTE */}
