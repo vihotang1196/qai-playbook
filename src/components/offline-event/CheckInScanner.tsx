@@ -170,7 +170,7 @@ export default function CheckInScanner({ open, onClose, onScan, feedback, eventL
       >
         <div className="flex items-center justify-between px-5 pt-5 pb-3">
           <div className="flex items-center gap-2">
-            <ScanLine className="w-5 h-5 text-primary" />
+            <ScanLine className="w-5 h-5 text-foreground" />
             <div>
               <p className="font-display font-bold text-sm leading-tight">扫码签到 · Day {day}</p>
               {eventLabel && <p className="text-[11px] text-muted-foreground leading-tight">{eventLabel}</p>}

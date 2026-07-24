@@ -154,7 +154,7 @@ export default function AdminSubAccounts() {
                     href={`/review-boost/location/${loc.location_id}?embed=true`}
                     target="_blank"
                     rel="noreferrer"
-                    className="inline-flex items-center gap-1 text-xs text-muted-foreground hover:text-primary"
+                    className="inline-flex items-center gap-1 text-xs text-muted-foreground hover:text-foreground"
                   >
                     <ExternalLink className="w-3.5 h-3.5" /> 打开
                   </a>

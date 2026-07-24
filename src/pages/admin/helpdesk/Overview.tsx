@@ -77,8 +77,8 @@ export default function HelpdeskOverview() {
         {tiles.map((t) => (
           <Link key={t.label} to={t.to} className="glass-card rounded-2xl p-4 group">
             <div
-              className="w-9 h-9 rounded-xl flex items-center justify-center text-white mb-3"
-              style={{ background: "linear-gradient(135deg, #FF7E5F, #FF3D6E)" }}
+              className="w-9 h-9 rounded-xl flex items-center justify-center text-[#fed50a] mb-3"
+              style={{ background: "#141414" }}
             >
               <t.icon className="w-4 h-4" />
             </div>
@@ -91,8 +91,8 @@ export default function HelpdeskOverview() {
       {/* Notion connection state (never shows the key itself). */}
       <div className="glass-card rounded-2xl p-5 flex items-center gap-3">
         <div
-          className="w-10 h-10 rounded-xl flex items-center justify-center text-white shrink-0"
-          style={{ background: "linear-gradient(135deg, #FF7E5F, #FF3D6E)" }}
+          className="w-10 h-10 rounded-xl flex items-center justify-center text-[#fed50a] shrink-0"
+          style={{ background: "#141414" }}
         >
           <Plug className="w-5 h-5" />
         </div>
@@ -107,7 +107,7 @@ export default function HelpdeskOverview() {
         {data.notion.connected ? (
           <CheckCircle2 className="w-5 h-5 text-emerald-500 shrink-0" />
         ) : (
-          <Link to="/admin/helpdesk/settings" className="text-xs font-medium text-primary hover:opacity-80 shrink-0">
+          <Link to="/admin/helpdesk/settings" className="text-xs font-medium text-foreground hover:opacity-80 shrink-0">
             去设置
           </Link>
         )}

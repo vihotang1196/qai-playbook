@@ -27,7 +27,7 @@ export default function AdminHome() {
         {cards.map((c) => {
           const inner = (
             <>
-              <div className="w-10 h-10 rounded-xl flex items-center justify-center text-white mb-3" style={{ background: "linear-gradient(135deg, #FF7E5F, #FF3D6E)" }}>
+              <div className="w-10 h-10 rounded-xl flex items-center justify-center text-[#fed50a] mb-3" style={{ background: "#141414" }}>
                 {c.icon}
               </div>
               <p className="font-display font-semibold">{c.title}</p>

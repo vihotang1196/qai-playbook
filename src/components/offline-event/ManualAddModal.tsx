@@ -76,7 +76,7 @@ export default function ManualAddModal({ open, onClose, onDone }: Props) {
       <div className="w-full max-w-3xl rounded-3xl bg-background shadow-2xl max-h-[92vh] overflow-y-auto" onClick={(e) => e.stopPropagation()}>
         <div className="flex items-center justify-between px-5 pt-5 pb-3 sticky top-0 bg-background z-10 border-b border-border/40">
           <div className="flex items-center gap-2">
-            <UserPlus className="w-5 h-5 text-primary" />
+            <UserPlus className="w-5 h-5 text-foreground" />
             <p className="font-display font-bold">手动加票（第三方 / 线下付款）</p>
           </div>
           <button onClick={onClose} className="w-8 h-8 rounded-full flex items-center justify-center text-muted-foreground hover:bg-muted">
@@ -159,8 +159,8 @@ export default function ManualAddModal({ open, onClose, onDone }: Props) {
               <button
                 onClick={submit}
                 disabled={!canSubmit}
-                className="flex-1 h-11 rounded-xl text-white text-sm font-semibold flex items-center justify-center gap-1.5 disabled:opacity-40"
-                style={{ background: "linear-gradient(135deg, #FF7E5F, #FF3D6E)" }}
+                className="flex-1 h-11 rounded-xl text-[#141414] text-sm font-semibold flex items-center justify-center gap-1.5 disabled:opacity-40"
+                style={{ background: "#fed50a" }}
               >
                 {submitting ? <Loader2 className="w-4 h-4 animate-spin" /> : <UserPlus className="w-4 h-4" />}
                 创建已确认票

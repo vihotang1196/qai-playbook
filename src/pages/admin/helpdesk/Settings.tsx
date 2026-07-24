@@ -166,8 +166,8 @@ export default function HelpdeskSettings() {
       <div className="glass-card rounded-2xl p-6">
         <div className="flex items-center gap-3 mb-4">
           <div
-            className="w-10 h-10 rounded-xl flex items-center justify-center text-white shrink-0"
-            style={{ background: "linear-gradient(135deg, #FF7E5F, #FF3D6E)" }}
+            className="w-10 h-10 rounded-xl flex items-center justify-center text-[#fed50a] shrink-0"
+            style={{ background: "#141414" }}
           >
             <Plug className="w-5 h-5" />
           </div>
@@ -281,8 +281,8 @@ export default function HelpdeskSettings() {
       <div className="glass-card rounded-2xl p-6">
         <div className="flex items-center gap-3 mb-4">
           <div
-            className="w-10 h-10 rounded-xl flex items-center justify-center text-white shrink-0"
-            style={{ background: "linear-gradient(135deg, #FF7E5F, #FF3D6E)" }}
+            className="w-10 h-10 rounded-xl flex items-center justify-center text-[#fed50a] shrink-0"
+            style={{ background: "#141414" }}
           >
             <Database className="w-5 h-5" />
           </div>
@@ -358,7 +358,7 @@ export default function HelpdeskSettings() {
                       <div className="h-1.5 rounded-full bg-muted overflow-hidden">
                         <div
                           className="h-full rounded-full transition-all"
-                          style={{ width: `${pct}%`, background: "linear-gradient(90deg, #FF7E5F, #FF3D6E)" }}
+                          style={{ width: `${pct}%`, background: "#fed50a" }}
                         />
                       </div>
                       <p className="text-[11px] text-muted-foreground mt-1 tabular-nums">

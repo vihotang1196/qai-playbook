@@ -210,10 +210,10 @@ export default function OfflineEventCheckIn() {
                 onClick={() => setDay(d)}
                 className={`h-11 rounded-xl text-sm font-semibold transition-colors ${
                   day === d
-                    ? "text-white"
+                    ? "text-[#141414]"
                     : "bg-muted text-muted-foreground hover:text-foreground"
                 }`}
-                style={day === d ? { background: "linear-gradient(135deg, #FF7E5F, #FF3D6E)" } : undefined}
+                style={day === d ? { background: "#fed50a" } : undefined}
               >
                 Day {d}
                 {selectedEvent && (
@@ -231,8 +231,8 @@ export default function OfflineEventCheckIn() {
             setFeedback(null);
             setScannerOpen(true);
           }}
-          className="w-full h-12 rounded-xl text-white font-semibold flex items-center justify-center gap-2"
-          style={{ background: "linear-gradient(135deg, #FF7E5F, #FF3D6E)" }}
+          className="w-full h-12 rounded-xl text-[#141414] font-semibold flex items-center justify-center gap-2"
+          style={{ background: "#fed50a" }}
         >
           <ScanLine className="w-5 h-5" /> 开始扫码签到
         </button>
@@ -243,8 +243,8 @@ export default function OfflineEventCheckIn() {
         <div className="flex items-center justify-between mb-2">
           <div className="flex items-center gap-2">
             <div
-              className="w-9 h-9 rounded-xl flex items-center justify-center text-white"
-              style={{ background: "linear-gradient(135deg, #FF7E5F, #FF3D6E)" }}
+              className="w-9 h-9 rounded-xl flex items-center justify-center text-[#fed50a]"
+              style={{ background: "#141414" }}
             >
               <Users className="w-4 h-4" />
             </div>
@@ -261,7 +261,7 @@ export default function OfflineEventCheckIn() {
         <div className="h-2 w-full rounded-full bg-muted overflow-hidden">
           <div
             className="h-full rounded-full transition-all"
-            style={{ width: `${pct}%`, background: "linear-gradient(135deg, #FF7E5F, #FF3D6E)" }}
+            style={{ width: `${pct}%`, background: "#fed50a" }}
           />
         </div>
       </div>

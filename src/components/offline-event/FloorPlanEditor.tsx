@@ -118,7 +118,7 @@ export default function FloorPlanEditor({ open, plan, onClose, onSaved }: Props)
       <div className="w-full max-w-5xl rounded-3xl bg-background shadow-2xl max-h-[94vh] overflow-y-auto" onClick={(e) => e.stopPropagation()}>
         <div className="flex items-center justify-between px-5 pt-5 pb-3 sticky top-0 bg-background z-10 border-b border-border/40">
           <div className="flex items-center gap-2">
-            <LayoutGrid className="w-5 h-5 text-primary" />
+            <LayoutGrid className="w-5 h-5 text-foreground" />
             <p className="font-display font-bold">{plan.id ? "编辑平面图" : "新建平面图"}</p>
           </div>
           <button onClick={onClose} className="w-8 h-8 rounded-full flex items-center justify-center text-muted-foreground hover:bg-muted"><X className="w-4 h-4" /></button>
@@ -189,7 +189,7 @@ export default function FloorPlanEditor({ open, plan, onClose, onSaved }: Props)
           <div>
             <p className="text-[11px] text-muted-foreground mb-1">点空格加桌子,点桌子配置</p>
             <div className="rounded-2xl border border-border bg-muted/30 p-3 overflow-auto">
-              {layout.stage && <div className="h-7 mb-2 rounded-lg bg-pink-100 text-pink-800 text-[11px] font-semibold flex items-center justify-center tracking-wider">舞台 STAGE</div>}
+              {layout.stage && <div className="h-7 mb-2 rounded-lg bg-[#141414] text-[#fed50a] text-[11px] font-semibold flex items-center justify-center tracking-wider">舞台 STAGE</div>}
               <div className="grid gap-1" style={{ gridTemplateColumns: `repeat(${layout.columns}, minmax(28px, 1fr))` }}>
                 {Array.from({ length: layout.rows * layout.columns }, (_, i) => {
                   const col = (i % layout.columns) + 1;
@@ -201,8 +201,8 @@ export default function FloorPlanEditor({ open, plan, onClose, onSaved }: Props)
                       <button
                         key={`${col}-${row}`}
                         onClick={() => setSelId(sel ? null : t.id)}
-                        className={`aspect-[3/4] rounded-lg border-2 flex flex-col items-center justify-center text-[10px] font-bold transition-colors ${sel ? "border-primary ring-2 ring-primary/30" : "border-pink-400"} text-pink-900`}
-                        style={{ background: "linear-gradient(to bottom, #ffe4ec, #ffe9dd)" }}
+                        className={`aspect-[3/4] rounded-lg border-2 flex flex-col items-center justify-center text-[10px] font-bold transition-colors ${sel ? "border-primary ring-2 ring-primary/30" : "border-[#141414]"} text-[#141414]`}
+                        style={{ background: "#fff" }}
                         title={`${t.label} · ${t.seats.length}座`}
                       >
                         <span>{t.label}</span>
@@ -217,7 +217,7 @@ export default function FloorPlanEditor({ open, plan, onClose, onSaved }: Props)
                   );
                 })}
               </div>
-              {layout.door !== "none" && <div className="mt-2 flex justify-end"><span className="text-[10px] px-2 py-0.5 rounded bg-pink-100 text-pink-800 font-semibold">门 DOOR</span></div>}
+              {layout.door !== "none" && <div className="mt-2 flex justify-end"><span className="text-[10px] px-2 py-0.5 rounded bg-[#141414] text-[#fed50a] font-semibold">门 DOOR</span></div>}
             </div>
           </div>
 
@@ -283,7 +283,7 @@ export default function FloorPlanEditor({ open, plan, onClose, onSaved }: Props)
 
           <div className="flex gap-2 pt-2 border-t border-border/40">
             <button onClick={onClose} className="flex-1 h-11 rounded-xl bg-muted text-sm font-medium">取消</button>
-            <button onClick={save} disabled={saving} className="flex-1 h-11 rounded-xl text-white text-sm font-semibold flex items-center justify-center gap-1.5 disabled:opacity-40" style={{ background: "linear-gradient(135deg, #FF7E5F, #FF3D6E)" }}>
+            <button onClick={save} disabled={saving} className="flex-1 h-11 rounded-xl text-[#141414] text-sm font-semibold flex items-center justify-center gap-1.5 disabled:opacity-40" style={{ background: "#fed50a" }}>
               {saving ? <Loader2 className="w-4 h-4 animate-spin" /> : <Save className="w-4 h-4" />} 保存
             </button>
           </div>

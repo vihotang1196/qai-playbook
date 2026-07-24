@@ -14,7 +14,7 @@ const VIDEO_RE = /\.(mp4|webm|mov|m4v)(\?|$)/i;
  */
 export default function Markdown({ children }: { children: string }) {
   return (
-    <div className="prose prose-sm max-w-none prose-headings:font-display prose-headings:font-semibold prose-a:text-primary prose-img:rounded-xl prose-pre:bg-muted/60">
+    <div className="prose prose-sm max-w-none prose-headings:font-display prose-headings:font-semibold prose-a:text-foreground prose-img:rounded-xl prose-pre:bg-muted/60">
       <ReactMarkdown
         remarkPlugins={[remarkGfm]}
         components={{

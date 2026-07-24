@@ -80,8 +80,8 @@ export default function OfflineEventOverview() {
         {tiles.map((t) => (
           <div key={t.label} className="glass-card rounded-2xl p-4">
             <div
-              className="w-9 h-9 rounded-xl flex items-center justify-center text-white mb-3"
-              style={{ background: "linear-gradient(135deg, #FF7E5F, #FF3D6E)" }}
+              className="w-9 h-9 rounded-xl flex items-center justify-center text-[#fed50a] mb-3"
+              style={{ background: "#141414" }}
             >
               <t.icon className="w-4 h-4" />
             </div>

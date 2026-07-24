@@ -38,8 +38,8 @@ export default function OfflineEventAdminShell() {
     <div>
       <div className="flex items-center gap-2 mb-4">
         <div
-          className="w-8 h-8 rounded-xl flex items-center justify-center text-white shrink-0"
-          style={{ background: "linear-gradient(135deg, #FF7E5F, #FF3D6E)" }}
+          className="w-8 h-8 rounded-xl flex items-center justify-center text-[#fed50a] shrink-0"
+          style={{ background: "#141414" }}
         >
           <CalendarDays className="w-4 h-4" />
         </div>
@@ -65,7 +65,7 @@ export default function OfflineEventAdminShell() {
             className={({ isActive }) =>
               `rounded-lg px-3 py-1.5 text-xs font-medium transition-colors ${
                 isActive
-                  ? "bg-primary/10 text-primary"
+                  ? "bg-primary/10 text-foreground"
                   : "text-muted-foreground hover:text-foreground"
               }`
             }

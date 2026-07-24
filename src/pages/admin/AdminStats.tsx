@@ -70,15 +70,15 @@ export default function AdminStats() {
             <AreaChart data={stats.daily} margin={{ top: 4, right: 8, left: -20, bottom: 0 }}>
               <defs>
                 <linearGradient id="usageFill" x1="0" y1="0" x2="0" y2="1">
-                  <stop offset="0%" stopColor="#FF7E5F" stopOpacity={0.5} />
-                  <stop offset="100%" stopColor="#FF3D6E" stopOpacity={0.04} />
+                  <stop offset="0%" stopColor="#fed50a" stopOpacity={0.5} />
+                  <stop offset="100%" stopColor="#fed50a" stopOpacity={0.04} />
                 </linearGradient>
               </defs>
               <CartesianGrid strokeDasharray="3 3" stroke="rgba(0,0,0,0.06)" vertical={false} />
               <XAxis dataKey="date" tickFormatter={(d: string) => d.slice(5)} interval={6} tick={{ fontSize: 11, fill: "#9a9ab0" }} axisLine={false} tickLine={false} />
               <YAxis allowDecimals={false} tick={{ fontSize: 11, fill: "#9a9ab0" }} axisLine={false} tickLine={false} width={28} />
               <Tooltip formatter={(v) => [String(v), "生成"]} contentStyle={{ borderRadius: 12, border: "1px solid rgba(0,0,0,0.08)", background: "#ffffff", fontSize: 12 }} />
-              <Area type="monotone" dataKey="count" stroke="#FF3D6E" strokeWidth={2} fill="url(#usageFill)" />
+              <Area type="monotone" dataKey="count" stroke="#141414" strokeWidth={2} fill="url(#usageFill)" />
             </AreaChart>
           </ResponsiveContainer>
         </div>
@@ -99,7 +99,7 @@ export default function AdminStats() {
                     <span className="text-foreground">{count}</span>
                   </div>
                   <div className="h-2 rounded-full bg-muted overflow-hidden">
-                    <div className="h-full rounded-full" style={{ width: `${(count / maxTool) * 100}%`, background: "linear-gradient(90deg, #FF7E5F, #FF3D6E)" }} />
+                    <div className="h-full rounded-full" style={{ width: `${(count / maxTool) * 100}%`, background: "#fed50a" }} />
                   </div>
                 </div>
               );
@@ -123,7 +123,7 @@ export default function AdminStats() {
                       <span className="text-foreground shrink-0 ml-2">{s.count}</span>
                     </div>
                     <div className="h-1.5 rounded-full bg-muted overflow-hidden mt-1">
-                      <div className="h-full rounded-full" style={{ width: `${(s.count / maxLoc) * 100}%`, background: "linear-gradient(90deg, #FF7E5F, #FF3D6E)" }} />
+                      <div className="h-full rounded-full" style={{ width: `${(s.count / maxLoc) * 100}%`, background: "#fed50a" }} />
                     </div>
                   </div>
                 </div>
@@ -140,7 +140,7 @@ function Tile({ icon, label, value }: { icon: React.ReactNode; label: string; va
   return (
     <div className="glass-card rounded-2xl p-4">
       <div className="flex items-center gap-1.5 text-muted-foreground mb-1.5">
-        <span className="text-primary">{icon}</span>
+        <span className="text-foreground">{icon}</span>
         <span className="text-xs">{label}</span>
       </div>
       <p className="text-2xl font-semibold">{value}</p>

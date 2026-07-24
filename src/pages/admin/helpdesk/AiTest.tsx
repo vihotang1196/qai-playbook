@@ -117,9 +117,9 @@ function Bubble({ turn }: { turn: Turn }) {
     <div className={`flex gap-2.5 ${isUser ? "flex-row-reverse" : ""}`}>
       <div
         className={`w-7 h-7 rounded-lg flex items-center justify-center shrink-0 ${
-          isUser ? "bg-muted text-foreground" : "text-white"
+          isUser ? "bg-muted text-foreground" : "text-[#fed50a]"
         }`}
-        style={isUser ? undefined : { background: "linear-gradient(135deg, #FF7E5F, #FF3D6E)" }}
+        style={isUser ? undefined : { background: "#141414" }}
       >
         {isUser ? <User className="w-4 h-4" /> : <Bot className="w-4 h-4" />}
       </div>
@@ -138,7 +138,7 @@ function Bubble({ turn }: { turn: Turn }) {
               <Link
                 key={s.id}
                 to={`/admin/helpdesk/knowledge/${s.id}`}
-                className="inline-flex items-center gap-1.5 text-xs text-primary hover:opacity-80"
+                className="inline-flex items-center gap-1.5 text-xs text-foreground hover:opacity-80"
               >
                 <FileText className="w-3.5 h-3.5" /> {s.title}
               </Link>

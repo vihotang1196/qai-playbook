@@ -129,7 +129,7 @@ export default function OfflineEventEventDates() {
     <div className="space-y-4">
       <div className="flex items-center justify-between">
         <p className="text-sm text-muted-foreground">共 {events.length} 个活动</p>
-        <button onClick={openCreate} className="h-9 px-4 rounded-xl text-white text-sm font-medium flex items-center gap-1.5" style={{ background: "linear-gradient(135deg, #FF7E5F, #FF3D6E)" }}>
+        <button onClick={openCreate} className="h-9 px-4 rounded-xl text-[#141414] text-sm font-medium flex items-center gap-1.5" style={{ background: "#fed50a" }}>
           <Plus className="w-4 h-4" /> 新建活动
         </button>
       </div>
@@ -140,7 +140,7 @@ export default function OfflineEventEventDates() {
           return (
             <div key={e.id} className="glass-card rounded-2xl p-4">
               <div className="flex items-start gap-3">
-                <div className="w-9 h-9 rounded-xl flex items-center justify-center text-white shrink-0" style={{ background: "linear-gradient(135deg, #FF7E5F, #FF3D6E)" }}>
+                <div className="w-9 h-9 rounded-xl flex items-center justify-center text-[#fed50a] shrink-0" style={{ background: "#141414" }}>
                   <CalendarDays className="w-4 h-4" />
                 </div>
                 <div className="min-w-0 flex-1">
@@ -224,7 +224,7 @@ export default function OfflineEventEventDates() {
 
               <div className="flex gap-2 pt-2 border-t border-border/40">
                 <button onClick={() => setFormOpen(false)} className="flex-1 h-11 rounded-xl bg-muted text-sm font-medium">取消</button>
-                <button onClick={save} disabled={saving} className="flex-1 h-11 rounded-xl text-white text-sm font-semibold flex items-center justify-center gap-1.5 disabled:opacity-40" style={{ background: "linear-gradient(135deg, #FF7E5F, #FF3D6E)" }}>
+                <button onClick={save} disabled={saving} className="flex-1 h-11 rounded-xl text-[#141414] text-sm font-semibold flex items-center justify-center gap-1.5 disabled:opacity-40" style={{ background: "#fed50a" }}>
                   {saving ? <Loader2 className="w-4 h-4 animate-spin" /> : null}
                   {editId ? "保存" : "创建"}
                 </button>

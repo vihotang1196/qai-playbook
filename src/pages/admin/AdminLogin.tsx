@@ -62,13 +62,18 @@ export default function AdminLogin() {
 
   return (
     <div className="relative min-h-screen flex items-center justify-center px-4 overflow-hidden bg-[#FCFDFF]">
-      <div aria-hidden className="pointer-events-none fixed inset-0 -z-10">
-        <div className="absolute -top-[15vh] -left-[10vw] w-[60vw] h-[60vh] rounded-full bg-[#FCE4F1] opacity-30 blur-[100px]" />
-        <div className="absolute -bottom-[20vh] -right-[10vw] w-[60vw] h-[55vh] rounded-full bg-[#EAE2FF] opacity-25 blur-[100px]" />
-      </div>
+      <div
+        aria-hidden
+        className="pointer-events-none fixed inset-0 -z-10"
+        style={{
+          backgroundColor: "#ffffff",
+          backgroundImage: "radial-gradient(rgba(20,20,20,0.12) 1.6px, transparent 1.7px)",
+          backgroundSize: "26px 26px",
+        }}
+      />
       <form onSubmit={submit} className="w-full max-w-sm glass-card rounded-3xl p-7">
         <div className="flex items-center gap-2 mb-1">
-          <div className="w-9 h-9 rounded-xl flex items-center justify-center text-white" style={{ background: "linear-gradient(135deg, #FF7E5F, #FF3D6E)" }}>
+          <div className="w-9 h-9 rounded-xl flex items-center justify-center text-[#fed50a]" style={{ background: "#141414" }}>
             <ShieldCheck className="w-5 h-5" />
           </div>
           <div>
@@ -103,8 +108,8 @@ export default function AdminLogin() {
         <button
           type="submit"
           disabled={busy}
-          className="w-full mt-5 rounded-xl py-2.5 text-sm font-semibold text-white disabled:opacity-70 inline-flex items-center justify-center gap-2"
-          style={{ background: "linear-gradient(135deg, #FF7E5F, #FF3D6E)" }}
+          className="w-full mt-5 rounded-xl py-2.5 text-sm font-semibold text-[#141414] disabled:opacity-70 inline-flex items-center justify-center gap-2"
+          style={{ background: "#fed50a" }}
         >
           {busy && <Loader2 className="w-4 h-4 animate-spin" />} 登录
         </button>

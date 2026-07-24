@@ -102,7 +102,7 @@ function ConvList({ onOpen }: { onOpen: (id: string) => void }) {
               onClick={() => onOpen(c.id)}
               className="w-full flex items-start gap-3 p-4 text-left hover:bg-muted/40 transition-colors first:rounded-t-2xl last:rounded-b-2xl"
             >
-              <MessageSquare className="w-4 h-4 text-primary shrink-0 mt-0.5" />
+              <MessageSquare className="w-4 h-4 text-foreground shrink-0 mt-0.5" />
               <div className="min-w-0 flex-1">
                 <p className="text-sm truncate">{c.question || <span className="text-muted-foreground">（无提问）</span>}</p>
                 <p className="text-xs text-muted-foreground mt-0.5 truncate">
@@ -173,8 +173,8 @@ function Thread({ id, onBack }: { id: string; onBack: () => void }) {
               return (
                 <div key={i} className={`flex gap-2.5 ${isUser ? "flex-row-reverse" : ""}`}>
                   <div
-                    className={`w-7 h-7 rounded-lg flex items-center justify-center shrink-0 ${isUser ? "bg-muted text-foreground" : "text-white"}`}
-                    style={isUser ? undefined : { background: "linear-gradient(135deg, #FF7E5F, #FF3D6E)" }}
+                    className={`w-7 h-7 rounded-lg flex items-center justify-center shrink-0 ${isUser ? "bg-muted text-foreground" : "text-[#fed50a]"}`}
+                    style={isUser ? undefined : { background: "#141414" }}
                   >
                     {isUser ? <User className="w-4 h-4" /> : <Bot className="w-4 h-4" />}
                   </div>
@@ -184,7 +184,7 @@ function Thread({ id, onBack }: { id: string; onBack: () => void }) {
                     </div>
                     {rating && (
                       <div className="mt-1 text-xs text-muted-foreground flex items-center gap-1 justify-start">
-                        {rating === "up" ? <ThumbsUp className="w-3.5 h-3.5 text-primary" /> : <ThumbsDown className="w-3.5 h-3.5" />}
+                        {rating === "up" ? <ThumbsUp className="w-3.5 h-3.5 text-foreground" /> : <ThumbsDown className="w-3.5 h-3.5" />}
                         {rating === "up" ? "用户觉得有帮助" : "用户觉得没帮助"}
                       </div>
                     )}

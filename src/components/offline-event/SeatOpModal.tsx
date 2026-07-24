@@ -55,7 +55,7 @@ export default function SeatOpModal({ open, mode, booking, events, onClose, onDo
       <div className="w-full max-w-3xl rounded-3xl bg-background shadow-2xl max-h-[92vh] overflow-y-auto" onClick={(e) => e.stopPropagation()}>
         <div className="flex items-center justify-between px-5 pt-5 pb-3 sticky top-0 bg-background z-10 border-b border-border/40">
           <div className="flex items-center gap-2">
-            {mode === "seat" ? <Armchair className="w-5 h-5 text-primary" /> : <CalendarClock className="w-5 h-5 text-primary" />}
+            {mode === "seat" ? <Armchair className="w-5 h-5 text-foreground" /> : <CalendarClock className="w-5 h-5 text-foreground" />}
             <div>
               <p className="font-display font-bold">{mode === "seat" ? "改座位" : "改期（换活动）"}</p>
               <p className="text-[11px] text-muted-foreground">{booking.booking_id} · 需选 {required} 个座位（金额不变）</p>
@@ -115,8 +115,8 @@ export default function SeatOpModal({ open, mode, booking, events, onClose, onDo
             <button
               onClick={submit}
               disabled={!canSubmit}
-              className="flex-1 h-11 rounded-xl text-white text-sm font-semibold flex items-center justify-center gap-1.5 disabled:opacity-40"
-              style={{ background: "linear-gradient(135deg, #FF7E5F, #FF3D6E)" }}
+              className="flex-1 h-11 rounded-xl text-[#141414] text-sm font-semibold flex items-center justify-center gap-1.5 disabled:opacity-40"
+              style={{ background: "#fed50a" }}
             >
               {submitting ? <Loader2 className="w-4 h-4 animate-spin" /> : null}
               确认{mode === "seat" ? "改座" : "改期"}

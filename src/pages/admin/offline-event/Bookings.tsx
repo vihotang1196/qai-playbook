@@ -192,13 +192,13 @@ export default function OfflineEventBookings() {
       {/* List */}
       <div className="glass-card rounded-2xl overflow-hidden">
         <div className="px-4 py-3 border-b border-border/50 flex items-center gap-2">
-          <Ticket className="w-4 h-4 text-primary" />
+          <Ticket className="w-4 h-4 text-foreground" />
           <span className="text-sm font-medium">报名列表</span>
           <span className="text-xs text-muted-foreground ml-auto">共 {total} 条</span>
           <button
             onClick={() => setAddOpen(true)}
-            className="h-8 px-3 rounded-lg text-white text-xs font-medium flex items-center gap-1"
-            style={{ background: "linear-gradient(135deg, #FF7E5F, #FF3D6E)" }}
+            className="h-8 px-3 rounded-lg text-[#141414] text-xs font-medium flex items-center gap-1"
+            style={{ background: "#fed50a" }}
           >
             <UserPlus className="w-3.5 h-3.5" /> 手动加票
           </button>
@@ -307,7 +307,7 @@ export default function OfflineEventBookings() {
                   </div>
                   {detail.booking.receipt_url && (
                     <div className="col-span-2">
-                      <a href={detail.booking.receipt_url} target="_blank" rel="noreferrer" className="text-xs text-primary underline">Stripe 收据</a>
+                      <a href={detail.booking.receipt_url} target="_blank" rel="noreferrer" className="text-xs text-foreground underline">Stripe 收据</a>
                     </div>
                   )}
                 </div>

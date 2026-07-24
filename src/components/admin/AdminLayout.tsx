@@ -58,8 +58,8 @@ export default function AdminLayout() {
   return (
     <div className="relative min-h-screen overflow-x-hidden text-foreground">
       <AdminBackground />
-      <header className="sticky top-0 z-20 backdrop-blur-xl bg-white/60 border-b border-border/50 px-4 sm:px-6 py-3 flex items-center gap-3">
-        <div className="w-8 h-8 rounded-xl flex items-center justify-center text-white shrink-0" style={{ background: "linear-gradient(135deg, #FF7E5F, #FF3D6E)" }}>
+      <header className="sticky top-0 z-20 bg-white border-b border-[#141414] px-4 sm:px-6 py-3 flex items-center gap-3">
+        <div className="w-8 h-8 rounded-xl flex items-center justify-center text-[#fed50a] shrink-0" style={{ background: "#141414" }}>
           <ShieldCheck className="w-4 h-4" />
         </div>
         <div className="min-w-0">
@@ -74,7 +74,7 @@ export default function AdminLayout() {
               end={n.end}
               className={({ isActive }) =>
                 `rounded-lg px-3 py-1.5 text-xs font-medium transition-colors ${
-                  isActive ? "bg-primary/10 text-primary" : "text-muted-foreground hover:text-foreground"
+                  isActive ? "bg-primary text-primary-foreground" : "text-muted-foreground hover:text-foreground"
                 }`
               }
             >
@@ -99,13 +99,17 @@ export default function AdminLayout() {
   );
 }
 
-/** Light coral-glass ambient background, matching the Playbook / RB client. */
+/** Brutalist dot-grid paper background, matching the Playbook shell (rebrand). */
 function AdminBackground() {
   return (
-    <div aria-hidden className="pointer-events-none fixed inset-0 -z-10 bg-[#FCFDFF]">
-      <div className="absolute -top-[15vh] -left-[10vw] w-[60vw] h-[60vh] rounded-full bg-[#FCE4F1] opacity-30 blur-[100px]" />
-      <div className="absolute -top-[12vh] -right-[12vw] w-[55vw] h-[55vh] rounded-full bg-[#EAE2FF] opacity-25 blur-[100px]" />
-      <div className="absolute -bottom-[20vh] left-[20vw] w-[70vw] h-[55vh] rounded-full bg-[#DCE6FF] opacity-25 blur-[100px]" />
-    </div>
+    <div
+      aria-hidden
+      className="pointer-events-none fixed inset-0 -z-10"
+      style={{
+        backgroundColor: "#ffffff",
+        backgroundImage: "radial-gradient(rgba(20,20,20,0.12) 1.6px, transparent 1.7px)",
+        backgroundSize: "26px 26px",
+      }}
+    />
   );
 }

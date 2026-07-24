@@ -232,7 +232,7 @@ export default function OfflineEventSettings() {
           <Field label="默认免费票（张）"><input value={defTickets} onChange={(e) => setDefTickets(e.target.value)} inputMode="numeric" className={inp} /></Field>
           <Field label="默认免费座位（个）"><input value={defSeats} onChange={(e) => setDefSeats(e.target.value)} inputMode="numeric" className={inp} /></Field>
         </div>
-        <button onClick={saveCharges} disabled={saving} className="h-10 px-5 rounded-xl text-white text-sm font-semibold flex items-center gap-1.5 disabled:opacity-40" style={{ background: "linear-gradient(135deg, #FF7E5F, #FF3D6E)" }}>
+        <button onClick={saveCharges} disabled={saving} className="h-10 px-5 rounded-xl text-[#141414] text-sm font-semibold flex items-center gap-1.5 disabled:opacity-40" style={{ background: "#fed50a" }}>
           {saving ? <Loader2 className="w-4 h-4 animate-spin" /> : savedFlag ? <Check className="w-4 h-4" /> : <Save className="w-4 h-4" />}
           {savedFlag ? "已保存" : "保存"}
         </button>
@@ -350,7 +350,7 @@ function SubAccountLookup({
           <div>
             <p className="font-medium text-sm">{found.name || "（未知名称）"}</p>
             <p className="text-[11px] text-muted-foreground font-mono break-all">{found.locationId}</p>
-            <p className={`text-xs mt-1 ${found.hasOverride ? "text-primary" : "text-muted-foreground"}`}>
+            <p className={`text-xs mt-1 ${found.hasOverride ? "text-foreground" : "text-muted-foreground"}`}>
               {found.hasOverride
                 ? "已设覆盖额度"
                 : `当前使用全局默认（${defaults.tickets} 票 / ${defaults.seats} 座），保存后为它单独设定`}

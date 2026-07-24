@@ -90,7 +90,7 @@ export default function OfflineEventFloorPlans() {
     <div className="space-y-4">
       <div className="flex items-center justify-between">
         <p className="text-sm text-muted-foreground">共 {plans.length} 个平面图</p>
-        <button onClick={() => setEditing({ id: null, name: "", layout: blankLayout() })} className="h-9 px-4 rounded-xl text-white text-sm font-medium flex items-center gap-1.5" style={{ background: "linear-gradient(135deg, #FF7E5F, #FF3D6E)" }}>
+        <button onClick={() => setEditing({ id: null, name: "", layout: blankLayout() })} className="h-9 px-4 rounded-xl text-[#141414] text-sm font-medium flex items-center gap-1.5" style={{ background: "#fed50a" }}>
           <Plus className="w-4 h-4" /> 新建平面图
         </button>
       </div>
@@ -101,7 +101,7 @@ export default function OfflineEventFloorPlans() {
         {plans.map((p) => (
           <div key={p.id} className="glass-card rounded-2xl p-4">
             <div className="flex items-start gap-3">
-              <div className="w-9 h-9 rounded-xl flex items-center justify-center text-white shrink-0" style={{ background: "linear-gradient(135deg, #FF7E5F, #FF3D6E)" }}>
+              <div className="w-9 h-9 rounded-xl flex items-center justify-center text-[#fed50a] shrink-0" style={{ background: "#141414" }}>
                 <LayoutGrid className="w-4 h-4" />
               </div>
               <div className="min-w-0 flex-1">
