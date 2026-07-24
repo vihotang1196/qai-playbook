@@ -118,7 +118,7 @@ export default function HelpBrowse({
         </Button>
         <div className="glass-card rounded-2xl p-4 sm:p-5">
           <div className="flex items-center gap-2 mb-3">
-            <FolderOpen className="w-4 h-4 text-primary shrink-0" />
+            <FolderOpen className="w-4 h-4 text-foreground shrink-0" />
             <h3 className="font-display font-semibold">{name}</h3>
             <span className="text-xs text-muted-foreground">· {items.length}</span>
           </div>
@@ -195,7 +195,7 @@ function CategoryCard({
       className="w-full glass-card rounded-2xl px-4 py-3.5 flex items-center gap-3 text-left hover:bg-muted/40 transition-colors group"
     >
       <div className="w-9 h-9 rounded-xl bg-primary/10 flex items-center justify-center shrink-0">
-        <FolderOpen className="w-4 h-4 text-primary" />
+        <FolderOpen className="w-4 h-4 text-foreground" />
       </div>
       <div className="min-w-0 flex-1">
         <p className="font-display font-semibold text-sm truncate">{name}</p>
@@ -203,7 +203,7 @@ function CategoryCard({
           {count} {lang === "cn" ? "篇教程" : `article${count === 1 ? "" : "s"}`}
         </p>
       </div>
-      <ChevronRight className="w-4 h-4 text-muted-foreground group-hover:text-primary shrink-0" />
+      <ChevronRight className="w-4 h-4 text-muted-foreground group-hover:text-foreground shrink-0" />
     </button>
   );
 }
@@ -213,9 +213,9 @@ function ArticleRow({ title, onClick }: { title: string; onClick: () => void }) 
     <button
       type="button"
       onClick={onClick}
-      className="flex items-center gap-2.5 py-2.5 px-1.5 text-left hover:text-primary transition-colors group"
+      className="flex items-center gap-2.5 py-2.5 px-1.5 text-left hover:text-foreground transition-colors group"
     >
-      <FileText className="w-4 h-4 text-muted-foreground group-hover:text-primary shrink-0" />
+      <FileText className="w-4 h-4 text-muted-foreground group-hover:text-foreground shrink-0" />
       <span className="text-sm flex-1 min-w-0 truncate">{title}</span>
       <ChevronRight className="w-4 h-4 text-muted-foreground shrink-0" />
     </button>

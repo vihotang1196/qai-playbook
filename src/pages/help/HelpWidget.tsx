@@ -88,8 +88,8 @@ export default function HelpWidget() {
         {/* Header */}
         <div className="flex items-center gap-3 mb-4">
           <div
-            className="w-11 h-11 rounded-2xl flex items-center justify-center text-white shrink-0"
-            style={{ background: "linear-gradient(135deg, #FF7E5F, #FF3D6E)" }}
+            className="w-11 h-11 rounded-2xl flex items-center justify-center text-[#fed50a] shrink-0"
+            style={{ background: "#141414" }}
           >
             <LifeBuoy className="w-6 h-6" />
           </div>
@@ -188,8 +188,8 @@ function OpenFromQai({ lang }: { lang: "cn" | "en" }) {
       <div className="max-w-md mx-auto">
         <div className="glass-card rounded-3xl p-8 sm:p-10 text-center">
           <div
-            className="w-14 h-14 rounded-2xl flex items-center justify-center mx-auto mb-5 text-white"
-            style={{ background: "linear-gradient(135deg, #FF7E5F, #FF3D6E)" }}
+            className="w-14 h-14 rounded-2xl flex items-center justify-center mx-auto mb-5 text-[#fed50a]"
+            style={{ background: "#141414" }}
           >
             <LifeBuoy className="w-6 h-6" />
           </div>
@@ -206,7 +206,7 @@ function OpenFromQai({ lang }: { lang: "cn" | "en" }) {
               href={QAI_URL}
               target="_blank"
               rel="noreferrer"
-              className="text-sm font-mono truncate flex-1 text-left text-primary hover:underline"
+              className="text-sm font-mono truncate flex-1 text-left text-foreground hover:underline"
             >
               {QAI_URL}
             </a>

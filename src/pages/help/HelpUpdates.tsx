@@ -38,8 +38,8 @@ export default function HelpUpdates({ lang }: { lang: "cn" | "en" }) {
     return (
       <div className="glass-card rounded-2xl p-10 text-center">
         <div
-          className="w-12 h-12 rounded-2xl flex items-center justify-center mx-auto mb-4 text-white"
-          style={{ background: "linear-gradient(135deg, #FF7E5F, #FF3D6E)" }}
+          className="w-12 h-12 rounded-2xl flex items-center justify-center mx-auto mb-4 text-[#fed50a]"
+          style={{ background: "#141414" }}
         >
           <Megaphone className="w-6 h-6" />
         </div>
@@ -72,7 +72,7 @@ export default function HelpUpdates({ lang }: { lang: "cn" | "en" }) {
               href={u.link}
               target="_blank"
               rel="noreferrer"
-              className="inline-flex items-center gap-1.5 mt-3 text-sm text-primary hover:opacity-80"
+              className="inline-flex items-center gap-1.5 mt-3 text-sm text-foreground hover:opacity-80"
             >
               {lang === "cn" ? "了解更多" : "Learn more"} <ExternalLink className="w-3.5 h-3.5" />
             </a>

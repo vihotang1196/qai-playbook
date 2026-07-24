@@ -115,8 +115,8 @@ export default function HelpChat({
         {turns.length === 0 ? (
           <div className="text-center py-10 text-muted-foreground text-sm px-4">
             <div
-              className="w-12 h-12 rounded-2xl flex items-center justify-center mx-auto mb-4 text-white"
-              style={{ background: "linear-gradient(135deg, #FF7E5F, #FF3D6E)" }}
+              className="w-12 h-12 rounded-2xl flex items-center justify-center mx-auto mb-4 text-[#fed50a]"
+              style={{ background: "#141414" }}
             >
               <Sparkles className="w-6 h-6" />
             </div>
@@ -199,9 +199,9 @@ function Bubble({
     <div className={`flex gap-2.5 ${isUser ? "flex-row-reverse" : ""}`}>
       <div
         className={`w-7 h-7 rounded-lg flex items-center justify-center shrink-0 ${
-          isUser ? "bg-muted text-foreground" : "text-white"
+          isUser ? "bg-muted text-foreground" : "text-[#fed50a]"
         }`}
-        style={isUser ? undefined : { background: "linear-gradient(135deg, #FF7E5F, #FF3D6E)" }}
+        style={isUser ? undefined : { background: "#141414" }}
       >
         {isUser ? <User className="w-4 h-4" /> : <Bot className="w-4 h-4" />}
       </div>
@@ -221,7 +221,7 @@ function Bubble({
                 key={s.id}
                 type="button"
                 onClick={() => onOpenArticle(s.id)}
-                className="inline-flex items-center gap-1.5 text-xs text-primary hover:opacity-80 text-left"
+                className="inline-flex items-center gap-1.5 text-xs text-foreground hover:opacity-80 text-left"
               >
                 <FileText className="w-3.5 h-3.5 shrink-0" /> {s.title}
               </button>
@@ -235,7 +235,7 @@ function Bubble({
               type="button"
               aria-label={lang === "cn" ? "有帮助" : "Helpful"}
               onClick={() => onRate("up")}
-              className={`p-1 rounded-md hover:bg-muted transition-colors ${rating === "up" ? "text-primary" : "text-muted-foreground"}`}
+              className={`p-1 rounded-md hover:bg-muted transition-colors ${rating === "up" ? "text-foreground" : "text-muted-foreground"}`}
             >
               <ThumbsUp className="w-3.5 h-3.5" />
             </button>
@@ -243,7 +243,7 @@ function Bubble({
               type="button"
               aria-label={lang === "cn" ? "没帮助" : "Not helpful"}
               onClick={() => onRate("down")}
-              className={`p-1 rounded-md hover:bg-muted transition-colors ${rating === "down" ? "text-primary" : "text-muted-foreground"}`}
+              className={`p-1 rounded-md hover:bg-muted transition-colors ${rating === "down" ? "text-foreground" : "text-muted-foreground"}`}
             >
               <ThumbsDown className="w-3.5 h-3.5" />
             </button>
