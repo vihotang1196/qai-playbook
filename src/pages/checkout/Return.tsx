@@ -77,7 +77,7 @@ export default function CheckoutReturn() {
   }, [bookingCode, sessionId, locationId]);
 
   return (
-    <div className="min-h-screen px-4 sm:px-6 pb-16 pt-24 md:pt-28">
+    <div className="px-4 sm:px-6 pb-16 pt-24 md:pt-28">
       <div className="max-w-md mx-auto">
         {status === "confirmed" && booking ? (
           <QrTicket lang={lang} booking={booking} paid onBack={() => navigate("/events")} />

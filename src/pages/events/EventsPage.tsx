@@ -760,7 +760,7 @@ function OpenFromQai({ lang }: { lang: "cn" | "en" }) {
     else fallback();
   }
   return (
-    <div className="min-h-screen px-4 sm:px-6 pb-16 pt-24 md:pt-28">
+    <div className="px-4 sm:px-6 pb-16 pt-24 md:pt-28">
       <div className="max-w-md mx-auto">
         <div className="glass-card rounded-3xl p-8 sm:p-10 text-center">
           <div className="w-14 h-14 rounded-2xl flex items-center justify-center mx-auto mb-5 text-white" style={{ background: "linear-gradient(135deg, #FF7E5F, #FF3D6E)" }}>
@@ -788,7 +788,7 @@ function OpenFromQai({ lang }: { lang: "cn" | "en" }) {
 
 function ToolDisabled({ lang }: { lang: "cn" | "en" }) {
   return (
-    <div className="min-h-screen px-4 sm:px-6 pb-16 pt-24 md:pt-28">
+    <div className="px-4 sm:px-6 pb-16 pt-24 md:pt-28">
       <div className="max-w-md mx-auto">
         <div className="glass-card rounded-3xl p-8 sm:p-10 text-center">
           <div className="w-14 h-14 rounded-2xl flex items-center justify-center mx-auto mb-5 text-white" style={{ background: "linear-gradient(135deg, #FF7E5F, #FF3D6E)" }}>

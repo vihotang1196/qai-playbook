@@ -81,7 +81,7 @@ export default function HelpWidget() {
   ];
 
   return (
-    <div className="min-h-screen px-4 sm:px-6 pb-16 pt-24 md:pt-28">
+    <div className="px-4 sm:px-6 pb-16 pt-24 md:pt-28">
       {/* Centered column (max-w-3xl ≈ 768px) — wide enough to feel roomy; shared
           by all three tabs (header + full-width tab bar + content). */}
       <div className="max-w-3xl mx-auto">
@@ -184,7 +184,7 @@ function OpenFromQai({ lang }: { lang: "cn" | "en" }) {
     }
   }
   return (
-    <div className="min-h-screen px-4 sm:px-6 pb-16 pt-24 md:pt-28">
+    <div className="px-4 sm:px-6 pb-16 pt-24 md:pt-28">
       <div className="max-w-md mx-auto">
         <div className="glass-card rounded-3xl p-8 sm:p-10 text-center">
           <div

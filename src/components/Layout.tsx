@@ -15,7 +15,11 @@ import Footer from "@/components/Footer";
  */
 const Layout = () => {
   return (
-    <div className="relative min-h-screen overflow-x-hidden">
+    // Flex column + min-h-screen makes this a classic sticky footer: the content
+    // region (flex-1) grows to fill the viewport at ANY window size, so the Footer
+    // is always pushed to the very bottom with no whitespace below it. (100vh
+    // adapts to the window, so full-screen and half/short windows both stick.)
+    <div className="relative flex min-h-screen flex-col overflow-x-hidden">
       {/* Continuous ambient light layer. Near-white base (#FCFDFF) with three
           soft corner glows — top-left pink, top-right lilac, bottom blue-lilac
           — each ≤0.3 opacity, ~100px blur, partly off-canvas so the centre of
@@ -27,7 +31,11 @@ const Layout = () => {
       </div>
 
       <Navbar />
-      <Outlet />
+      {/* Content region — grows to fill so the Footer sticks to the bottom. Not a
+          <main> (some pages render their own <main>, which mustn't nest). */}
+      <div className="flex flex-1 flex-col">
+        <Outlet />
+      </div>
       <Footer />
     </div>
   );
