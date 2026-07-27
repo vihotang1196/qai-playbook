@@ -73,6 +73,83 @@ async function persistMedia(
   }
 }
 
+// ── Video-steps cache (AI video-tutorial upgrade) ─────────────────────────
+// Tutorial videos are inline `[📹 caption](url)` markers in an article body, so
+// the AI could only ever say "go watch the video". Here each video is read ONCE
+// by a multimodal LLM (WaveSpeed → Gemini, which accepts the bucket's public mp4
+// URL directly) and its step-by-step instructions are cached in hd_video_steps.
+// helpdesk-chat then feeds that cheap text to Claude — no video is ever re-read
+// at answer time. Phase-0 smoke test: correct 第一步…第N步 output, ~US$0.02/video.
+const WAVESPEED_URL = "https://llm.wavespeed.ai/v1/chat/completions";
+const VIDEO_MODEL = "google/gemini-3-flash-preview";
+const VIDEO_MAX_ATTEMPTS = 3; // give up on a poison video instead of looping forever
+
+const VIDEO_PROMPT =
+  "这是一段软件操作教程录屏视频，讲解语音可能是中英文混合。请同时观察画面里的实际操作、并听取语音讲解，" +
+  "输出清晰的中文分步骤操作指引，格式为「第一步…第二步…」。要求：" +
+  "(1) 只输出步骤本身，不要开场白或总结；" +
+  "(2) 必须忠于视频里真实出现的内容，绝对不要编造或臆测；" +
+  "(3) 界面上的按钮名、字段名（通常是英文）请照原样保留；" +
+  "(4) 如果语音里讲了画面上没显示的重要提示，也一并写进对应步骤。";
+
+/** Pull every video URL out of an article body. Videos are `[📹 …](url)` after
+ *  the Notion sync; also match bare media-bucket video links just in case. */
+function extractVideoUrls(content: string): string[] {
+  const urls = new Set<string>();
+  const md = /\[📹[^\]]*\]\((https?:\/\/[^)\s]+)\)/g;
+  for (const m of content.matchAll(md)) urls.add(m[1]);
+  const bare = /(https?:\/\/[^)\s"']+\.(?:mp4|mov|webm|m4v))/gi;
+  for (const m of content.matchAll(bare)) urls.add(m[1]);
+  return [...urls];
+}
+
+/** The storage object path is the stable dedupe key (notion/{blockId}.mp4) — it
+ *  survives re-syncs, unlike anything derived from the article body. */
+function storagePathFromUrl(url: string): string {
+  const marker = "/helpdesk-media/";
+  const i = url.indexOf(marker);
+  const raw = i >= 0 ? url.slice(i + marker.length) : url;
+  return decodeURIComponent(raw.split("?")[0]);
+}
+
+/** Read ONE video via WaveSpeed → Gemini. Returns steps text + usage, or an
+ *  error string; never throws, so one bad video can't fail a whole batch. */
+async function readVideoSteps(
+  videoUrl: string,
+): Promise<{ ok: true; steps: string; usage: unknown } | { ok: false; error: string }> {
+  const key = Deno.env.get("WAVESPEED_API_KEY");
+  if (!key) return { ok: false, error: "WAVESPEED_API_KEY 未配置" };
+  try {
+    const resp = await fetch(WAVESPEED_URL, {
+      method: "POST",
+      headers: { Authorization: `Bearer ${key}`, "Content-Type": "application/json" },
+      body: JSON.stringify({
+        model: VIDEO_MODEL,
+        messages: [
+          {
+            role: "user",
+            // Content shape verified in the phase-0 smoke test.
+            content: [
+              { type: "video_url", video_url: { url: videoUrl } },
+              { type: "text", text: VIDEO_PROMPT },
+            ],
+          },
+        ],
+        max_tokens: 6000, // smoke test truncated at 1500 — real tutorials need room
+        temperature: 0.2,
+      }),
+    });
+    const raw = await resp.text();
+    if (!resp.ok) return { ok: false, error: `HTTP ${resp.status}: ${raw.slice(0, 300)}` };
+    const parsed = JSON.parse(raw);
+    const steps = String(parsed?.choices?.[0]?.message?.content ?? "").trim();
+    if (!steps) return { ok: false, error: "模型没有返回步骤内容" };
+    return { ok: true, steps, usage: parsed?.usage ?? null };
+  } catch (e) {
+    return { ok: false, error: e instanceof Error ? e.message : "调用失败" };
+  }
+}
+
 serve(async (req) => {
   if (req.method === "OPTIONS") return new Response(null, { headers: corsHeaders });
 
@@ -833,6 +910,141 @@ serve(async (req) => {
         const { error } = await sb.from("hd_updates").delete().eq("id", id);
         if (error) throw error;
         return json({ ok: true });
+      }
+
+      // ── Video steps · 1/3: queue the videos that still need reading ──────
+      // Scans article bodies for video markers and inserts a `pending` row per
+      // NEW video. Incremental by design: storage_path is UNIQUE, so videos
+      // already in the table (done OR failed) are skipped and never re-charged.
+      // `article_ids` limits the scan to a hand-picked pilot set.
+      case "planVideoSteps": {
+        const only = Array.isArray(body?.article_ids)
+          ? body.article_ids.map((x: unknown) => String(x)).filter(Boolean)
+          : null;
+
+        let q = sb.from("hd_articles").select("id, content");
+        if (only?.length) q = q.in("id", only);
+        const { data: articles, error: aErr } = await q;
+        if (aErr) throw aErr;
+
+        const { data: existing, error: eErr } = await sb.from("hd_video_steps").select("storage_path");
+        if (eErr) throw eErr;
+        const known = new Set((existing || []).map((r) => r.storage_path as string));
+
+        const rows: { article_id: string; storage_path: string; video_url: string }[] = [];
+        const seen = new Set<string>();
+        for (const a of articles || []) {
+          for (const url of extractVideoUrls(String(a.content || ""))) {
+            const path = storagePathFromUrl(url);
+            if (known.has(path) || seen.has(path)) continue; // already cached / dup in this run
+            seen.add(path);
+            rows.push({ article_id: a.id as string, storage_path: path, video_url: url });
+          }
+        }
+        if (rows.length) {
+          // ignoreDuplicates: concurrent runs can't double-insert the same video.
+          const { error } = await sb
+            .from("hd_video_steps")
+            .upsert(rows, { onConflict: "storage_path", ignoreDuplicates: true });
+          if (error) throw error;
+        }
+        const { count: pending } = await sb
+          .from("hd_video_steps")
+          .select("id", { count: "exact", head: true })
+          .eq("status", "pending");
+        return json({ ok: true, queued: rows.length, pending: pending ?? 0, scanned: (articles || []).length });
+      }
+
+      // ── Video steps · 2/3: process a batch (resumable) ───────────────────
+      // Reads up to batch_size pending videos. Each result is written
+      // immediately, so an interrupted run simply resumes where it stopped.
+      // A failure marks that ONE row failed (chat then falls back to "watch the
+      // video") and never aborts the batch; after VIDEO_MAX_ATTEMPTS a poison
+      // video is left failed instead of retried forever.
+      case "runVideoStepsBatch": {
+        const batchSize = Math.min(Math.max(Number(body?.batch_size) || 3, 1), 10);
+        if (!Deno.env.get("WAVESPEED_API_KEY")) {
+          return json({ ok: false, message: "WAVESPEED_API_KEY 未配置" });
+        }
+        const { data: pend, error: pErr } = await sb
+          .from("hd_video_steps")
+          .select("id, video_url, attempts")
+          .eq("status", "pending")
+          .lt("attempts", VIDEO_MAX_ATTEMPTS)
+          .order("created_at")
+          .limit(batchSize);
+        if (pErr) throw pErr;
+
+        let done = 0;
+        let failed = 0;
+        for (const row of pend || []) {
+          const attempts = (Number(row.attempts) || 0) + 1;
+          const res = await readVideoSteps(String(row.video_url));
+          if (res.ok) {
+            await sb
+              .from("hd_video_steps")
+              .update({
+                steps_text: res.steps,
+                status: "done",
+                error: null,
+                model: VIDEO_MODEL,
+                token_usage: res.usage,
+                attempts,
+                processed_at: new Date().toISOString(),
+              })
+              .eq("id", row.id);
+            done++;
+          } else {
+            // Keep it `pending` while retries remain; mark `failed` once spent.
+            await sb
+              .from("hd_video_steps")
+              .update({
+                status: attempts >= VIDEO_MAX_ATTEMPTS ? "failed" : "pending",
+                error: res.error.slice(0, 500),
+                attempts,
+              })
+              .eq("id", row.id);
+            failed++;
+          }
+        }
+        const { count: left } = await sb
+          .from("hd_video_steps")
+          .select("id", { count: "exact", head: true })
+          .eq("status", "pending")
+          .lt("attempts", VIDEO_MAX_ATTEMPTS);
+        return json({ ok: true, processed: (pend || []).length, done, failed, remaining: left ?? 0 });
+      }
+
+      // ── Video steps · 3/3: progress + the extracted steps for QA review ──
+      case "getVideoStepsStatus": {
+        const { data, error } = await sb
+          .from("hd_video_steps")
+          .select("id, article_id, storage_path, status, error, steps_text, model, token_usage, processed_at, attempts")
+          .order("processed_at", { ascending: false, nullsFirst: false })
+          .limit(Math.min(Math.max(Number(body?.limit) || 20, 1), 100));
+        if (error) throw error;
+
+        const titles = new Map<string, string>();
+        const ids = [...new Set((data || []).map((r) => r.article_id as string))];
+        if (ids.length) {
+          const { data: arts } = await sb.from("hd_articles").select("id, title").in("id", ids);
+          for (const a of arts || []) titles.set(a.id as string, a.title as string);
+        }
+        const counts: Record<string, number> = { pending: 0, done: 0, failed: 0, skipped: 0 };
+        for (const s of Object.keys(counts)) {
+          const { count } = await sb
+            .from("hd_video_steps")
+            .select("id", { count: "exact", head: true })
+            .eq("status", s);
+          counts[s] = count ?? 0;
+        }
+        const rows = (data || []).map((r) => ({
+          ...r,
+          article_title: titles.get(r.article_id as string) ?? null,
+          cost: (r.token_usage as { cost?: number } | null)?.cost ?? null,
+        }));
+        const totalCost = rows.reduce((sum, r) => sum + (Number(r.cost) || 0), 0);
+        return json({ ok: true, counts, total_cost_usd: Math.round(totalCost * 10000) / 10000, rows });
       }
 
       default:
