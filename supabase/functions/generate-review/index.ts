@@ -17,6 +17,7 @@ import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { corsHeaders, json, serviceClient } from "../_shared/ghl.ts";
 import { hasToolAccess } from "../_shared/access.ts";
 import { logToolUsage } from "../_shared/usage.ts";
+import { checkRateLimit, locKey, DAY_MS } from "../_shared/ratelimit.ts";
 
 const MODEL = "claude-sonnet-4-5";
 const ANTHROPIC_URL = "https://api.anthropic.com/v1/messages";
@@ -146,6 +147,18 @@ const DAILY_CAP = 300; // max reviews generated per QR per day
 // generationId being reused to burn API forever).
 const REGEN_MAX_AGE_MS = 60 * 60 * 1000;
 
+// Second dimension (step 4): a per-SUB-ACCOUNT daily cap. The caps above are
+// per QR code, so a location with many codes could still run up a large bill
+// across all of them. Counted from tool_usage via the shared limiter.
+const LOCATION_DAILY_CAP = 500;
+
+// Cap in-place regenerations PER ROW. Regenerating updates the row instead of
+// inserting one, so it is invisible to the row-count caps above — without this
+// a script could re-roll a single recent scan indefinitely (each re-roll is a
+// paid Claude call). The scan page self-limits to 3 per page, so this sits just
+// above real usage.
+const MAX_REGENS_PER_ROW = 5;
+
 /** How many reviews this QR has generated within the last `sinceMs`. */
 async function countRecent(
   sb: ReturnType<typeof serviceClient>,
@@ -238,6 +251,14 @@ serve(async (req) => {
       // Per-QR rate limit (bounds API spend for a hammered code).
       if ((await countRecent(sb, qr.id, 3_600_000)) >= HOURLY_CAP) return json({ error: "rate_limited" }, 429);
       if ((await countRecent(sb, qr.id, 86_400_000)) >= DAILY_CAP) return json({ error: "rate_limited" }, 429);
+      // Per-sub-account daily cap across ALL of this location's codes.
+      const locRl = await checkRateLimit(sb, {
+        toolKey: "review_boost",
+        clientKey: locKey(qr.location_id as string),
+        windows: [{ windowMs: DAY_MS, max: LOCATION_DAILY_CAP, label: "day" }],
+        eventType: "generation",
+      });
+      if (!locRl.allowed) return json({ error: "rate_limited" }, 429);
 
       const [review] = await generate(campaign, language, 1);
       if (!review) return json({ error: "generation failed" }, 500);
@@ -266,6 +287,8 @@ serve(async (req) => {
         tool_key: "review_boost",
         event_type: "generation",
         location_id: qr.location_id as string,
+        // client_key is what the per-location limiter counts.
+        client_key: locKey(qr.location_id as string),
         meta: { campaign_id: qr.campaign_id },
       });
 
@@ -294,7 +317,7 @@ serve(async (req) => {
 
       const { data: gen, error } = await sb
         .from("rb_generations")
-        .select(`id, qr_code_id, location_id, created_at, rb_qr_codes!inner(short_code), rb_campaigns!inner(${CAMPAIGN_FIELDS})`)
+        .select(`id, qr_code_id, location_id, created_at, regen_count, rb_qr_codes!inner(short_code), rb_campaigns!inner(${CAMPAIGN_FIELDS})`)
         .eq("id", generationId)
         .maybeSingle();
       if (error) throw error;
@@ -309,13 +332,31 @@ serve(async (req) => {
       if ((await countRecent(sb, gen.qr_code_id as string, 3_600_000)) >= HOURLY_CAP) {
         return json({ error: "rate_limited" }, 429);
       }
+      // THE regenerate fix: this row's own counter. Regenerating writes no new
+      // row, so the row-count caps above can never see it — without this a
+      // script could re-roll one recent scan indefinitely.
+      const regenSoFar = Number(gen.regen_count) || 0;
+      if (regenSoFar >= MAX_REGENS_PER_ROW) return json({ error: "rate_limited" }, 429);
+      // Regeneration is a paid call, so it also counts against the location's
+      // daily budget.
+      const regenLocRl = await checkRateLimit(sb, {
+        toolKey: "review_boost",
+        clientKey: locKey(gen.location_id as string),
+        windows: [{ windowMs: DAY_MS, max: LOCATION_DAILY_CAP, label: "day" }],
+        eventType: "generation",
+      });
+      if (!regenLocRl.allowed) return json({ error: "rate_limited" }, 429);
 
       const [review] = await generate(gen.rb_campaigns as unknown as Campaign, language, 1);
       if (!review) return json({ error: "generation failed" }, 500);
 
       const { data: updated, error: upErr } = await sb
         .from("rb_generations")
-        .update({ review_text: review.review_text, persona: review.persona })
+        .update({
+          review_text: review.review_text,
+          persona: review.persona,
+          regen_count: regenSoFar + 1,
+        })
         .eq("id", generationId)
         .select("id, review_text, persona, rating")
         .single();
@@ -325,6 +366,7 @@ serve(async (req) => {
         tool_key: "review_boost",
         event_type: "generation",
         location_id: gen.location_id as string,
+        client_key: locKey(gen.location_id as string),
         meta: { regenerate: true },
       });
       return json({ generation: updated });
@@ -349,6 +391,7 @@ serve(async (req) => {
           tool_key: "review_boost",
           event_type: "posted",
           location_id: updated.location_id as string,
+          client_key: locKey(updated.location_id as string),
           meta: { campaign_id: updated.campaign_id },
         });
       }
