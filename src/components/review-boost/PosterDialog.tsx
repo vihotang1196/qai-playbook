@@ -107,7 +107,7 @@ export default function PosterDialog({
       <DialogContent className="max-w-lg max-h-[92vh] overflow-y-auto">
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2">
-            <QrIcon className="w-5 h-5 text-primary" />
+            <QrIcon className="w-5 h-5 text-[#141414]" />
             {label("二维码海报", "QR poster")}
           </DialogTitle>
           <DialogDescription>
@@ -124,10 +124,10 @@ export default function PosterDialog({
             <button
               key={s.id}
               onClick={() => setSizeId(s.id)}
-              className={`flex-1 rounded-xl px-2 py-2 text-xs font-medium border transition-colors ${
+              className={`flex-1 rounded-xl px-2 py-2 text-xs font-medium border-2 transition-colors ${
                 sizeId === s.id
-                  ? "border-primary bg-primary/10 text-primary"
-                  : "border-border/60 text-muted-foreground hover:border-border"
+                  ? "border-[#141414] bg-[#fed50a] text-[#141414]"
+                  : "border-[#141414]/25 text-muted-foreground hover:border-[#141414]/50"
               }`}
             >
               {s.label[lang]}
@@ -178,8 +178,7 @@ export default function PosterDialog({
           <button
             onClick={downloadPoster}
             disabled={downloading !== null}
-            className="w-full inline-flex items-center justify-center gap-2 rounded-xl px-4 py-2.5 text-sm font-semibold text-white disabled:opacity-70"
-            style={{ background: "linear-gradient(135deg, #FF7E5F, #FF3D6E)" }}
+            className="btn-gradient w-full inline-flex items-center justify-center gap-2 rounded-xl px-4 py-2.5 text-sm font-semibold disabled:opacity-70"
           >
             {downloading === "poster" ? <Loader2 className="w-4 h-4 animate-spin" /> : <Download className="w-4 h-4" />}
             {label(`下载海报 PNG（${size.label.cn}）`, `Download poster PNG (${size.label.en})`)}
@@ -238,7 +237,7 @@ function Poster({
       style={{
         width: W,
         height: H,
-        background: `linear-gradient(160deg, ${spec.primarySoft}, #ffffff 60%)`,
+        background: "#ffffff",
         display: "flex",
         flexDirection: "column",
         alignItems: "center",
@@ -250,11 +249,9 @@ function Poster({
         gap: W * 0.03,
       }}
     >
-      <div style={{ fontSize: W * 0.09, lineHeight: 1 }}>{spec.motif}</div>
-
       <div>
-        <div style={{ fontSize: W * 0.06, fontWeight: 800, color: "#1a1a2e", lineHeight: 1.2 }}>{headlineCn}</div>
-        <div style={{ fontSize: W * 0.036, fontWeight: 600, color: "#5a5a72", marginTop: W * 0.005 }}>{headlineEn}</div>
+        <div style={{ fontSize: W * 0.06, fontWeight: 800, color: "#141414", lineHeight: 1.2 }}>{headlineCn}</div>
+        <div style={{ fontSize: W * 0.036, fontWeight: 600, color: "#59595f", marginTop: W * 0.005 }}>{headlineEn}</div>
       </div>
 
       <div style={{ fontSize: W * 0.075, color: spec.star, letterSpacing: W * 0.008 }}>★★★★★</div>
@@ -265,15 +262,16 @@ function Poster({
           background: "#ffffff",
           padding: W * 0.04,
           borderRadius: W * 0.04,
-          boxShadow: "0 8px 30px rgba(0,0,0,0.10)",
+          border: "2px solid #141414",
+          boxShadow: `${Math.round(W * 0.013)}px ${Math.round(W * 0.013)}px 0 #141414`,
         }}
       >
         <QrWithLogo value={scanUrl} size={qrSize} logoUrl={logoUrl} />
       </div>
 
       <div>
-        <div style={{ fontSize: W * 0.042, fontWeight: 700, color: "#1a1a2e" }}>扫码给我们留下五星好评</div>
-        <div style={{ fontSize: W * 0.03, fontWeight: 500, color: "#5a5a72", marginTop: W * 0.004 }}>
+        <div style={{ fontSize: W * 0.042, fontWeight: 700, color: "#141414" }}>扫码给我们留下五星好评</div>
+        <div style={{ fontSize: W * 0.03, fontWeight: 500, color: "#59595f", marginTop: W * 0.004 }}>
           Scan to leave us a 5-star review
         </div>
       </div>
@@ -281,8 +279,9 @@ function Poster({
       {promo ? (
         <div
           style={{
-            background: spec.primary,
-            color: "#ffffff",
+            background: "#fed50a",
+            color: "#141414",
+            border: "2px solid #141414",
             fontSize: W * 0.034,
             fontWeight: 700,
             padding: `${W * 0.018}px ${W * 0.05}px`,

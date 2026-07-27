@@ -26,8 +26,8 @@ export default function AdminSidebar() {
       <div className="glass-card rounded-2xl p-3 md:sticky md:top-24">
         <div className="flex items-center gap-2 px-2 pb-3 mb-2 border-b border-border/40">
           <div
-            className="w-8 h-8 rounded-lg flex items-center justify-center text-white shrink-0"
-            style={{ background: "linear-gradient(135deg, #FF7E5F, #FF3D6E)" }}
+            className="w-8 h-8 rounded-lg flex items-center justify-center text-[#fed50a] shrink-0"
+            style={{ background: "#141414" }}
           >
             <Star className="w-4 h-4" />
           </div>
@@ -42,7 +42,7 @@ export default function AdminSidebar() {
               className={({ isActive }) =>
                 `flex items-center gap-2.5 px-3 py-2 rounded-xl text-sm whitespace-nowrap transition-colors ${
                   isActive
-                    ? "bg-[rgba(255,61,110,0.10)] text-primary font-medium"
+                    ? "bg-[#fed50a]/25 text-[#141414] font-semibold"
                     : "text-muted-foreground hover:text-foreground hover:bg-muted/50"
                 }`
               }

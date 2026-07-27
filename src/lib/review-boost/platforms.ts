@@ -5,7 +5,7 @@
 export type RBPlatform = {
   id: string; // stored in rb_platform_integrations.platform
   label: { cn: string; en: string };
-  color: string; // brand colour for the monogram tile
+  color: string; // legacy field; monogram tiles now render ink+yellow (Brutalist rebrand), no longer per-platform brand colour
   placeholder: string;
 };
 
@@ -13,25 +13,25 @@ export const RB_PLATFORMS: RBPlatform[] = [
   {
     id: "google_maps",
     label: { cn: "Google Maps", en: "Google Maps" },
-    color: "#4285F4",
+    color: "#141414",
     placeholder: "https://g.page/r/…/review",
   },
   {
     id: "facebook",
     label: { cn: "Facebook", en: "Facebook" },
-    color: "#1877F2",
+    color: "#141414",
     placeholder: "https://facebook.com/你的主页/reviews",
   },
   {
     id: "shopee",
     label: { cn: "Shopee", en: "Shopee" },
-    color: "#EE4D2D",
+    color: "#141414",
     placeholder: "https://shopee.com.my/你的店铺",
   },
   {
     id: "custom",
     label: { cn: "自定义链接", en: "Custom URL" },
-    color: "#6B7280",
+    color: "#141414",
     placeholder: "https://your-site.com/reviews",
   },
 ];

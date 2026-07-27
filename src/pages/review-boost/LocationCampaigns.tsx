@@ -54,8 +54,7 @@ export default function LocationCampaigns() {
         </div>
         <Link
           to={`${base}/new`}
-          className="inline-flex items-center gap-1.5 rounded-xl px-4 py-2.5 text-sm font-semibold text-white shrink-0"
-          style={{ background: "linear-gradient(135deg, #FF7E5F, #FF3D6E)" }}
+          className="btn-gradient inline-flex items-center gap-1.5 rounded-xl px-4 py-2.5 text-sm font-semibold shrink-0"
         >
           <Plus className="w-4 h-4" />
           {lang === "cn" ? "新建活动" : "New campaign"}
@@ -69,8 +68,8 @@ export default function LocationCampaigns() {
       ) : campaigns.length === 0 ? (
         <div className="glass-card rounded-2xl px-5 py-12 flex flex-col items-center text-center gap-3">
           <div
-            className="w-12 h-12 rounded-2xl flex items-center justify-center text-white"
-            style={{ background: "linear-gradient(135deg, #FF7E5F, #FF3D6E)" }}
+            className="w-12 h-12 rounded-2xl flex items-center justify-center text-[#fed50a]"
+            style={{ background: "#141414" }}
           >
             <Megaphone className="w-6 h-6" />
           </div>
@@ -84,8 +83,7 @@ export default function LocationCampaigns() {
           </p>
           <Link
             to={`${base}/new`}
-            className="inline-flex items-center gap-1.5 rounded-xl px-4 py-2.5 text-sm font-semibold text-white mt-1"
-            style={{ background: "linear-gradient(135deg, #FF7E5F, #FF3D6E)" }}
+            className="btn-gradient inline-flex items-center gap-1.5 rounded-xl px-4 py-2.5 text-sm font-semibold mt-1"
           >
             <Plus className="w-4 h-4" />
             {lang === "cn" ? "新建活动" : "New campaign"}
@@ -133,7 +131,7 @@ export default function LocationCampaigns() {
                     {code}
                   </span>
                 )}
-                <ChevronRight className="w-4 h-4 text-muted-foreground group-hover:text-primary transition-colors shrink-0" />
+                <ChevronRight className="w-4 h-4 text-muted-foreground group-hover:text-[#141414] transition-colors shrink-0" />
               </Link>
             );
           })}

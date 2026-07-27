@@ -178,7 +178,7 @@ export default function CampaignDetail() {
   return (
     <div className="space-y-5 max-w-2xl">
       <div>
-        <Link to={listUrl} className="inline-flex items-center gap-1 text-sm text-muted-foreground hover:text-primary">
+        <Link to={listUrl} className="inline-flex items-center gap-1 text-sm text-muted-foreground hover:text-[#141414]">
           <ArrowLeft className="w-4 h-4" /> {label("返回活动列表", "Back to campaigns")}
         </Link>
       </div>
@@ -216,7 +216,7 @@ export default function CampaignDetail() {
                 </span>
               </span>
             ) : (
-              <span className="text-amber-600">{label("未指定评价链接", "No review link set")}</span>
+              <span className="text-[#141414] font-medium">{label("未指定评价链接", "No review link set")}</span>
             )}
           </p>
         </div>
@@ -230,7 +230,7 @@ export default function CampaignDetail() {
           <button
             onClick={remove}
             disabled={deleting}
-            className="inline-flex items-center justify-center rounded-xl w-9 h-9 border border-border/60 text-muted-foreground hover:text-red-500 hover:border-red-500/40 disabled:opacity-60"
+            className="inline-flex items-center justify-center rounded-xl w-9 h-9 border border-border/60 text-muted-foreground hover:text-[#141414] hover:border-[#141414]/40 disabled:opacity-60"
             aria-label={label("删除", "Delete")}
           >
             {deleting ? <Loader2 className="w-4 h-4 animate-spin" /> : <Trash2 className="w-4 h-4" />}
@@ -241,7 +241,7 @@ export default function CampaignDetail() {
       {/* ── Scan link ───────────────────────────────────────────────── */}
       <section className="glass-card rounded-2xl p-5 space-y-3">
         <div className="flex items-center gap-2">
-          <QrCode className="w-4 h-4 text-primary" />
+          <QrCode className="w-4 h-4 text-[#141414]" />
           <h2 className="font-display font-semibold">{label("扫码链接", "Scan link")}</h2>
         </div>
         {scanUrl ? (
@@ -255,8 +255,7 @@ export default function CampaignDetail() {
               />
               <button
                 onClick={copyScan}
-                className="inline-flex items-center gap-1.5 rounded-xl px-4 py-2.5 text-sm font-semibold text-white shrink-0"
-                style={{ background: "linear-gradient(135deg, #FF7E5F, #FF3D6E)" }}
+                className="btn-gradient inline-flex items-center gap-1.5 rounded-xl px-4 py-2.5 text-sm font-semibold shrink-0"
               >
                 {copied ? <Check className="w-4 h-4" /> : <Copy className="w-4 h-4" />}
                 {label("复制", "Copy")}
@@ -265,7 +264,7 @@ export default function CampaignDetail() {
                 href={scanUrl}
                 target="_blank"
                 rel="noreferrer"
-                className="inline-flex items-center justify-center rounded-xl w-10 h-10 border border-border/60 text-muted-foreground hover:text-primary shrink-0"
+                className="inline-flex items-center justify-center rounded-xl w-10 h-10 border border-border/60 text-muted-foreground hover:text-[#141414] shrink-0"
                 aria-label={label("打开", "Open")}
               >
                 <ExternalLink className="w-4 h-4" />
@@ -273,8 +272,7 @@ export default function CampaignDetail() {
             </div>
             <button
               onClick={() => setPosterOpen(true)}
-              className="inline-flex items-center gap-1.5 rounded-xl px-4 py-2.5 text-sm font-semibold text-white"
-              style={{ background: "linear-gradient(135deg, #FF7E5F, #FF3D6E)" }}
+              className="btn-gradient inline-flex items-center gap-1.5 rounded-xl px-4 py-2.5 text-sm font-semibold"
             >
               <QrCode className="w-4 h-4" />
               {label("生成二维码海报", "Make a QR poster")}
@@ -292,7 +290,7 @@ export default function CampaignDetail() {
       <section className="glass-card rounded-2xl p-5 flex items-center justify-between gap-4">
         <div className="min-w-0">
           <div className="flex items-center gap-2">
-            <Sparkles className="w-4 h-4 text-primary" />
+            <Sparkles className="w-4 h-4 text-[#141414]" />
             <h2 className="font-display font-semibold">{label("AI 好评预览", "AI review preview")}</h2>
           </div>
           <p className="text-xs text-muted-foreground mt-0.5">
@@ -304,8 +302,7 @@ export default function CampaignDetail() {
         </div>
         <button
           onClick={openPreview}
-          className="inline-flex items-center gap-1.5 rounded-xl px-4 py-2.5 text-sm font-semibold text-white shrink-0"
-          style={{ background: "linear-gradient(135deg, #FF7E5F, #FF3D6E)" }}
+          className="btn-gradient inline-flex items-center gap-1.5 rounded-xl px-4 py-2.5 text-sm font-semibold shrink-0"
         >
           <Sparkles className="w-4 h-4" />
           {label("试生成", "Try it")}
@@ -325,7 +322,7 @@ export default function CampaignDetail() {
             <p className="text-sm font-medium mb-1.5">{label("卖点 / 招牌", "Selling points")}</p>
             <div className="flex flex-wrap gap-1.5">
               {features.map((f, i) => (
-                <span key={i} className="text-xs rounded-full px-2.5 py-1 bg-primary/10 text-primary">
+                <span key={i} className="text-xs rounded-full px-2.5 py-1 bg-[#fed50a]/20 text-[#141414]">
                   {f}
                 </span>
               ))}
@@ -346,9 +343,9 @@ export default function CampaignDetail() {
             {generations.map((g) => (
               <div key={g.id} className="rounded-xl border border-border/50 p-3">
                 <div className="flex items-center gap-2 mb-1">
-                  <span className="text-amber-500 text-xs">{"★".repeat(g.rating)}</span>
+                  <span className="text-[#fed50a] text-xs">{"★".repeat(g.rating)}</span>
                   {g.posted && (
-                    <span className="text-[11px] rounded-full px-2 py-0.5 bg-green-500/10 text-green-600">
+                    <span className="text-[11px] rounded-full px-2 py-0.5 bg-[#fed50a] text-[#141414] font-semibold">
                       {label("已发布", "Posted")}
                     </span>
                   )}
@@ -368,7 +365,7 @@ export default function CampaignDetail() {
         <DialogContent className="max-w-lg">
           <DialogHeader>
             <DialogTitle className="flex items-center gap-2">
-              <Sparkles className="w-5 h-5 text-primary" />
+              <Sparkles className="w-5 h-5 text-[#141414]" />
               {label("AI 好评预览", "AI review preview")}
             </DialogTitle>
             <DialogDescription>
@@ -386,10 +383,10 @@ export default function CampaignDetail() {
                 key={l.id}
                 onClick={() => runPreview(l.id)}
                 disabled={previewLoading}
-                className={`flex-1 rounded-xl px-3 py-2 text-sm font-medium border transition-colors disabled:opacity-60 ${
+                className={`flex-1 rounded-xl px-3 py-2 text-sm font-medium border-2 transition-colors disabled:opacity-60 ${
                   previewLang === l.id
-                    ? "border-primary bg-primary/10 text-primary"
-                    : "border-border/60 text-muted-foreground hover:border-border"
+                    ? "border-[#141414] bg-[#fed50a] text-[#141414]"
+                    : "border-[#141414]/25 text-muted-foreground hover:border-[#141414]/50"
                 }`}
               >
                 {l.label}
@@ -412,15 +409,15 @@ export default function CampaignDetail() {
               samples.map((s, i) => (
                 <div key={i} className="rounded-xl border border-border/50 p-3">
                   <div className="flex items-center gap-2 mb-1.5">
-                    <span className="text-amber-500 text-xs">★★★★★</span>
+                    <span className="text-[#fed50a] text-xs">★★★★★</span>
                     {s.persona && (
-                      <span className="text-[11px] rounded-full px-2 py-0.5 bg-primary/10 text-primary truncate">
+                      <span className="text-[11px] rounded-full px-2 py-0.5 bg-[#fed50a]/20 text-[#141414] truncate">
                         {s.persona}
                       </span>
                     )}
                     <button
                       onClick={() => copySample(s.review_text, i)}
-                      className="ml-auto inline-flex items-center gap-1 text-xs text-muted-foreground hover:text-primary shrink-0"
+                      className="ml-auto inline-flex items-center gap-1 text-xs text-muted-foreground hover:text-[#141414] shrink-0"
                     >
                       {copiedIdx === i ? <Check className="w-3.5 h-3.5" /> : <Copy className="w-3.5 h-3.5" />}
                       {label("复制", "Copy")}
@@ -436,8 +433,7 @@ export default function CampaignDetail() {
           <button
             onClick={() => runPreview(previewLang)}
             disabled={previewLoading}
-            className="inline-flex items-center justify-center gap-1.5 rounded-xl px-4 py-2.5 text-sm font-semibold text-white disabled:opacity-70"
-            style={{ background: "linear-gradient(135deg, #FF7E5F, #FF3D6E)" }}
+            className="btn-gradient inline-flex items-center justify-center gap-1.5 rounded-xl px-4 py-2.5 text-sm font-semibold disabled:opacity-70"
           >
             {previewLoading ? <Loader2 className="w-4 h-4 animate-spin" /> : <RefreshCw className="w-4 h-4" />}
             {label("再写一批", "Regenerate")}

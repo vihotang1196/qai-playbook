@@ -36,12 +36,14 @@ export default function ThankYouPage() {
   }, [generationId]);
 
   return (
-    <div className="min-h-screen relative overflow-hidden flex items-center justify-center p-4 bg-[#FFF7F4]">
-      <div aria-hidden className="pointer-events-none fixed inset-0 -z-10">
-        <div className="absolute -top-24 -left-16 w-80 h-80 rounded-full bg-[#FFD9C7] opacity-50 blur-[90px]" />
-        <div className="absolute -bottom-24 -right-16 w-80 h-80 rounded-full bg-[#FFC7D8] opacity-50 blur-[90px]" />
-        <div className="absolute top-1/2 left-1/3 w-72 h-72 rounded-full bg-[#D9F5E7] opacity-40 blur-[90px]" />
-      </div>
+    <div
+      className="min-h-screen relative overflow-hidden flex items-center justify-center p-4"
+      style={{
+        backgroundColor: "#ffffff",
+        backgroundImage: "radial-gradient(rgba(20,20,20,0.12) 1.6px, transparent 1.7px)",
+        backgroundSize: "26px 26px",
+      }}
+    >
 
       <div className="w-full max-w-sm text-center">
         <div className="glass-card rounded-3xl p-8">
@@ -52,8 +54,8 @@ export default function ThankYouPage() {
           ) : (
             <>
               <div
-                className="w-20 h-20 rounded-full mx-auto mb-6 flex items-center justify-center text-white"
-                style={{ background: "linear-gradient(135deg, #FF7E5F, #FF3D6E)" }}
+                className="w-20 h-20 rounded-full mx-auto mb-6 flex items-center justify-center text-[#fed50a]"
+                style={{ background: "#141414" }}
               >
                 <PartyPopper className="w-10 h-10" />
               </div>

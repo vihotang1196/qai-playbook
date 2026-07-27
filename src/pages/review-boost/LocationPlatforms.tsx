@@ -145,8 +145,8 @@ export default function LocationPlatforms() {
               <div key={p.id} className="glass-card rounded-2xl p-4">
                 <div className="flex items-center gap-3 mb-3">
                   <div
-                    className="w-9 h-9 rounded-xl flex items-center justify-center text-white text-sm font-bold shrink-0"
-                    style={{ background: p.color }}
+                    className="w-9 h-9 rounded-xl flex items-center justify-center text-[#fed50a] text-sm font-bold shrink-0"
+                    style={{ background: "#141414" }}
                   >
                     {p.label.en.charAt(0)}
                   </div>
@@ -160,7 +160,7 @@ export default function LocationPlatforms() {
                   {list.map((row) =>
                     editingKey === row.key ? (
                       // ── Expanded editor ──────────────────────────────
-                      <div key={row.key} className="rounded-xl border border-primary/30 bg-primary/5 p-3 space-y-2">
+                      <div key={row.key} className="rounded-xl border-2 border-[#141414]/30 bg-[#fed50a]/10 p-3 space-y-2">
                         <input
                           value={draft.label}
                           onChange={(e) => setDraft((d) => ({ ...d, label: e.target.value }))}
@@ -177,8 +177,7 @@ export default function LocationPlatforms() {
                           <button
                             onClick={() => save(p.id, row)}
                             disabled={busyKey === row.key}
-                            className="inline-flex items-center gap-1.5 rounded-xl px-3.5 py-2 text-sm font-semibold text-white disabled:opacity-70"
-                            style={{ background: "linear-gradient(135deg, #FF7E5F, #FF3D6E)" }}
+                            className="btn-gradient inline-flex items-center gap-1.5 rounded-xl px-3.5 py-2 text-sm font-semibold disabled:opacity-70"
                           >
                             {busyKey === row.key ? <Loader2 className="w-4 h-4 animate-spin" /> : <Check className="w-4 h-4" />}
                             {label("保存", "Save")}
@@ -200,14 +199,14 @@ export default function LocationPlatforms() {
                         </span>
                         <button
                           onClick={() => startEdit(row)}
-                          className="inline-flex items-center gap-1 text-xs text-muted-foreground hover:text-primary shrink-0"
+                          className="inline-flex items-center gap-1 text-xs text-muted-foreground hover:text-[#141414] shrink-0"
                         >
                           <Pencil className="w-3.5 h-3.5" /> {label("编辑", "Edit")}
                         </button>
                         <button
                           onClick={() => remove(p.id, row)}
                           disabled={busyKey === row.key}
-                          className="inline-flex items-center justify-center w-7 h-7 rounded-lg text-muted-foreground hover:text-red-500 shrink-0 disabled:opacity-60"
+                          className="inline-flex items-center justify-center w-7 h-7 rounded-lg text-muted-foreground hover:text-[#141414] shrink-0 disabled:opacity-60"
                           aria-label={label("删除", "Delete")}
                         >
                           {busyKey === row.key ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Trash2 className="w-3.5 h-3.5" />}
@@ -218,7 +217,7 @@ export default function LocationPlatforms() {
 
                   <button
                     onClick={() => addRow(p.id)}
-                    className="inline-flex items-center gap-1.5 rounded-xl px-3 py-2 text-sm font-medium text-primary border border-dashed border-primary/40 hover:bg-primary/5 w-full justify-center mt-1"
+                    className="inline-flex items-center gap-1.5 rounded-xl px-3 py-2 text-sm font-medium text-[#141414] border-2 border-dashed border-[#141414]/40 hover:bg-[#fed50a]/10 w-full justify-center mt-1"
                   >
                     <Plus className="w-4 h-4" /> {label("添加一条链接", "Add a link")}
                   </button>

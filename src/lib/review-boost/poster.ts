@@ -11,38 +11,41 @@ export type PosterSpec = {
   motif: string;
 };
 
+// Q.Ai Brutalist rebrand: all platforms share the black/yellow system — the
+// platform is told apart by NAME (spec.name), not colour. ink primary, white
+// wash, yellow stars. motif emoji dropped (brand rule: no decorative emoji).
 const SPECS: Record<string, PosterSpec> = {
   google_maps: {
     id: "google_maps",
     name: { cn: "Google 评价", en: "Google review" },
-    primary: "#4285F4",
-    primarySoft: "#E8F0FE",
-    star: "#FBBC04",
-    motif: "📍",
+    primary: "#141414",
+    primarySoft: "#ffffff",
+    star: "#fed50a",
+    motif: "",
   },
   facebook: {
     id: "facebook",
     name: { cn: "Facebook 评价", en: "Facebook review" },
-    primary: "#1877F2",
-    primarySoft: "#E7F0FE",
-    star: "#FBBC04",
-    motif: "👍",
+    primary: "#141414",
+    primarySoft: "#ffffff",
+    star: "#fed50a",
+    motif: "",
   },
   shopee: {
     id: "shopee",
     name: { cn: "Shopee 评价", en: "Shopee review" },
-    primary: "#EE4D2D",
-    primarySoft: "#FDECE6",
-    star: "#FBBC04",
-    motif: "🛍️",
+    primary: "#141414",
+    primarySoft: "#ffffff",
+    star: "#fed50a",
+    motif: "",
   },
   custom: {
     id: "custom",
     name: { cn: "评价我们", en: "Review us" },
-    primary: "#FF3D6E",
-    primarySoft: "#FFE7EE",
-    star: "#FBBC04",
-    motif: "⭐",
+    primary: "#141414",
+    primarySoft: "#ffffff",
+    star: "#fed50a",
+    motif: "",
   },
 };
 

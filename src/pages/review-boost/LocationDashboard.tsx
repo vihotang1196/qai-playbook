@@ -70,7 +70,7 @@ export default function LocationDashboard() {
         </div>
       ) : !stats || stats.perCampaign.length === 0 ? (
         <div className="glass-card rounded-2xl px-5 py-12 flex flex-col items-center text-center gap-3">
-          <div className="w-12 h-12 rounded-2xl flex items-center justify-center text-white" style={{ background: "linear-gradient(135deg, #FF7E5F, #FF3D6E)" }}>
+          <div className="w-12 h-12 rounded-2xl flex items-center justify-center text-[#fed50a]" style={{ background: "#141414" }}>
             <Megaphone className="w-6 h-6" />
           </div>
           <p className="font-display font-semibold">{label("还没有数据", "No data yet")}</p>
@@ -79,8 +79,7 @@ export default function LocationDashboard() {
           </p>
           <Link
             to={`${campaignsUrl}/new`}
-            className="inline-flex items-center gap-1.5 rounded-xl px-4 py-2.5 text-sm font-semibold text-white mt-1"
-            style={{ background: "linear-gradient(135deg, #FF7E5F, #FF3D6E)" }}
+            className="btn-gradient inline-flex items-center gap-1.5 rounded-xl px-4 py-2.5 text-sm font-semibold mt-1"
           >
             <Plus className="w-4 h-4" /> {label("新建活动", "New campaign")}
           </Link>
@@ -111,8 +110,8 @@ export default function LocationDashboard() {
                 <AreaChart data={stats.daily} margin={{ top: 4, right: 8, left: -20, bottom: 0 }}>
                   <defs>
                     <linearGradient id="scanFill" x1="0" y1="0" x2="0" y2="1">
-                      <stop offset="0%" stopColor="#FF7E5F" stopOpacity={0.5} />
-                      <stop offset="100%" stopColor="#FF3D6E" stopOpacity={0.03} />
+                      <stop offset="0%" stopColor="#fed50a" stopOpacity={0.7} />
+                      <stop offset="100%" stopColor="#fed50a" stopOpacity={0.05} />
                     </linearGradient>
                   </defs>
                   <CartesianGrid strokeDasharray="3 3" stroke="rgba(0,0,0,0.06)" vertical={false} />
@@ -130,7 +129,7 @@ export default function LocationDashboard() {
                     formatter={(v) => [String(v), label("扫码", "scans")]}
                     contentStyle={{ borderRadius: 12, border: "1px solid rgba(0,0,0,0.08)", fontSize: 12 }}
                   />
-                  <Area type="monotone" dataKey="scans" stroke="#FF3D6E" strokeWidth={2} fill="url(#scanFill)" />
+                  <Area type="monotone" dataKey="scans" stroke="#141414" strokeWidth={2} fill="url(#scanFill)" />
                 </AreaChart>
               </ResponsiveContainer>
             </div>
@@ -151,7 +150,7 @@ function Tile({ icon, label, value }: { icon: React.ReactNode; label: string; va
   return (
     <div className="glass-card rounded-2xl p-4">
       <div className="flex items-center gap-1.5 text-muted-foreground mb-1.5">
-        <span className="text-primary">{icon}</span>
+        <span className="text-[#141414]">{icon}</span>
         <span className="text-xs">{label}</span>
       </div>
       <p className="text-2xl font-display font-bold">{value}</p>
@@ -180,7 +179,7 @@ function PerCampaign({
           <Link
             key={c.id}
             to={`/review-boost/location/${locationId}/campaigns/${c.id}`}
-            className="block rounded-xl border border-border/50 p-3 hover:border-primary/40 transition-colors"
+            className="block rounded-xl border border-border/50 p-3 hover:border-[#141414]/40 transition-colors"
           >
             <div className="flex items-center justify-between gap-3 mb-1.5">
               <span className="font-medium text-sm truncate">{c.name}</span>
@@ -192,7 +191,7 @@ function PerCampaign({
             <div className="h-2 rounded-full bg-muted/50 overflow-hidden">
               <div
                 className="h-full rounded-full"
-                style={{ width: `${(c.scans / max) * 100}%`, background: "linear-gradient(90deg, #FF7E5F, #FF3D6E)" }}
+                style={{ width: `${(c.scans / max) * 100}%`, background: "#141414" }}
               />
             </div>
             <div className="flex items-center gap-4 mt-1.5 text-xs text-muted-foreground">

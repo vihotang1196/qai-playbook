@@ -164,7 +164,7 @@ export default function LocationCampaignCreate() {
   return (
     <div className="space-y-5 max-w-2xl">
       <div>
-        <Link to={listUrl} className="inline-flex items-center gap-1 text-sm text-muted-foreground hover:text-primary">
+        <Link to={listUrl} className="inline-flex items-center gap-1 text-sm text-muted-foreground hover:text-[#141414]">
           <ArrowLeft className="w-4 h-4" /> {label("返回活动列表", "Back to campaigns")}
         </Link>
         <h1 className="text-2xl font-display font-bold mt-2">
@@ -261,11 +261,11 @@ export default function LocationCampaignCreate() {
           </p>
         </div>
         {usableLinks.length === 0 ? (
-          <div className="rounded-xl bg-amber-500/10 px-4 py-3 flex items-start gap-2 text-sm">
-            <Info className="w-4 h-4 text-amber-500 shrink-0 mt-0.5" />
+          <div className="rounded-xl border-2 border-[#141414] bg-white px-4 py-3 flex items-start gap-2 text-sm">
+            <Info className="w-4 h-4 text-[#141414] shrink-0 mt-0.5" />
             <span className="text-muted-foreground">
               {label("还没有可选的链接。先去 ", "No links yet. First add one on the ")}
-              <Link to={`/review-boost/location/${locationId}/platforms`} className="text-primary font-medium underline">
+              <Link to={`/review-boost/location/${locationId}/platforms`} className="text-[#141414] font-semibold underline">
                 {label("平台页", "Platforms page")}
               </Link>
               {label(" 添加一条评价链接。", ", then add a review link.")}
@@ -309,10 +309,10 @@ export default function LocationCampaignCreate() {
               key={mode}
               type="button"
               onClick={() => set("thank_you_mode", mode)}
-              className={`flex-1 rounded-xl px-4 py-2.5 text-sm font-medium border transition-colors ${
+              className={`flex-1 rounded-xl px-4 py-2.5 text-sm font-medium border-2 transition-colors ${
                 form.thank_you_mode === mode
-                  ? "border-primary bg-primary/10 text-primary"
-                  : "border-border/60 text-muted-foreground hover:border-border"
+                  ? "border-[#141414] bg-[#fed50a] text-[#141414]"
+                  : "border-[#141414]/25 text-muted-foreground hover:border-[#141414]/50"
               }`}
             >
               {mode === "message" ? label("显示一段感谢文案", "Show a thank-you message") : label("跳转到网址", "Redirect to a URL")}
@@ -352,8 +352,7 @@ export default function LocationCampaignCreate() {
         <button
           onClick={submit}
           disabled={saving}
-          className="inline-flex items-center gap-1.5 rounded-xl px-5 py-2.5 text-sm font-semibold text-white disabled:opacity-70"
-          style={{ background: "linear-gradient(135deg, #FF7E5F, #FF3D6E)" }}
+          className="btn-gradient inline-flex items-center gap-1.5 rounded-xl px-5 py-2.5 text-sm font-semibold disabled:opacity-70"
         >
           {saving ? <Loader2 className="w-4 h-4 animate-spin" /> : <Check className="w-4 h-4" />}
           {isEdit ? label("保存修改", "Save changes") : label("建立活动", "Create campaign")}

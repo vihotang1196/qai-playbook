@@ -152,7 +152,7 @@ export default function ScanPage() {
     return (
       <ScanShell>
         <div className="glass-card rounded-3xl p-10 text-center">
-          <Loader2 className="w-9 h-9 text-primary animate-spin mx-auto mb-4" />
+          <Loader2 className="w-9 h-9 text-[#141414] animate-spin mx-auto mb-4" />
           <p className="font-display font-semibold text-lg">{label("AI 正在写你的评价…", "Writing your review…")}</p>
           <p className="text-sm text-muted-foreground mt-1">{label("马上就好 ✨", "Just a moment ✨")}</p>
         </div>
@@ -189,8 +189,8 @@ export default function ScanPage() {
           </div>
         ) : (
           <div
-            className="w-11 h-11 rounded-2xl flex items-center justify-center text-white mb-3"
-            style={{ background: "linear-gradient(135deg, #FF7E5F, #FF3D6E)" }}
+            className="w-11 h-11 rounded-2xl flex items-center justify-center text-[#fed50a] mb-3"
+            style={{ background: "#141414" }}
           >
             <Star className="w-5 h-5" />
           </div>
@@ -206,10 +206,10 @@ export default function ScanPage() {
               key={l.id}
               onClick={() => regenerate(l.id)}
               disabled={busy || reviewLang === l.id}
-              className={`flex-1 rounded-xl px-2 py-1.5 text-xs font-medium border transition-colors disabled:opacity-70 ${
+              className={`flex-1 rounded-xl px-2 py-1.5 text-xs font-medium border-2 transition-colors disabled:opacity-70 ${
                 reviewLang === l.id
-                  ? "border-primary bg-primary/10 text-primary"
-                  : "border-white/60 bg-white/40 text-muted-foreground"
+                  ? "border-[#141414] bg-[#fed50a] text-[#141414]"
+                  : "border-[#141414]/20 bg-white text-muted-foreground"
               }`}
             >
               {l.label}
@@ -219,7 +219,7 @@ export default function ScanPage() {
 
         {/* Review card — the first thing they see */}
         <div className="glass-card rounded-3xl p-5 w-full mb-2 relative">
-          <div className="text-amber-500 text-sm mb-2">★★★★★</div>
+          <div className="text-[#fed50a] text-sm mb-2">★★★★★</div>
           {busy ? (
             <div className="py-6 flex items-center justify-center gap-2 text-muted-foreground">
               <Loader2 className="w-5 h-5 animate-spin" /> {label("换一条…", "Rewriting…")}
@@ -235,7 +235,7 @@ export default function ScanPage() {
         <button
           onClick={() => regenerate(reviewLang)}
           disabled={busy || regenCount >= MAX_REGEN}
-          className="inline-flex items-center gap-1 text-xs text-muted-foreground hover:text-primary disabled:opacity-50 mb-4"
+          className="inline-flex items-center gap-1 text-xs text-muted-foreground hover:text-[#141414] disabled:opacity-50 mb-4"
         >
           <RefreshCw className="w-3.5 h-3.5" /> {label("换一条", "Try another")}
         </button>
@@ -244,8 +244,7 @@ export default function ScanPage() {
         <div className="w-full flex flex-col gap-2.5">
           <button
             onClick={copyAndContinue}
-            className="w-full rounded-2xl py-3.5 px-4 text-sm font-semibold text-white flex items-center justify-center gap-2"
-            style={{ background: "linear-gradient(135deg, #FF7E5F, #FF3D6E)" }}
+            className="btn-gradient w-full rounded-2xl py-3.5 px-4 text-sm font-semibold flex items-center justify-center gap-2"
           >
             <Copy className="w-4 h-4" />
             {hasOpened
@@ -256,7 +255,7 @@ export default function ScanPage() {
           <button
             onClick={iPosted}
             disabled={!hasOpened || posting}
-            className="w-full rounded-2xl py-3.5 px-4 text-sm font-semibold flex items-center justify-center gap-2 border border-primary/40 text-primary bg-white/50 disabled:opacity-40"
+            className="w-full rounded-2xl py-3.5 px-4 text-sm font-semibold flex items-center justify-center gap-2 border-2 border-[#141414] text-[#141414] bg-white disabled:opacity-40"
           >
             {posting ? <Loader2 className="w-4 h-4 animate-spin" /> : <Send className="w-4 h-4" />}
             {label("我发了！", "I've posted it!")}
@@ -267,7 +266,7 @@ export default function ScanPage() {
         {result.platform && (
           <div className="glass-card rounded-2xl p-4 w-full mt-4">
             <p className="text-xs font-semibold mb-1 flex items-center gap-1.5">
-              <ExternalLink className="w-3.5 h-3.5 text-primary" />
+              <ExternalLink className="w-3.5 h-3.5 text-[#141414]" />
               {label("怎么发布", "How to post")}
             </p>
             <p className="text-xs text-muted-foreground leading-relaxed">
@@ -289,15 +288,17 @@ function mapError(e: unknown, label: (cn: string, en: string) => string): string
   return label("换的时候出错了，请再试一次。", "Couldn't rewrite — please try again.");
 }
 
-/** Full-screen coral-glass backdrop for the public customer pages. */
+/** Full-screen Brutalist paper backdrop for the public customer pages. */
 function ScanShell({ children }: { children: React.ReactNode }) {
   return (
-    <div className="min-h-screen relative overflow-hidden flex flex-col items-center justify-center p-4 bg-[#FFF7F4]">
-      <div aria-hidden className="pointer-events-none fixed inset-0 -z-10">
-        <div className="absolute -top-24 -left-16 w-80 h-80 rounded-full bg-[#FFD9C7] opacity-50 blur-[90px]" />
-        <div className="absolute top-1/3 -right-16 w-72 h-72 rounded-full bg-[#FFC7D8] opacity-50 blur-[90px]" />
-        <div className="absolute -bottom-24 left-1/4 w-80 h-80 rounded-full bg-[#E7D9FF] opacity-40 blur-[90px]" />
-      </div>
+    <div
+      className="min-h-screen relative overflow-hidden flex flex-col items-center justify-center p-4"
+      style={{
+        backgroundColor: "#ffffff",
+        backgroundImage: "radial-gradient(rgba(20,20,20,0.12) 1.6px, transparent 1.7px)",
+        backgroundSize: "26px 26px",
+      }}
+    >
       {children}
     </div>
   );
