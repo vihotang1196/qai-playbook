@@ -30,14 +30,20 @@ const TOOL_KEY = "offline_event";
 // inventory, the atomic seat claim and the stale-pending sweep, so the cap is
 // deliberately generous.
 //
-// Limited PER BOOKER (hashed email), NOT per location: one sub-account hosts an
-// event that MANY different customers book, so a per-location cap would throttle
-// real attendees the moment an event opens. A single person never legitimately
-// submits 30 bookings in an hour.
+// TWO dimensions, because neither alone is enough:
+//  1. PER BOOKER (hashed email) — the primary limit. One sub-account hosts an
+//     event that MANY different customers book, so a per-location cap alone
+//     would throttle real attendees the moment an event opens. A single person
+//     never legitimately submits 30 bookings in an hour.
+//  2. PER LOCATION — the backstop. On its own, limit (1) is trivially bypassed
+//     by rotating the email address, which is exactly how someone would flood an
+//     event with junk holds. A real event can't exceed this (the venue seats
+//     ~91), so it only ever catches a script.
 const BOOKING_LIMITS = [{ windowMs: HOUR_MS, max: 30, label: "hour" }];
+const BOOKING_LOCATION_LIMITS = [{ windowMs: HOUR_MS, max: 300, label: "hour" }];
 
-/** Check + record one booking attempt for this email. Returns true when the
- *  caller is over the cap (nothing has been written or charged at that point). */
+/** Check + record one booking attempt. Returns true when EITHER dimension is
+ *  over its cap (nothing has been written or charged at that point). */
 async function bookingThrottled(sb: SB, locationId: string, email: string, kind: string): Promise<boolean> {
   const key = await emailKey(email);
   const rl = await checkRateLimit(sb, {
@@ -47,6 +53,15 @@ async function bookingThrottled(sb: SB, locationId: string, email: string, kind:
     eventType: "booking_attempt",
   });
   if (!rl.allowed) return true;
+  // Backstop: counted by location_id on the same usage rows, so rotating the
+  // email doesn't reset it.
+  const locRl = await checkRateLimit(sb, {
+    toolKey: TOOL_KEY,
+    locationId,
+    windows: BOOKING_LOCATION_LIMITS,
+    eventType: "booking_attempt",
+  });
+  if (!locRl.allowed) return true;
   await logToolUsage(sb, {
     tool_key: TOOL_KEY,
     event_type: "booking_attempt",

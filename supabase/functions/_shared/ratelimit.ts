@@ -81,13 +81,18 @@ export async function checkRateLimit(
   sb: SupabaseClient,
   opts: {
     toolKey: string;
-    clientKey: string;
+    /** Count rows sharing this client_key (the usual, most specific dimension). */
+    clientKey?: string;
+    /** Count rows sharing this location_id instead — a WIDER backstop dimension.
+     *  Uses the location_id already stored on the same usage row, so a second
+     *  dimension costs no extra row and never double-counts the meter. */
+    locationId?: string;
     windows: RateWindow[];
     eventType?: string;
   },
 ): Promise<RateLimitResult> {
-  const { toolKey, clientKey, windows, eventType } = opts;
-  if (!clientKey || !windows?.length) return { allowed: true };
+  const { toolKey, clientKey, locationId, windows, eventType } = opts;
+  if ((!clientKey && !locationId) || !windows?.length) return { allowed: true };
 
   try {
     for (const w of windows) {
@@ -96,8 +101,8 @@ export async function checkRateLimit(
         .from("tool_usage")
         .select("id", { count: "exact", head: true })
         .eq("tool_key", toolKey)
-        .eq("client_key", clientKey)
         .gte("created_at", since);
+      q = clientKey ? q.eq("client_key", clientKey) : q.eq("location_id", locationId);
       if (eventType) q = q.eq("event_type", eventType);
 
       const { count, error } = await q;
