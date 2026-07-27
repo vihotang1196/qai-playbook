@@ -16,10 +16,51 @@
 // ════════════════════════════════════════════════════════════════════════
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { corsHeaders, json, serviceClient } from "../_shared/ghl.ts";
+import { requireAdmin } from "../_shared/admin.ts";
+import { logToolUsage } from "../_shared/usage.ts";
+import { checkRateLimit, locKey, rateLimitMessage, DAY_MS, HOUR_MS } from "../_shared/ratelimit.ts";
 
 const MODEL = "claude-sonnet-4-5";
 const ANTHROPIC_URL = "https://api.anthropic.com/v1/messages";
 const MAX_TOOL_ROUNDS = 6;
+
+// ── Abuse / cost protection (pre-launch) ──────────────────────────────────
+// This endpoint is public and every question costs real money (up to 6 Claude
+// rounds, and the context is bigger now that video steps are inlined), so it is
+// the platform's largest cost exposure. Two gates, owner-approved:
+//   1. IDENTITY — a location_id is REQUIRED. Previously it was optional
+//      (analytics only), which meant a script could stay anonymous and spend
+//      without limit. The /help UI already refuses to load without one, so this
+//      only closes the direct-API hole. Signed-in ADMINS are exempt (the admin
+//      "AI 测试" page sends no location_id).
+//   2. RATE — per sub-account caps, counted in tool_usage. Normal support use is
+//      a handful of questions per visit, so these are far above real usage.
+// NO global cap (owner's call): one abuser must never lock out every customer.
+const TOOL_KEY = "helpdesk";
+const CHAT_LIMITS = [
+  { windowMs: HOUR_MS, max: 150, label: "hour" },
+  { windowMs: DAY_MS, max: 500, label: "day" },
+];
+
+/** Pick the reply language for our canned messages from the user's own text
+ *  (the model handles language on its own for real answers). */
+function langOf(text: string): "cn" | "en" {
+  // Numeric code-point test (pure ASCII source) rather than a literal CJK
+  // character class — same result, but immune to any encoding surprise in the
+  // toolchain that edits/ships this file.
+  for (const ch of text) {
+    const c = ch.codePointAt(0) ?? 0;
+    if (c >= 0x4e00 && c <= 0x9fff) return "cn"; // CJK Unified Ideographs
+  }
+  return "en";
+}
+
+/** A blocked request must look like a NORMAL assistant reply so the widget
+ *  renders a friendly chat bubble — never a red error. Shape matches a real
+ *  reply exactly, and carries no `error` field (the client throws on that). */
+function friendlyReply(conversationId: string | null, answer: string) {
+  return json({ conversationId, answer, sources: [] });
+}
 
 // Shown only on a GENUINE miss (the model read no article at all).
 const NOT_FOUND_MSG =
@@ -354,6 +395,41 @@ serve(async (req) => {
     let conversationId = body?.conversationId ? String(body.conversationId) : null;
 
     const sb = serviceClient();
+    const uiLang = langOf(message);
+
+    // ── Gate 1: identity ──────────────────────────────────────────────────
+    // No location_id → only a verified admin may proceed (the AI-test page).
+    // requireAdmin validates the session JWT server-side; we deliberately do NOT
+    // trust body.channel ("admin-test" is client-supplied and trivially forged).
+    // The check runs ONLY on the no-location path, so normal customer traffic
+    // never pays for the extra auth round-trip.
+    let isAdminCaller = false;
+    if (!locationId) {
+      isAdminCaller = !!(await requireAdmin(req).catch(() => null));
+      if (!isAdminCaller) {
+        return friendlyReply(
+          conversationId,
+          uiLang === "cn"
+            ? "请从你的 QAI 后台打开帮助中心，这样我才能识别你的账号来为你解答 🙏"
+            : "Please open the help center from your QAI dashboard so I can recognise your account 🙏",
+        );
+      }
+    }
+
+    // ── Gate 2: rate limit (per sub-account; admins exempt) ───────────────
+    if (locationId) {
+      const rl = await checkRateLimit(sb, {
+        toolKey: TOOL_KEY,
+        clientKey: locKey(locationId),
+        windows: CHAT_LIMITS,
+      });
+      if (!rl.allowed) {
+        return friendlyReply(
+          conversationId,
+          rateLimitMessage(uiLang, rl.limited?.label === "hour" ? "hour" : "day"),
+        );
+      }
+    }
 
     // Resolve / create the conversation.
     if (!conversationId) {
@@ -378,6 +454,19 @@ serve(async (req) => {
       .map((m: any) => ({ role: m.role, content: m.content }));
 
     await sb.from("hd_messages").insert({ conversation_id: conversationId, role: "user", content: message });
+
+    // Meter the attempt BEFORE the Claude call: the money is spent whether or
+    // not the answer succeeds, and counting up-front also narrows the window in
+    // which parallel requests could slip past the check above. Admin test
+    // traffic is tagged but carries no client_key, so it is never counted
+    // against a customer's quota.
+    await logToolUsage(sb, {
+      tool_key: TOOL_KEY,
+      event_type: "chat",
+      location_id: locationId,
+      client_key: locationId ? locKey(locationId) : null,
+      meta: { channel, admin: isAdminCaller || undefined },
+    });
 
     const { answer, sources } = await runChat(sb, apiKey, history, message);
     const hasSources = sources.length > 0;
