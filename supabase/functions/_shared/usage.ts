@@ -14,6 +14,10 @@ export async function logToolUsage(
     location_id?: string | null;
     quantity?: number;
     meta?: Record<string, unknown>;
+    /** Rate-limit dimension (see _shared/ratelimit.ts): "loc:…" / "qr:…" /
+     *  "ip:…". Optional — omitting it only means this row won't be counted by
+     *  checkRateLimit; existing callers are unaffected. */
+    client_key?: string | null;
   },
 ): Promise<void> {
   try {
@@ -23,6 +27,7 @@ export async function logToolUsage(
       location_id: event.location_id ?? null,
       quantity: event.quantity ?? 1,
       meta: event.meta ?? null,
+      client_key: event.client_key ?? null,
     });
   } catch (e) {
     console.error("logToolUsage failed (non-fatal):", e);
