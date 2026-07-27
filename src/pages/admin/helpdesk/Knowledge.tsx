@@ -133,7 +133,7 @@ export default function HelpdeskKnowledge() {
         </div>
       ) : err ? (
         <div className="glass-card rounded-2xl p-6 flex items-start gap-3">
-          <AlertCircle className="w-5 h-5 text-destructive shrink-0 mt-0.5" />
+          <AlertCircle className="w-5 h-5 text-[#141414] shrink-0 mt-0.5" />
           <div>
             <p className="font-medium text-sm">加载失败</p>
             <p className="text-sm text-muted-foreground mt-0.5">{err}</p>
@@ -170,7 +170,7 @@ export default function HelpdeskKnowledge() {
               <Button
                 variant="ghost"
                 size="icon"
-                className="shrink-0 text-destructive hover:text-destructive"
+                className="shrink-0 text-[#141414] hover:text-[#141414]"
                 onClick={() => setDeleteTarget(a)}
                 aria-label="删除"
               >
@@ -213,7 +213,7 @@ export default function HelpdeskKnowledge() {
               <AlertDialogCancel>取消</AlertDialogCancel>
               <AlertDialogAction
                 onClick={() => onDeleteArticle(deleteTarget)}
-                className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+                className="bg-[#141414] text-[#fed50a] hover:bg-[#141414]/90"
               >
                 删除
               </AlertDialogAction>
@@ -335,7 +335,7 @@ function FoldersDialog({
                 <Button
                   variant="ghost"
                   size="icon"
-                  className="h-8 w-8 text-destructive hover:text-destructive"
+                  className="h-8 w-8 text-[#141414] hover:text-[#141414]"
                   onClick={() => remove(f.id)}
                   disabled={busy}
                   aria-label="删除"

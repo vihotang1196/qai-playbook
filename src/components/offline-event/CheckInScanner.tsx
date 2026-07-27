@@ -134,27 +134,30 @@ export default function CheckInScanner({ open, onClose, onScan, feedback, eventL
   const banner =
     feedback &&
     (feedback.kind === "ok" ? (
-      <div className="rounded-2xl border border-emerald-300/60 bg-emerald-50 p-4 flex items-center gap-3" role="status" aria-live="polite">
-        <CheckCircle2 className="w-6 h-6 text-emerald-600 shrink-0" />
+      // success → yellow fill + ink (Brutalist "positive")
+      <div className="rounded-2xl border-2 border-[#141414] bg-[#fed50a] p-4 flex items-center gap-3" role="status" aria-live="polite">
+        <CheckCircle2 className="w-6 h-6 text-[#141414] shrink-0" />
         <div className="min-w-0">
-          <p className="text-sm font-bold text-emerald-800 leading-tight">{feedback.title}</p>
-          {feedback.detail && <p className="text-xs text-emerald-700 mt-0.5 break-all">{feedback.detail}</p>}
+          <p className="text-sm font-bold text-[#141414] leading-tight">{feedback.title}</p>
+          {feedback.detail && <p className="text-xs text-[#141414] mt-0.5 break-all">{feedback.detail}</p>}
         </div>
       </div>
     ) : feedback.kind === "warn" ? (
-      <div className="rounded-2xl border border-amber-300/60 bg-amber-50 p-4 flex items-center gap-3" role="status" aria-live="polite">
-        <Info className="w-6 h-6 text-amber-600 shrink-0" />
+      // already checked-in / caution → neutral white + ink border
+      <div className="rounded-2xl border-2 border-[#141414] bg-white p-4 flex items-center gap-3" role="status" aria-live="polite">
+        <Info className="w-6 h-6 text-[#141414] shrink-0" />
         <div className="min-w-0">
-          <p className="text-sm font-bold text-amber-800 leading-tight">{feedback.title}</p>
-          {feedback.detail && <p className="text-xs text-amber-700 mt-0.5 break-all">{feedback.detail}</p>}
+          <p className="text-sm font-bold text-[#141414] leading-tight">{feedback.title}</p>
+          {feedback.detail && <p className="text-xs text-[#141414] mt-0.5 break-all">{feedback.detail}</p>}
         </div>
       </div>
     ) : (
-      <div className="rounded-2xl border border-red-300/60 bg-red-50 p-4 flex items-center gap-3" role="alert" aria-live="assertive">
-        <AlertTriangle className="w-6 h-6 text-red-600 shrink-0" />
+      // error / not-this-event → black fill + yellow (Brutalist "danger")
+      <div className="rounded-2xl border-2 border-[#141414] bg-[#141414] p-4 flex items-center gap-3" role="alert" aria-live="assertive">
+        <AlertTriangle className="w-6 h-6 text-[#fed50a] shrink-0" />
         <div className="min-w-0">
-          <p className="text-sm font-bold text-red-800 leading-tight">{feedback.title}</p>
-          {feedback.detail && <p className="text-xs text-red-700 mt-0.5 break-all">{feedback.detail}</p>}
+          <p className="text-sm font-bold text-[#fed50a] leading-tight">{feedback.title}</p>
+          {feedback.detail && <p className="text-xs text-[#fed50a]/85 mt-0.5 break-all">{feedback.detail}</p>}
         </div>
       </div>
     ));

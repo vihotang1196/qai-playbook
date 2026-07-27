@@ -103,7 +103,7 @@ export default function AdminLogin() {
           required
         />
 
-        {err && <p className="text-xs text-red-500 mt-3">{err}</p>}
+        {err && <p className="text-xs text-[#141414] font-medium mt-3">{err}</p>}
 
         <button
           type="submit"

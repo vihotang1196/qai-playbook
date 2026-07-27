@@ -47,7 +47,7 @@ export default function OfflineEventAdminShell() {
         {mode && (
           <span
             className={`ml-1 rounded-full px-2.5 py-1 text-[11px] font-semibold ${
-              mode === "live" ? "bg-red-100 text-red-700" : "bg-emerald-100 text-emerald-700"
+              mode === "live" ? "bg-[#141414] text-[#fed50a]" : "bg-[#fed50a]/25 text-[#141414]"
             }`}
             title="Stripe 付款模式"
           >

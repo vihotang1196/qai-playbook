@@ -205,13 +205,13 @@ export default function HelpdeskSettings() {
           {result && (
             <div
               className={`rounded-xl border p-4 flex items-start gap-3 ${
-                result.ok ? "border-emerald-500/30 bg-emerald-500/5" : "border-destructive/30 bg-destructive/5"
+                result.ok ? "border-[#141414]/20 bg-[#fed50a]/20" : "border-[#141414]/30 bg-[#141414]/[0.05]"
               }`}
             >
               {result.ok ? (
-                <CheckCircle2 className="w-5 h-5 text-emerald-500 shrink-0 mt-0.5" />
+                <CheckCircle2 className="w-5 h-5 text-[#141414] shrink-0 mt-0.5" />
               ) : (
-                <XCircle className="w-5 h-5 text-destructive shrink-0 mt-0.5" />
+                <XCircle className="w-5 h-5 text-[#141414] shrink-0 mt-0.5" />
               )}
               <div className="min-w-0 text-sm">
                 {result.ok ? (
@@ -219,7 +219,7 @@ export default function HelpdeskSettings() {
                     已连上《<b>{result.title}</b>》，共 <b className="tabular-nums">{result.pageCount}</b> 篇文章。
                   </p>
                 ) : (
-                  <p className="text-destructive">{result.message}</p>
+                  <p className="text-[#141414]">{result.message}</p>
                 )}
               </div>
             </div>
@@ -235,7 +235,7 @@ export default function HelpdeskSettings() {
               </Button>
             </div>
 
-            {listErr && <p className="text-sm text-destructive mt-2">{listErr}</p>}
+            {listErr && <p className="text-sm text-[#141414] mt-2">{listErr}</p>}
 
             {dbList && (
               <div className="mt-3 space-y-1.5">
@@ -344,7 +344,7 @@ export default function HelpdeskSettings() {
                     <Button
                       variant="ghost"
                       size="icon"
-                      className="h-8 w-8 shrink-0 text-destructive hover:text-destructive"
+                      className="h-8 w-8 shrink-0 text-[#141414] hover:text-[#141414]"
                       onClick={() => onRemoveDb(id)}
                       disabled={!!syncingId}
                       aria-label="移除"
@@ -374,7 +374,7 @@ export default function HelpdeskSettings() {
                         上次：导入 {lastResult[id].done} · 跳过 {lastResult[id].skipped}
                       </span>
                       {lastResult[id].failed > 0 && (
-                        <span className="text-destructive"> · 失败 {lastResult[id].failed}（再点「同步」可重试失败的）</span>
+                        <span className="text-[#141414]"> · 失败 {lastResult[id].failed}（再点「同步」可重试失败的）</span>
                       )}
                     </p>
                   )}

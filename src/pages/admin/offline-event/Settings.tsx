@@ -154,19 +154,21 @@ export default function OfflineEventSettings() {
   return (
     <div className="space-y-5 max-w-2xl">
       {/* ── Stripe mode (the money switch) ── */}
-      <div className={`rounded-2xl p-5 border-2 ${isLive ? "border-red-300 bg-red-50/60" : "border-emerald-300 bg-emerald-50/50"}`}>
+      {/* Money switch — LIVE = strong BLACK danger card + yellow; TEST = yellow-tint safe.
+          (Brutalist: danger read by black weight + ShieldAlert + explicit wording, not red.) */}
+      <div className={`rounded-2xl p-5 border-2 ${isLive ? "border-[#141414] bg-white" : "border-[#141414]/30 bg-white"}`}>
         <div className="flex items-center gap-2 mb-3">
-          <CreditCard className={`w-5 h-5 ${isLive ? "text-red-600" : "text-emerald-600"}`} />
+          <CreditCard className="w-5 h-5 text-[#141414]" />
           <p className="font-display font-bold">Stripe 付款模式</p>
         </div>
 
-        <div className={`rounded-xl px-4 py-3 flex items-center gap-3 ${isLive ? "bg-red-100" : "bg-emerald-100"}`}>
-          {isLive ? <ShieldAlert className="w-6 h-6 text-red-600 shrink-0" /> : <ShieldCheck className="w-6 h-6 text-emerald-600 shrink-0" />}
+        <div className={`rounded-xl px-4 py-3 flex items-center gap-3 ${isLive ? "bg-[#141414]" : "bg-[#fed50a]/25"}`}>
+          {isLive ? <ShieldAlert className="w-6 h-6 text-[#fed50a] shrink-0" /> : <ShieldCheck className="w-6 h-6 text-[#141414] shrink-0" />}
           <div>
-            <p className={`font-bold ${isLive ? "text-red-800" : "text-emerald-800"}`}>
-              当前：{isLive ? "正式模式 (Live) · 真实扣款" : "测试模式 (Sandbox) · 不扣真钱"}
+            <p className={`font-bold ${isLive ? "text-[#fed50a]" : "text-[#141414]"}`}>
+              当前：{isLive ? "正式模式 (Live) · 真实扣款，请谨慎" : "测试模式 (Sandbox) · 不扣真钱"}
             </p>
-            <p className={`text-xs ${isLive ? "text-red-700" : "text-emerald-700"}`}>
+            <p className={`text-xs ${isLive ? "text-[#fed50a]/85" : "text-[#141414]"}`}>
               {isLive ? "顾客下单会真实扣款到你的 Stripe 账户。" : "顾客下单用测试卡（4242…），不会真实扣款。"}
             </p>
           </div>
@@ -176,13 +178,13 @@ export default function OfflineEventSettings() {
           <div className="mt-4 space-y-2">
             <p className="text-sm font-medium">切换到正式模式（开始收真钱）</p>
             {/* Safeguard 1: live key precheck */}
-            <div className={`text-xs flex items-center gap-1.5 ${resp.liveKeyConfigured ? "text-emerald-700" : "text-red-700"}`}>
+            <div className="text-xs flex items-center gap-1.5 text-[#141414]">
               {resp.liveKeyConfigured ? <Check className="w-3.5 h-3.5" /> : <AlertCircle className="w-3.5 h-3.5" />}
               平台正式密钥（Stripe Live，平台各工具共用）：{resp.liveKeyConfigured ? "已配置" : "未配置（请先在 Supabase 配好，否则无法切换）"}
             </div>
             {/* Safeguard 3: pending warning */}
             {resp.pendingCount > 0 && (
-              <div className="text-xs text-amber-700 flex items-center gap-1.5">
+              <div className="text-xs text-[#141414] flex items-center gap-1.5">
                 <AlertCircle className="w-3.5 h-3.5" /> 有 {resp.pendingCount} 个待付款订单在进行中，切换前建议先处理（否则它们可能核实失败）。
               </div>
             )}
@@ -198,7 +200,7 @@ export default function OfflineEventSettings() {
               <button
                 onClick={() => doSwitch("live")}
                 disabled={!resp.liveKeyConfigured || confirmText.trim() !== LIVE_CONFIRM || switching}
-                className="h-10 px-4 rounded-xl bg-red-600 text-white text-sm font-semibold flex items-center gap-1.5 disabled:opacity-40"
+                className="h-10 px-4 rounded-xl bg-[#141414] text-[#fed50a] text-sm font-semibold flex items-center gap-1.5 disabled:opacity-40"
               >
                 {switching ? <Loader2 className="w-4 h-4 animate-spin" /> : <ShieldAlert className="w-4 h-4" />}
                 切换到正式模式
@@ -396,7 +398,7 @@ function SubRow({ row, onSave, onDelete }: { row: OeSubaccountRow; onSave: (row:
       >
         保存
       </button>
-      <button onClick={() => onDelete(row)} className="h-8 w-8 rounded-lg text-red-600 hover:bg-red-50 flex items-center justify-center" title="删除覆盖">
+      <button onClick={() => onDelete(row)} className="h-8 w-8 rounded-lg text-[#141414] hover:bg-[#141414]/[0.06] flex items-center justify-center" title="删除覆盖">
         <Trash2 className="w-3.5 h-3.5" />
       </button>
     </div>

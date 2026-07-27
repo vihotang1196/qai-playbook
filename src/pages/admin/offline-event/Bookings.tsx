@@ -26,9 +26,9 @@ import SeatOpModal from "@/components/offline-event/SeatOpModal";
  */
 
 const STATUS_META: Record<OeBookingStatus, { label: string; cls: string }> = {
-  confirmed: { label: "已确认", cls: "bg-emerald-100 text-emerald-700" },
-  pending: { label: "待付款", cls: "bg-amber-100 text-amber-700" },
-  cancelled: { label: "已取消", cls: "bg-gray-200 text-gray-600" },
+  confirmed: { label: "已确认", cls: "bg-[#fed50a] text-[#141414]" },
+  pending: { label: "待付款", cls: "bg-white text-[#141414] border border-[#141414]/40" },
+  cancelled: { label: "已取消", cls: "bg-[#141414]/[0.06] text-[#141414] border border-[#141414]/30" },
 };
 
 function fmtDateTime(iso: string | null | undefined): string {
@@ -371,7 +371,7 @@ export default function OfflineEventBookings() {
                       <button
                         disabled={busy}
                         onClick={() => doCancel(detail.booking.booking_id)}
-                        className="flex-1 h-10 rounded-xl bg-red-50 text-red-700 text-sm font-medium flex items-center justify-center gap-1.5 disabled:opacity-50"
+                        className="flex-1 h-10 rounded-xl bg-[#141414]/[0.06] text-[#141414] text-sm font-medium flex items-center justify-center gap-1.5 disabled:opacity-50"
                       >
                         <Ban className="w-4 h-4" /> 取消订单
                       </button>
@@ -387,7 +387,7 @@ export default function OfflineEventBookings() {
                   <button
                     disabled={busy}
                     onClick={() => doHardDelete(detail.booking.booking_id)}
-                    className="w-full h-9 rounded-xl text-xs font-medium text-red-600 hover:bg-red-50 flex items-center justify-center gap-1.5 disabled:opacity-50"
+                    className="w-full h-9 rounded-xl text-xs font-medium text-[#141414] hover:bg-[#141414]/[0.06] flex items-center justify-center gap-1.5 disabled:opacity-50"
                   >
                     <Trash2 className="w-3.5 h-3.5" /> 永久删除（不可撤销）
                   </button>

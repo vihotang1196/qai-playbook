@@ -86,7 +86,7 @@ export default function ManualAddModal({ open, onClose, onDone }: Props) {
 
         {successCode ? (
           <div className="p-8 flex flex-col items-center text-center gap-3">
-            <CheckCircle2 className="w-12 h-12 text-emerald-500" />
+            <CheckCircle2 className="w-12 h-12 text-[#141414]" />
             <p className="font-semibold">已创建报名</p>
             <p className="font-mono text-sm">{successCode}</p>
             <p className="text-sm text-muted-foreground">已确认票，顾客可在「我的报名」看到二维码用于签到。</p>

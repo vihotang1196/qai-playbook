@@ -53,7 +53,7 @@ export default function HelpdeskOverview() {
   if (err || !data) {
     return (
       <div className="glass-card rounded-2xl p-6 flex items-start gap-3">
-        <AlertCircle className="w-5 h-5 text-destructive shrink-0 mt-0.5" />
+        <AlertCircle className="w-5 h-5 text-[#141414] shrink-0 mt-0.5" />
         <div>
           <p className="font-medium text-sm">加载总览失败</p>
           <p className="text-sm text-muted-foreground mt-0.5">{err ?? "无数据"}</p>
@@ -105,7 +105,7 @@ export default function HelpdeskOverview() {
           </p>
         </div>
         {data.notion.connected ? (
-          <CheckCircle2 className="w-5 h-5 text-emerald-500 shrink-0" />
+          <CheckCircle2 className="w-5 h-5 text-[#141414] shrink-0" />
         ) : (
           <Link to="/admin/helpdesk/settings" className="text-xs font-medium text-foreground hover:opacity-80 shrink-0">
             去设置

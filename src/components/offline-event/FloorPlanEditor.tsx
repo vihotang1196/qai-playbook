@@ -255,14 +255,14 @@ export default function FloorPlanEditor({ open, plan, onClose, onSaved }: Props)
                     const disabled = (selTable.disabledSeats ?? []).includes(n);
                     if (missing) return <span key={n} className="h-8 w-8 rounded-lg bg-muted text-muted-foreground/50 text-xs flex items-center justify-center" title="此座缺失">缺</span>;
                     return (
-                      <button key={n} onClick={() => toggleSeatDisabled(selTable.id, n)} className={`h-8 w-8 rounded-lg text-xs font-semibold flex items-center justify-center ${disabled ? "bg-gray-300 text-gray-500 line-through" : "bg-emerald-100 text-emerald-700"}`} title={disabled ? "已禁用,点击启用" : "已启用,点击禁用"}>
+                      <button key={n} onClick={() => toggleSeatDisabled(selTable.id, n)} className={`h-8 w-8 rounded-lg text-xs font-semibold flex items-center justify-center ${disabled ? "bg-gray-300 text-gray-500 line-through" : "bg-[#fed50a] text-[#141414]"}`} title={disabled ? "已禁用,点击启用" : "已启用,点击禁用"}>
                         {n}
                       </button>
                     );
                   })}
                 </div>
               </div>
-              <button onClick={() => removeTable(selTable.id)} className="h-9 px-3 rounded-lg bg-red-50 text-red-600 text-sm font-medium flex items-center gap-1.5"><Trash2 className="w-4 h-4" /> 删除此桌</button>
+              <button onClick={() => removeTable(selTable.id)} className="h-9 px-3 rounded-lg bg-[#141414]/[0.06] text-[#141414] text-sm font-medium flex items-center gap-1.5"><Trash2 className="w-4 h-4" /> 删除此桌</button>
             </div>
           )}
 
@@ -275,7 +275,7 @@ export default function FloorPlanEditor({ open, plan, onClose, onSaved }: Props)
           </div>
 
           {err && (
-            <div className="rounded-xl border border-red-300 bg-red-50 p-3 text-sm text-red-700">
+            <div className="rounded-xl border border-[#141414]/40 bg-[#141414]/[0.05] p-3 text-sm text-[#141414]">
               {err}
               {blocked && <ul className="mt-1 list-disc pl-5 text-xs">{blocked.map((b, i) => <li key={i}>{b.seat}（{b.event}）</li>)}</ul>}
             </div>

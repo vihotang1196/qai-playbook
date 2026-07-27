@@ -20,8 +20,8 @@ import {
  */
 
 const STATUS_META: Record<OeEventStatus, { label: string; cls: string }> = {
-  live: { label: "开放 live", cls: "bg-emerald-100 text-emerald-700" },
-  display: { label: "只展示 display", cls: "bg-sky-100 text-sky-700" },
+  live: { label: "开放 live", cls: "bg-[#fed50a] text-[#141414]" },
+  display: { label: "只展示 display", cls: "bg-[#141414]/[0.06] text-[#141414] border border-[#141414]/20" },
   off: { label: "关闭 off", cls: "bg-gray-200 text-gray-600" },
 };
 
@@ -161,7 +161,7 @@ export default function OfflineEventEventDates() {
                   <button onClick={() => openEdit(e)} className="w-9 h-9 rounded-lg bg-muted flex items-center justify-center text-muted-foreground hover:text-foreground" title="编辑">
                     <Pencil className="w-4 h-4" />
                   </button>
-                  <button onClick={() => del(e)} className="w-9 h-9 rounded-lg bg-red-50 flex items-center justify-center text-red-600 hover:bg-red-100" title="删除">
+                  <button onClick={() => del(e)} className="w-9 h-9 rounded-lg bg-[#141414]/[0.06] flex items-center justify-center text-[#141414] hover:bg-[#141414]/[0.12]" title="删除">
                     <Trash2 className="w-4 h-4" />
                   </button>
                 </div>

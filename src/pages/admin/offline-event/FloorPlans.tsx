@@ -107,7 +107,7 @@ export default function OfflineEventFloorPlans() {
               <div className="min-w-0 flex-1">
                 <div className="flex items-center gap-2 flex-wrap">
                   <p className="font-medium">{p.name}</p>
-                  {p.is_default && <span className="rounded-full px-2 py-0.5 text-[11px] bg-amber-100 text-amber-800 flex items-center gap-1"><Star className="w-3 h-3" /> 默认</span>}
+                  {p.is_default && <span className="rounded-full px-2 py-0.5 text-[11px] bg-white text-[#141414] border border-[#141414]/40 flex items-center gap-1"><Star className="w-3 h-3" /> 默认</span>}
                 </div>
                 <p className="text-xs text-muted-foreground mt-0.5">
                   {(p.layout_data?.tables?.length ?? 0)} 桌 · {p.physical_seats} 座
@@ -120,7 +120,7 @@ export default function OfflineEventFloorPlans() {
                 <button onClick={() => setEditing({ id: p.id, name: p.name, layout: p.layout_data })} className="h-9 px-3 rounded-lg bg-muted text-xs font-medium flex items-center gap-1 text-muted-foreground hover:text-foreground"><Pencil className="w-3.5 h-3.5" /> 编辑</button>
                 <button onClick={() => dup(p)} disabled={busy} className="h-9 px-3 rounded-lg bg-muted text-xs font-medium flex items-center gap-1 text-muted-foreground hover:text-foreground disabled:opacity-50"><Copy className="w-3.5 h-3.5" /> 复制</button>
                 {!p.is_default && <button onClick={() => makeDefault(p)} disabled={busy} className="h-9 px-3 rounded-lg bg-muted text-xs font-medium flex items-center gap-1 text-muted-foreground hover:text-foreground disabled:opacity-50"><Star className="w-3.5 h-3.5" /> 设默认</button>}
-                <button onClick={() => del(p)} disabled={busy || p.is_default || p.used_by_count > 0} className="h-9 w-9 rounded-lg bg-red-50 text-red-600 flex items-center justify-center hover:bg-red-100 disabled:opacity-30" title={p.is_default ? "默认不能删" : p.used_by_count > 0 ? "被活动使用中" : "删除"}><Trash2 className="w-4 h-4" /></button>
+                <button onClick={() => del(p)} disabled={busy || p.is_default || p.used_by_count > 0} className="h-9 w-9 rounded-lg bg-[#141414]/[0.06] text-[#141414] flex items-center justify-center hover:bg-[#141414]/[0.12] disabled:opacity-30" title={p.is_default ? "默认不能删" : p.used_by_count > 0 ? "被活动使用中" : "删除"}><Trash2 className="w-4 h-4" /></button>
               </div>
             </div>
           </div>
