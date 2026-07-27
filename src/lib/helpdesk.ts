@@ -49,6 +49,35 @@ export type HelpArticle = {
   updated_at: string;
 };
 
+/**
+ * Whether this sub-account may open the help center (Admin Portal toggle /
+ * canary whitelist). Fail-OPEN on transient errors — the server still gates
+ * every real action, so a network blip must not wrongly show "not available".
+ */
+export async function checkHelpAccess(locationId: string): Promise<boolean> {
+  try {
+    const { data, error } = await getSupabase().functions.invoke("helpdesk", {
+      body: { action: "access", locationId },
+    });
+    if (error) {
+      const ctx = (error as { context?: Response }).context;
+      if (ctx && typeof ctx.json === "function") {
+        try {
+          const b = await ctx.json();
+          if (b?.error === "tool_disabled") return false;
+        } catch {
+          /* not JSON → transient */
+        }
+      }
+      return true; // transient / unknown → fail-open
+    }
+    if (data && (data as { error?: string }).error === "tool_disabled") return false;
+    return true;
+  } catch {
+    return true;
+  }
+}
+
 export async function listFolders(): Promise<HelpFolder[]> {
   const { folders } = await callHelpdesk<{ folders: HelpFolder[] }>("listFolders");
   return folders || [];

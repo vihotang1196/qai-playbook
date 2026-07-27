@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from "react";
-import { Loader2, Search, RefreshCw, ExternalLink, Building2 } from "lucide-react";
+import { Loader2, Search, RefreshCw, ExternalLink, Building2, ShieldAlert } from "lucide-react";
 import { toast } from "sonner";
 import { ADMIN_TOOLS, type ToolKey } from "@/lib/admin/tools";
 import {
@@ -7,6 +7,8 @@ import {
   setToolAccess,
   syncLocations,
   isToolEnabled,
+  getCanaryMode,
+  setCanaryMode,
   type AdminLocation,
 } from "@/lib/adminApi";
 
@@ -23,7 +25,32 @@ export default function AdminSubAccounts() {
   const [loading, setLoading] = useState(true);
   const [syncing, setSyncing] = useState(false);
   const [busy, setBusy] = useState<string | null>(null); // `${location_id}:${tool}` being saved
+  // Canary (whitelist) rollout mode — platform-wide. Drives BOTH the banner and
+  // how a "never set" toggle must be shown (see isToolEnabled).
+  const [canary, setCanary] = useState(false);
+  const [canaryBusy, setCanaryBusy] = useState(false);
   const seq = useRef(0);
+
+  useEffect(() => {
+    getCanaryMode()
+      .then((r) => setCanary(r.enabled))
+      .catch(() => {
+        /* banner just stays off — never block the page on it */
+      });
+  }, []);
+
+  const flipCanary = async (next: boolean) => {
+    setCanaryBusy(true);
+    try {
+      await setCanaryMode(next);
+      setCanary(next);
+      toast.success(next ? "已开启灰度模式（白名单）" : "已关闭灰度模式（全面开放）");
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : "切换失败");
+    } finally {
+      setCanaryBusy(false);
+    }
+  };
 
   const load = async (q: string) => {
     const mine = ++seq.current;
@@ -100,6 +127,39 @@ export default function AdminSubAccounts() {
         </button>
       </div>
 
+      {/* Canary rollout switch. ON = whitelist (only sub-accounts toggled on can
+          use the tools); OFF = normal (everyone except those toggled off).
+          Admins always get through either way. Black block = "this is not the
+          normal state", consistent with the Stripe-LIVE warning. */}
+      <div
+        className={`mt-4 rounded-xl border-2 border-[#141414] p-4 flex items-start gap-3 ${
+          canary ? "bg-[#141414]" : "bg-white"
+        }`}
+      >
+        <ShieldAlert className={`w-5 h-5 shrink-0 mt-0.5 ${canary ? "text-[#fed50a]" : "text-[#141414]"}`} />
+        <div className="min-w-0 flex-1">
+          <p className={`text-sm font-bold ${canary ? "text-white" : "text-[#141414]"}`}>
+            {canary ? "灰度模式 · 白名单生效中" : "全面开放中"}
+          </p>
+          <p className={`text-xs mt-0.5 ${canary ? "text-white/70" : "text-muted-foreground"}`}>
+            {canary
+              ? "只有下面明确开启的 Sub Account 能使用工具，其他人会看到「正在灰度测试」提示。你（管理员）不受限制。"
+              : "所有 Sub Account 都能使用工具，除了被明确关闭的。开启灰度模式后改为「只有开启的能用」。"}
+          </p>
+        </div>
+        <button
+          type="button"
+          onClick={() => flipCanary(!canary)}
+          disabled={canaryBusy}
+          className={`shrink-0 inline-flex items-center gap-1.5 rounded-lg px-3 py-2 text-xs font-bold border-2 border-[#141414] disabled:opacity-60 ${
+            canary ? "bg-[#fed50a] text-[#141414]" : "bg-white text-[#141414]"
+          }`}
+        >
+          {canaryBusy ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : null}
+          {canary ? "关闭灰度 · 全面开放" : "开启灰度模式"}
+        </button>
+      </div>
+
       <div className="relative mt-4">
         <Search className="w-4 h-4 text-muted-foreground absolute left-3 top-1/2 -translate-y-1/2 z-10" />
         <input
@@ -139,7 +199,7 @@ export default function AdminSubAccounts() {
                       <label key={t.key} className="flex items-center gap-1.5 cursor-pointer select-none">
                         <span className="text-xs text-muted-foreground hidden sm:inline">{t.name.cn}</span>
                         <Toggle
-                          on={isToolEnabled(loc, t.key)}
+                          on={isToolEnabled(loc, t.key, canary)}
                           busy={busy === `${loc.location_id}:${t.key}`}
                           onChange={(v) => toggle(loc, t.key, v)}
                         />

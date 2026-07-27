@@ -48,8 +48,14 @@ export type AdminAuditEntry = {
 };
 
 /** True unless explicitly disabled (default-allow). */
-export function isToolEnabled(loc: AdminLocation, tool: ToolKey): boolean {
-  return loc.access?.[tool] !== false;
+/** Effective access for one (location, tool) — must match the server's rule in
+ *  _shared/access.ts, including which way "never set" falls:
+ *    normal mode → no row means ALLOWED  (default-allow)
+ *    canary mode → no row means DENIED   (whitelist)
+ *  Pass the live canary flag, or the toggle will show a denied sub-account as on. */
+export function isToolEnabled(loc: AdminLocation, tool: ToolKey, canary = false): boolean {
+  const v = loc.access?.[tool];
+  return canary ? v === true : v !== false;
 }
 
 export async function listLocations(
@@ -61,6 +67,18 @@ export async function listLocations(
 
 export async function setToolAccess(location_id: string, tool_key: ToolKey, enabled: boolean): Promise<void> {
   await callAdmin("setToolAccess", { location_id, tool_key, enabled });
+}
+
+/** Canary (whitelist) rollout mode — platform-wide.
+ *  ON: only sub-accounts explicitly switched on can use the tools (admins always
+ *  can). OFF: normal steady state — everyone except those switched off. */
+export async function getCanaryMode(): Promise<{ enabled: boolean; updated_at: string | null }> {
+  const r = await callAdmin<{ enabled: boolean; updated_at: string | null }>("getCanaryMode", {});
+  return { enabled: !!r.enabled, updated_at: r.updated_at ?? null };
+}
+
+export async function setCanaryMode(enabled: boolean): Promise<void> {
+  await callAdmin("setCanaryMode", { enabled });
 }
 
 export async function listAudit(limit = 100): Promise<AdminAuditEntry[]> {

@@ -211,7 +211,7 @@ serve(async (req) => {
       const count = Math.min(Math.max(Number(body?.count) || 3, 1), 5);
 
       const sb = serviceClient();
-      if (!(await hasToolAccess(sb, locationId, "review_boost"))) return json({ error: "tool_disabled" }, 403);
+      if (!(await hasToolAccess(sb, locationId, "review_boost", req))) return json({ error: "tool_disabled" }, 403);
       // Own-data only: the campaign must belong to THIS location.
       const { data: campaign, error } = await sb
         .from("rb_campaigns")
@@ -244,7 +244,7 @@ serve(async (req) => {
       }
 
       // Admin Portal access gate — RB disabled for this location → no generation.
-      if (!(await hasToolAccess(sb, qr.location_id as string, "review_boost"))) {
+      if (!(await hasToolAccess(sb, qr.location_id as string, "review_boost", req))) {
         return json({ error: "tool_disabled" }, 403);
       }
 
@@ -323,7 +323,7 @@ serve(async (req) => {
       if (error) throw error;
       const belongs = gen && (gen.rb_qr_codes as { short_code?: string })?.short_code === code;
       if (!belongs) return json({ error: "not found" }, 404);
-      if (!(await hasToolAccess(sb, gen.location_id as string, "review_boost"))) {
+      if (!(await hasToolAccess(sb, gen.location_id as string, "review_boost", req))) {
         return json({ error: "tool_disabled" }, 403);
       }
       if (Date.now() - new Date(gen.created_at as string).getTime() > REGEN_MAX_AGE_MS) {

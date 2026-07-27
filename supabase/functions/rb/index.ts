@@ -84,7 +84,7 @@ serve(async (req) => {
 
     // Admin Portal access gate — if RB is disabled for this location, block the
     // WHOLE customer app (management + scan). Default-allow (no row = allowed).
-    if (!(await hasToolAccess(sb, locationId, "review_boost"))) {
+    if (!(await hasToolAccess(sb, locationId, "review_boost", req))) {
       return json({ error: "tool_disabled" }, 403);
     }
 

@@ -1,7 +1,8 @@
 import { useEffect, useState } from "react";
-import { BookOpen, Check, Copy, LifeBuoy, Megaphone, MessageCircle } from "lucide-react";
+import { BookOpen, Check, Copy, LifeBuoy, Lock, Megaphone, MessageCircle } from "lucide-react";
 import { useLang } from "@/i18n/LanguageContext";
 import { resolveLocationId, resolveStaff, fetchLocation, type GhlLocation } from "@/lib/ghl";
+import { checkHelpAccess } from "@/lib/helpdesk";
 import HelpChat from "./HelpChat";
 import HelpBrowse from "./HelpBrowse";
 import HelpUpdates from "./HelpUpdates";
@@ -37,6 +38,9 @@ type Tab = "chat" | "browse" | "updates";
 function useHelpLocation() {
   const [locationId] = useState<string>(() => resolveLocationId());
   const [location, setLocation] = useState<GhlLocation | null>(null);
+  // null = still checking. Whether this sub-account may open the help center
+  // (Admin Portal toggle / canary whitelist). Fail-open inside checkHelpAccess.
+  const [allowed, setAllowed] = useState<boolean | null>(null);
 
   useEffect(() => {
     if (!locationId) return;
@@ -46,17 +50,20 @@ function useHelpLocation() {
       .catch(() => {
         /* best-effort — content is shared, don't block on name resolution */
       });
+    checkHelpAccess(locationId)
+      .then((ok) => !cancelled && setAllowed(ok))
+      .catch(() => !cancelled && setAllowed(true));
     return () => {
       cancelled = true;
     };
   }, [locationId]);
 
-  return { locationId, location };
+  return { locationId, location, allowed };
 }
 
 export default function HelpWidget() {
   const { lang } = useLang();
-  const { locationId, location } = useHelpLocation();
+  const { locationId, location, allowed } = useHelpLocation();
   // Need 2 — the GHL staff who's asking (from the menu-link merge fields), for
   // attribution. Read once (stable for the tab session), same as location_id.
   const [staff] = useState(() => resolveStaff());
@@ -71,6 +78,8 @@ export default function HelpWidget() {
 
   // No location_id → the "open from QAI" gate (mirrors RB's no-location state).
   if (!locationId) return <OpenFromQai lang={lang} />;
+  // Not switched on for this sub-account (canary whitelist / admin toggle).
+  if (allowed === false) return <HelpNotEnabled lang={lang} />;
 
   const businessName = location?.business_name?.trim();
 
@@ -153,6 +162,34 @@ const QAI_URL = "https://app.qiai.tech/";
 
 /** Shown when there's no identity (not opened from QAI). Customers know the QAI
  *  brand, not GHL — so this points them to app.qiai.tech with a copyable link. */
+/** Help center not switched on for this sub-account yet (canary whitelist or an
+ *  explicit Admin Portal toggle). Same wording style as the other tools', and it
+ *  reads correctly in both rollout modes. */
+function HelpNotEnabled({ lang }: { lang: "cn" | "en" }) {
+  return (
+    <div className="px-4 sm:px-6 pb-16 pt-24 md:pt-28">
+      <div className="max-w-md mx-auto">
+        <div className="glass-card rounded-3xl p-8 sm:p-10 text-center">
+          <div
+            className="w-14 h-14 rounded-2xl flex items-center justify-center mx-auto mb-5 text-[#fed50a]"
+            style={{ background: "#141414" }}
+          >
+            <Lock className="w-6 h-6" />
+          </div>
+          <h1 className="text-2xl font-display font-bold mb-2">
+            {lang === "cn" ? "帮助中心" : "Help Center"}
+          </h1>
+          <p className="text-sm text-muted-foreground leading-relaxed">
+            {lang === "cn"
+              ? "帮助中心尚未对你的账号开放。如需开通，请联系 QAI 管理员。"
+              : "The help center isn't enabled for your account yet. Please contact your QAI admin to enable it."}
+          </p>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 function OpenFromQai({ lang }: { lang: "cn" | "en" }) {
   const [copied, setCopied] = useState(false);
   function copy() {

@@ -15,7 +15,10 @@ import { requireAdmin } from "../_shared/admin.ts";
 
 // Tool registry (server-side mirror of src/lib/admin/tools.ts). Access can only
 // be set for a known tool_key.
-const KNOWN_TOOLS = new Set(["review_boost", "copywriter", "offline_event"]);
+// `helpdesk` joined the list for the canary rollout: the help center's CONTENT
+// stays agency-wide shared (never per-location), but during a gradual launch the
+// owner still needs to control who can OPEN it.
+const KNOWN_TOOLS = new Set(["review_boost", "copywriter", "offline_event", "helpdesk"]);
 
 // Keep a PostgREST .or() filter safe from an admin's search string.
 const cleanQuery = (s: string) => s.replace(/[,()%*]/g, " ").trim();
@@ -98,6 +101,54 @@ serve(async (req) => {
           action: "set_tool_access",
           target_location_id: location_id,
           tool_key,
+          detail: { from, to: enabled },
+        });
+        return json({ ok: true, enabled });
+      }
+
+      // ── Canary (whitelist) rollout mode ─────────────────────────────────
+      // ON  → location_tool_access is a WHITELIST: only sub-accounts explicitly
+      //       switched on can use the tools (admins always can).
+      // OFF → normal steady state: everyone can, except those switched off.
+      case "getCanaryMode": {
+        const { data, error } = await sb
+          .from("platform_settings")
+          .select("value, updated_at")
+          .eq("key", "canary_mode")
+          .maybeSingle();
+        if (error) throw error;
+        return json({
+          ok: true,
+          enabled: (data?.value as { enabled?: boolean } | null)?.enabled === true,
+          updated_at: data?.updated_at ?? null,
+        });
+      }
+
+      case "setCanaryMode": {
+        const enabled = !!body?.enabled;
+        const { data: cur } = await sb
+          .from("platform_settings")
+          .select("value")
+          .eq("key", "canary_mode")
+          .maybeSingle();
+        const from = (cur?.value as { enabled?: boolean } | null)?.enabled === true;
+
+        const { error } = await sb.from("platform_settings").upsert(
+          {
+            key: "canary_mode",
+            value: { enabled },
+            updated_at: new Date().toISOString(),
+            updated_by: admin.user_id,
+          },
+          { onConflict: "key" },
+        );
+        if (error) throw error;
+
+        // Platform-wide switch → audit it like any access change.
+        await sb.from("admin_audit_log").insert({
+          admin_user_id: admin.user_id,
+          admin_email: admin.email,
+          action: "set_canary_mode",
           detail: { from, to: enabled },
         });
         return json({ ok: true, enabled });

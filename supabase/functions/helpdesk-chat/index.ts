@@ -17,6 +17,7 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { corsHeaders, json, serviceClient } from "../_shared/ghl.ts";
 import { requireAdmin } from "../_shared/admin.ts";
+import { hasToolAccess } from "../_shared/access.ts";
 import { logToolUsage } from "../_shared/usage.ts";
 import { checkRateLimit, locKey, rateLimitMessage, DAY_MS, HOUR_MS } from "../_shared/ratelimit.ts";
 
@@ -414,6 +415,18 @@ serve(async (req) => {
             : "Please open the help center from your QAI dashboard so I can recognise your account 🙏",
         );
       }
+    }
+
+    // ── Gate 1b: whitelist / per-account access ───────────────────────────
+    // In canary mode only whitelisted sub-accounts may use the AI (admins always
+    // can, via the req passed through). Friendly bubble, never a red error.
+    if (locationId && !(await hasToolAccess(sb, locationId, TOOL_KEY, req))) {
+      return friendlyReply(
+        conversationId,
+        uiLang === "cn"
+          ? "帮助中心的 AI 问答尚未对你的账号开放，请联系 QAI 管理员开通 🙏"
+          : "The AI help center isn't enabled for your account yet — please contact your QAI admin 🙏",
+      );
     }
 
     // ── Gate 2: rate limit (per sub-account; admins exempt) ───────────────

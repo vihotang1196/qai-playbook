@@ -107,7 +107,7 @@ Deno.serve(async (req: Request) => {
   }
 
   const sb = serviceClient();
-  if (!(await hasToolAccess(sb, locationId, TOOL_KEY))) {
+  if (!(await hasToolAccess(sb, locationId, TOOL_KEY, req))) {
     return json(
       {
         error: lang === "en"

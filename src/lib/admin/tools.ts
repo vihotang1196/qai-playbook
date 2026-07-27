@@ -5,7 +5,7 @@
 //
 // `live: false` = shown as a placeholder ("即将") but not yet toggleable/metered.
 
-export type ToolKey = "review_boost" | "copywriter" | "offline_event";
+export type ToolKey = "review_boost" | "copywriter" | "offline_event" | "helpdesk";
 
 export type AdminTool = {
   key: ToolKey;
@@ -15,10 +15,13 @@ export type AdminTool = {
 
 export const ADMIN_TOOLS: AdminTool[] = [
   { key: "review_boost", name: { cn: "Review Boost", en: "Review Boost" }, live: true },
-  // Backend is ready (generate-copy/-voice now require a location_id, check
-  // hasToolAccess and are rate-limited). Kept live:false until the owner
-  // verifies and decides to open the nav entry.
-  { key: "copywriter", name: { cn: "文案生成器", en: "Copywriter" }, live: false },
+  // live:true so the per-location toggle is usable — REQUIRED for the canary
+  // whitelist. This flag only controls the Admin Portal toggle; the customer nav
+  // entry is separate (still hidden in Navbar.tsx until the owner opens it).
+  { key: "copywriter", name: { cn: "文案生成器", en: "Copywriter" }, live: true },
+  // Helpdesk content stays agency-wide shared; this toggle only controls who may
+  // OPEN the help center (needed for the canary rollout).
+  { key: "helpdesk", name: { cn: "帮助中心", en: "Helpdesk" }, live: true },
   // Live from P3: the customer /events flow enforces per-location access
   // (hasToolAccess) server-side in the `oe` edge fn.
   { key: "offline_event", name: { cn: "Offline Event", en: "Offline Event" }, live: true },

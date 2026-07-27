@@ -21,6 +21,9 @@
 // ════════════════════════════════════════════════════════════════════════
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { corsHeaders, json, serviceClient } from "../_shared/ghl.ts";
+import { hasToolAccess } from "../_shared/access.ts";
+
+const TOOL_KEY = "helpdesk";
 
 serve(async (req) => {
   if (req.method === "OPTIONS") return new Response(null, { headers: corsHeaders });
@@ -31,6 +34,20 @@ serve(async (req) => {
     const sb = serviceClient();
 
     switch (action) {
+      // May this sub-account open the help center? Mirrors Review Boost's
+      // `access` action so the widget can show a proper "not available yet"
+      // block instead of loading and then failing at the first question.
+      // The help center's CONTENT is still agency-wide shared — this only gates
+      // WHO may open it, which is what the canary rollout needs.
+      case "access": {
+        const locationId = String(body?.locationId || body?.location_id || "").trim();
+        if (!locationId) return json({ error: "tool_disabled" }, 403);
+        if (!(await hasToolAccess(sb, locationId, TOOL_KEY, req))) {
+          return json({ error: "tool_disabled" }, 403);
+        }
+        return json({ ok: true });
+      }
+
       // All category folders (Notion section headings), display order first.
       case "listFolders": {
         const { data, error } = await sb
