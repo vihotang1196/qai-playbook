@@ -43,6 +43,18 @@ export function qrKey(shortCode: string): string {
   return `qr:${(shortCode || "").trim()}`;
 }
 
+/** Per person, for flows where the actor is an end CUSTOMER rather than the
+ *  sub-account (e.g. event booking: one location hosts many bookers, so a
+ *  per-location cap would throttle real attendees during a launch).
+ *  HASHED — a customer's email must never be stored in the usage meter. */
+export async function emailKey(email: string): Promise<string> {
+  const norm = (email || "").trim().toLowerCase();
+  if (!norm) return "email:unknown";
+  const buf = await crypto.subtle.digest("SHA-256", new TextEncoder().encode(norm));
+  const hex = [...new Uint8Array(buf)].map((b) => b.toString(16).padStart(2, "0")).join("");
+  return `email:${hex.slice(0, 24)}`;
+}
+
 /** Per client IP, hashed (never store a raw IP). Optional backstop dimension:
  *  keep IP limits generous — offices and mobile carriers share one address. */
 export async function ipKey(req: Request): Promise<string> {

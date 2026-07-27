@@ -17,10 +17,45 @@ import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { corsHeaders, json, serviceClient } from "../_shared/ghl.ts";
 import { hasToolAccess } from "../_shared/access.ts";
 import { resolveOeStripe } from "../_shared/stripe.ts";
+import { logToolUsage } from "../_shared/usage.ts";
+import { checkRateLimit, emailKey, HOUR_MS } from "../_shared/ratelimit.ts";
 // deno-lint-ignore no-explicit-any
 type SB = any;
 
 const TOOL_KEY = "offline_event";
+
+// ── Booking abuse limit (pre-launch) ──────────────────────────────────────
+// Unlike the AI endpoints there is no per-call cost here; this bounds junk seat
+// holds and Stripe session churn. Damage is already bounded by finite seat
+// inventory, the atomic seat claim and the stale-pending sweep, so the cap is
+// deliberately generous.
+//
+// Limited PER BOOKER (hashed email), NOT per location: one sub-account hosts an
+// event that MANY different customers book, so a per-location cap would throttle
+// real attendees the moment an event opens. A single person never legitimately
+// submits 30 bookings in an hour.
+const BOOKING_LIMITS = [{ windowMs: HOUR_MS, max: 30, label: "hour" }];
+
+/** Check + record one booking attempt for this email. Returns true when the
+ *  caller is over the cap (nothing has been written or charged at that point). */
+async function bookingThrottled(sb: SB, locationId: string, email: string, kind: string): Promise<boolean> {
+  const key = await emailKey(email);
+  const rl = await checkRateLimit(sb, {
+    toolKey: TOOL_KEY,
+    clientKey: key,
+    windows: BOOKING_LIMITS,
+    eventType: "booking_attempt",
+  });
+  if (!rl.allowed) return true;
+  await logToolUsage(sb, {
+    tool_key: TOOL_KEY,
+    event_type: "booking_attempt",
+    location_id: locationId,
+    client_key: key, // hashed email — never the address itself
+    meta: { kind },
+  });
+  return false;
+}
 
 const round2 = (n: number) => Math.round(n * 100) / 100;
 
@@ -374,6 +409,12 @@ serve(async (req) => {
           });
         }
 
+        // Throttle only the path that actually writes state. The paid branch
+        // above just returns a price breakdown, so it isn't counted.
+        if (await bookingThrottled(sb, locationId, email, "free")) {
+          return json({ error: "rate_limited" }, 429);
+        }
+
         // FREE booking — create (confirmed) then atomically claim.
         const bookingId = genBookingId();
         const seatLabels = plan.seatSelection
@@ -456,6 +497,11 @@ serve(async (req) => {
 
         const email = String(body?.email || "").trim();
         const phone = String(body?.phone || "").trim();
+
+        // Before creating a pending hold or a Stripe session.
+        if (await bookingThrottled(sb, locationId, email, "checkout")) {
+          return json({ error: "rate_limited" }, 429);
+        }
 
         // 1) PENDING booking. Free portion → free_seats (counts against the free
         //    allowance while held); paid portion → addon_seats.

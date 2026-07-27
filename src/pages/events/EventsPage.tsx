@@ -432,6 +432,15 @@ function EventBooking({
         onBooked();
       } else if (msg === "too_many_seats") {
         toast.error(lang === "cn" ? `最多 ${maxSeats} 个座位` : `Max ${maxSeats} seats`);
+      } else if (msg === "rate_limited") {
+        // Say plainly that nothing happened — a throttled customer must not be
+        // left wondering whether they were charged or lost their seats.
+        toast.error(
+          lang === "cn"
+            ? "操作太频繁，请等一分钟再试。这次没有扣款，也没有占用座位。"
+            : "Too many attempts — please wait a minute and try again. You have NOT been charged and no seats were held.",
+          { duration: 8000 },
+        );
       } else {
         toast.error(msg);
       }
