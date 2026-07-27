@@ -1,9 +1,12 @@
 import { useState } from "react";
-import { Loader2, Sparkles } from "lucide-react";
+import { Loader2, Sparkles, PenLine } from "lucide-react";
 import { toast } from "sonner";
 import { Survey } from "@/components/copywriter/Survey";
 import { Results } from "@/components/copywriter/Results";
+import OpenFromQai from "@/components/OpenFromQai";
 import { generateCopy } from "@/lib/copywriter/api";
+import { resolveLocationId } from "@/lib/ghl";
+import { useLang } from "@/i18n/LanguageContext";
 import { T, type Language } from "@/lib/copywriter/i18n";
 import type { GenerateResult, SurveyInput } from "@/lib/copywriter/types";
 
@@ -23,12 +26,18 @@ const Copywriter = () => {
   const [stage, setStage] = useState<Stage>("survey");
   const [result, setResult] = useState<GenerateResult | null>(null);
   const [lastInput, setLastInput] = useState<SurveyInput | null>(null);
+  // Identity = the GHL location_id in the URL (same trust-the-URL posture as
+  // Helpdesk / Review Boost / Offline Event). Generation costs real money, so
+  // without an identity the tool must not run at all — the server enforces the
+  // same rule; this gate just avoids a pointless round-trip and explains why.
+  const { lang: uiLang } = useLang();
+  const [locationId] = useState<string>(() => resolveLocationId());
 
   const run = async (input: SurveyInput) => {
     setLastInput(input);
     setStage("loading");
     try {
-      const r = await generateCopy(input);
+      const r = await generateCopy(input, locationId);
       setResult(r);
       setStage("result");
     } catch (e) {
@@ -40,6 +49,20 @@ const Copywriter = () => {
 
   const lang: Language = (lastInput?.language as Language) || "zh";
 
+  if (!locationId) {
+    return (
+      <OpenFromQai
+        lang={uiLang}
+        icon={PenLine}
+        title={{ cn: "文案生成器", en: "Copy Generator" }}
+        description={{
+          cn: "请从你的 QAI 后台打开文案生成器，这样才能识别你的账号。",
+          en: "Please open the Copy Generator from your QAI dashboard so we can recognise your account.",
+        }}
+      />
+    );
+  }
+
   return (
     <main className="pt-24 pb-20">
       {stage === "survey" && <Survey onSubmit={run} />}
@@ -47,6 +70,7 @@ const Copywriter = () => {
       {stage === "result" && result && (
         <Results
           result={result}
+          locationId={locationId}
           onRegenerate={() => lastInput && run(lastInput)}
           onRestart={() => {
             setResult(null);

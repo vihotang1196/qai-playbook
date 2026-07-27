@@ -65,3 +65,14 @@ verify_jwt = false
 # per-location scoping (the help center is agency-wide shared content).
 [functions.helpdesk]
 verify_jwt = false
+
+# Copywriter generation (Claude) + narration (MiniMax TTS). Anon-callable at the
+# gateway like every other customer-facing fn; the REAL gates are inside and
+# server-enforced: a location_id is REQUIRED, hasToolAccess(copywriter) must
+# pass, and per-account rate limits apply (generation is the priciest call in the
+# platform). Read ANTHROPIC_API_KEY / MINIMAX_* secrets.
+[functions.generate-copy]
+verify_jwt = false
+
+[functions.generate-voice]
+verify_jwt = false

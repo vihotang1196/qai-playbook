@@ -10,7 +10,22 @@
 //   supabase secrets set MINIMAX_VOICE_ID_ZH=...   # default voice
 //   (optional) MINIMAX_VOICE_ID_EN / MINIMAX_VOICE_ID_MS for per-language voices
 
+import { serviceClient } from "../_shared/ghl.ts";
+import { hasToolAccess } from "../_shared/access.ts";
+import { logToolUsage } from "../_shared/usage.ts";
+import { checkRateLimit, locKey, rateLimitMessage, DAY_MS, HOUR_MS } from "../_shared/ratelimit.ts";
+
 const MINIMAX_MODEL = "speech-02-hd";
+
+// Same protection as generate-copy: MiniMax TTS is paid, and this endpoint was
+// equally wide open. Text is already capped at 2000 chars, so per-call cost is
+// bounded; these caps bound the volume. Higher than the copy caps because one
+// generation can have several narration segments the user plays individually.
+const TOOL_KEY = "copywriter";
+const VOICE_LIMITS = [
+  { windowMs: HOUR_MS, max: 40, label: "hour" },
+  { windowMs: DAY_MS, max: 120, label: "day" },
+];
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -76,6 +91,57 @@ Deno.serve(async (req: Request) => {
   if (text.length > 2000) {
     return json({ error: lang === "en" ? "Text too long (max 2000 chars)" : "文本过长（上限 2000 字）" }, 400);
   }
+
+  // ── Identity + access + rate limit (see the constants above) ────────────
+  const locationId = String((raw.locationId as string) || (raw.location_id as string) || "").trim();
+  if (!locationId) {
+    return json(
+      {
+        error: lang === "en"
+          ? "Please open the Copy Generator from your QAI dashboard so we can recognise your account."
+          : "请从你的 QAI 后台打开文案生成器，这样才能识别你的账号。",
+        code: "location_required",
+      },
+      400,
+    );
+  }
+
+  const sb = serviceClient();
+  if (!(await hasToolAccess(sb, locationId, TOOL_KEY))) {
+    return json(
+      {
+        error: lang === "en"
+          ? "The Copy Generator isn't enabled for your account yet. Please contact your QAI admin."
+          : "文案生成器尚未对你的账号开放，请联系 QAI 管理员开通。",
+        code: "tool_disabled",
+      },
+      403,
+    );
+  }
+
+  const rl = await checkRateLimit(sb, {
+    toolKey: TOOL_KEY,
+    clientKey: locKey(locationId),
+    windows: VOICE_LIMITS,
+    eventType: "voice",
+  });
+  if (!rl.allowed) {
+    return json(
+      {
+        error: rateLimitMessage(lang === "zh" ? "cn" : "en", rl.limited?.label === "hour" ? "hour" : "day"),
+        code: "quota_exceeded",
+      },
+      429,
+    );
+  }
+
+  await logToolUsage(sb, {
+    tool_key: TOOL_KEY,
+    event_type: "voice",
+    location_id: locationId,
+    client_key: locKey(locationId),
+    meta: { language: lang, chars: text.length },
+  });
 
   const apiKey = Deno.env.get("MINIMAX_API_KEY");
   const groupId = Deno.env.get("MINIMAX_GROUP_ID");

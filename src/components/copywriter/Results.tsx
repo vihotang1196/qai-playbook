@@ -21,10 +21,13 @@ export function Results({
   result,
   onRegenerate,
   onRestart,
+  locationId,
 }: {
   result: GenerateResult;
   onRegenerate: () => void;
   onRestart: () => void;
+  /** Sub-account identity, forwarded to the paid voice endpoint. */
+  locationId: string;
 }) {
   const lang: Language = result.language || "zh";
   const t = T[lang];
@@ -39,7 +42,7 @@ export function Results({
     if (loadingVoice[idx] || voices[idx]) return;
     setLoadingVoice((s) => ({ ...s, [idx]: true }));
     try {
-      const dataUrl = await generateVoice(text, lang);
+      const dataUrl = await generateVoice(text, lang, locationId);
       setVoices((s) => ({ ...s, [idx]: dataUrl }));
       toast.success(t.voiceDone);
       // Autoplay once the <audio> for this segment has mounted.

@@ -3,8 +3,8 @@ import { getSupabase } from "@/lib/supabase";
 import type { GenerateResult, SurveyInput } from "./types";
 
 // Fatal errors that a retry can't fix (bad config / key / input). Everything
-// else — incomplete output, truncation, overload, rate limit, network — is a
-// transient/model hiccup worth one more independent attempt.
+// else — incomplete output, truncation, model overload, upstream 429, network —
+// is a transient hiccup worth one more independent attempt.
 function isFatal(message: string): boolean {
   return (
     /not configured/i.test(message) ||
@@ -14,11 +14,21 @@ function isFatal(message: string): boolean {
   );
 }
 
-async function invokeGenerateCopy(input: SurveyInput): Promise<GenerateResult> {
+/** Server-side refusals that retrying would only make worse: our own per-account
+ *  quota, a missing identity, or the tool being switched off for this account.
+ *  Flagged by machine-readable `code` (never by matching display text) so the
+ *  retry loop can't burn three attempts on a hard "no". */
+const NO_RETRY_CODES = new Set(["quota_exceeded", "location_required", "tool_disabled"]);
+
+type TaggedError = Error & { noRetry?: boolean };
+
+async function invokeGenerateCopy(input: SurveyInput, locationId: string): Promise<GenerateResult> {
   const supabase = getSupabase();
 
   const { data, error } = await supabase.functions.invoke<GenerateResult>("generate-copy", {
-    body: input,
+    // locationId identifies the sub-account: the server requires it, checks the
+    // tool is enabled for them, and meters/rate-limits per account.
+    body: { ...input, locationId },
   });
 
   if (error) {
@@ -27,7 +37,11 @@ async function invokeGenerateCopy(input: SurveyInput): Promise<GenerateResult> {
     if (error instanceof FunctionsHttpError) {
       try {
         const body = await error.context.json();
-        if (body?.error) throw new Error(body.error);
+        if (body?.error) {
+          const e: TaggedError = new Error(body.error);
+          if (body?.code && NO_RETRY_CODES.has(body.code)) e.noRetry = true;
+          throw e;
+        }
       } catch (inner) {
         if (inner instanceof Error && inner.message) throw inner;
       }
@@ -52,16 +66,18 @@ async function invokeGenerateCopy(input: SurveyInput): Promise<GenerateResult> {
  * to 3 times: each call is an independent request with its own timeout budget,
  * so retrying here (not in the Edge Function) avoids the ~150s idle limit.
  */
-export async function generateCopy(input: SurveyInput): Promise<GenerateResult> {
+export async function generateCopy(input: SurveyInput, locationId: string): Promise<GenerateResult> {
   const MAX_ATTEMPTS = 3;
-  let lastError: Error = new Error("Generation failed");
+  let lastError: TaggedError = new Error("Generation failed");
 
   for (let attempt = 1; attempt <= MAX_ATTEMPTS; attempt++) {
     try {
-      return await invokeGenerateCopy(input);
+      return await invokeGenerateCopy(input, locationId);
     } catch (e) {
-      lastError = e instanceof Error ? e : new Error(String(e));
-      if (isFatal(lastError.message) || attempt === MAX_ATTEMPTS) break;
+      lastError = (e instanceof Error ? e : new Error(String(e))) as TaggedError;
+      // A quota/identity/access refusal is a hard no — retrying would just spend
+      // three round-trips to be told the same thing.
+      if (lastError.noRetry || isFatal(lastError.message) || attempt === MAX_ATTEMPTS) break;
     }
   }
 
@@ -75,11 +91,14 @@ export async function generateCopy(input: SurveyInput): Promise<GenerateResult> 
 export async function generateVoice(
   text: string,
   language: "zh" | "en" | "ms",
+  locationId: string,
 ): Promise<string> {
   const supabase = getSupabase();
 
   const { data, error } = await supabase.functions.invoke<{ dataUrl: string }>("generate-voice", {
-    body: { text, language },
+    // Same identity rule as generate-copy: MiniMax TTS costs money, so the
+    // server requires a location_id and meters/limits per account.
+    body: { text, language, locationId },
   });
 
   if (error) {

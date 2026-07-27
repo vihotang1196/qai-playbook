@@ -10,8 +10,22 @@
 // Secret required (set by the project owner, never in the frontend):
 //   supabase secrets set ANTHROPIC_API_KEY=sk-ant-...
 
+import { serviceClient } from "../_shared/ghl.ts";
+import { hasToolAccess } from "../_shared/access.ts";
+import { logToolUsage } from "../_shared/usage.ts";
+import { checkRateLimit, locKey, rateLimitMessage, DAY_MS, HOUR_MS } from "../_shared/ratelimit.ts";
+
 const MODEL = "claude-sonnet-4-5";
 const ANTHROPIC_URL = "https://api.anthropic.com/v1/messages";
+
+// Cost protection. max_tokens is 16000 here, so ONE generation is roughly
+// US$0.25 — the priciest call in the platform. Owner-approved caps, per
+// sub-account; no global cap (one abuser must not lock out everyone).
+const TOOL_KEY = "copywriter";
+const COPY_LIMITS = [
+  { windowMs: HOUR_MS, max: 15, label: "hour" },
+  { windowMs: DAY_MS, max: 40, label: "day" },
+];
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -373,6 +387,54 @@ Deno.serve(async (req: Request) => {
   const lang: Language =
     raw.language === "en" || raw.language === "ms" ? raw.language : "zh";
 
+  // ── Identity + access + rate limit (pre-launch cost protection) ─────────
+  // This is the most expensive call in the platform (max_tokens 16000, roughly
+  // US$0.25 a generation) and it used to be completely open: no identity, no
+  // access check, no cap. All three are enforced here, BEFORE any Claude call,
+  // so a refused request costs nothing. `code` is machine-readable so the client
+  // knows these are hard "no"s and must not burn its retry budget on them.
+  const locationId = String((raw.locationId as string) || (raw.location_id as string) || "").trim();
+  if (!locationId) {
+    return json(
+      {
+        error: lang === "en"
+          ? "Please open the Copy Generator from your QAI dashboard so we can recognise your account."
+          : "请从你的 QAI 后台打开文案生成器，这样才能识别你的账号。",
+        code: "location_required",
+      },
+      400,
+    );
+  }
+
+  const sb = serviceClient();
+  if (!(await hasToolAccess(sb, locationId, TOOL_KEY))) {
+    return json(
+      {
+        error: lang === "en"
+          ? "The Copy Generator isn't enabled for your account yet. Please contact your QAI admin."
+          : "文案生成器尚未对你的账号开放，请联系 QAI 管理员开通。",
+        code: "tool_disabled",
+      },
+      403,
+    );
+  }
+
+  const rl = await checkRateLimit(sb, {
+    toolKey: TOOL_KEY,
+    clientKey: locKey(locationId),
+    windows: COPY_LIMITS,
+    eventType: "generation",
+  });
+  if (!rl.allowed) {
+    return json(
+      {
+        error: rateLimitMessage(lang === "zh" ? "cn" : "en", rl.limited?.label === "hour" ? "hour" : "day"),
+        code: "quota_exceeded",
+      },
+      429,
+    );
+  }
+
   const s: SurveyInput = {
     language: lang,
     productName: asString(raw.productName),
@@ -400,6 +462,19 @@ Deno.serve(async (req: Request) => {
   if (!apiKey) {
     return json({ error: "Server misconfigured: ANTHROPIC_API_KEY not set" }, 500);
   }
+
+  // Meter the attempt before spending: the cost lands whether or not the model
+  // returns something usable, and counting up-front also narrows the window for
+  // parallel requests to slip past the check above. NOTE the client retries a
+  // malformed generation up to 3x, and each retry is metered — deliberate, since
+  // each retry is a real Claude call.
+  await logToolUsage(sb, {
+    tool_key: TOOL_KEY,
+    event_type: "generation",
+    location_id: locationId,
+    client_key: locKey(locationId),
+    meta: { language: lang },
+  });
 
   const system =
     lang === "ms" ? SYSTEM_PROMPT_MS : lang === "en" ? SYSTEM_PROMPT_EN : SYSTEM_PROMPT_ZH;
