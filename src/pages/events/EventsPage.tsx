@@ -88,7 +88,7 @@ export default function EventsPage() {
     return (
       <Shell>
         <div className="glass-card rounded-2xl p-6 flex items-start gap-3">
-          <AlertCircle className="w-5 h-5 text-destructive shrink-0 mt-0.5" />
+          <AlertCircle className="w-5 h-5 text-[#141414] shrink-0 mt-0.5" />
           <div>
             <p className="font-medium text-sm">{lang === "cn" ? "加载失败" : "Failed to load"}</p>
             <p className="text-sm text-muted-foreground mt-0.5">{err ?? (lang === "cn" ? "无数据" : "No data")}</p>
@@ -142,7 +142,7 @@ function BookingBrowser({ lang, locationId, ctx, onRefreshCtx }: { lang: "cn" | 
   return (
     <Shell>
       <div className="flex items-center gap-3 mb-4">
-        <div className="w-11 h-11 rounded-2xl flex items-center justify-center text-white shrink-0" style={{ background: "linear-gradient(135deg, #FF7E5F, #FF3D6E)" }}>
+        <div className="w-11 h-11 rounded-2xl flex items-center justify-center text-[#fed50a] shrink-0" style={{ background: "#141414" }}>
           <CalendarDays className="w-6 h-6" />
         </div>
         <div className="min-w-0 flex-1">
@@ -152,9 +152,9 @@ function BookingBrowser({ lang, locationId, ctx, onRefreshCtx }: { lang: "cn" | 
         <button
           type="button"
           onClick={() => setShowMine(true)}
-          className="shrink-0 inline-flex items-center gap-1.5 rounded-full border border-border/60 bg-background/60 px-3 py-2 text-xs font-bold hover:bg-muted/50"
+          className="shrink-0 inline-flex items-center gap-1.5 rounded-full border-2 border-[#141414] bg-white px-3 py-2 text-xs font-bold hover:bg-muted/50"
         >
-          <Ticket className="w-3.5 h-3.5 text-primary" />
+          <Ticket className="w-3.5 h-3.5 text-[#141414]" />
           {lang === "cn" ? "我的报名" : "My bookings"}
         </button>
       </div>
@@ -162,16 +162,16 @@ function BookingBrowser({ lang, locationId, ctx, onRefreshCtx }: { lang: "cn" | 
       {showMine && <MyBookings lang={lang} locationId={locationId} onClose={() => setShowMine(false)} />}
 
       <div className="glass-card rounded-2xl px-4 py-3 mb-5 flex items-center gap-2.5">
-        <Ticket className="w-4 h-4 text-primary shrink-0" />
+        <Ticket className="w-4 h-4 text-[#141414] shrink-0" />
         <p className="text-sm">
           {lang === "cn" ? (
             freeRemaining > 0 ? (
-              <>你还有 <span className="font-bold text-primary">{freeRemaining}</span> 张免费票（最多 4 人/单）</>
+              <>你还有 <span className="font-bold text-[#141414] bg-[#fed50a] px-1.5 rounded">{freeRemaining}</span> 张免费票（最多 4 人/单）</>
             ) : (
               <>你的免费票已用完，超出部分按活动票价收费（最多 4 人/单）</>
             )
           ) : freeRemaining > 0 ? (
-            <>You have <span className="font-bold text-primary">{freeRemaining}</span> free ticket{freeRemaining === 1 ? "" : "s"} (up to 4 / booking)</>
+            <>You have <span className="font-bold text-[#141414] bg-[#fed50a] px-1.5 rounded">{freeRemaining}</span> free ticket{freeRemaining === 1 ? "" : "s"} (up to 4 / booking)</>
           ) : (
             <>Your free tickets are used up; extra seats are charged at the event price (up to 4 / booking)</>
           )}
@@ -180,7 +180,7 @@ function BookingBrowser({ lang, locationId, ctx, onRefreshCtx }: { lang: "cn" | 
 
       {err ? (
         <div className="glass-card rounded-2xl p-6 flex items-start gap-3">
-          <AlertCircle className="w-5 h-5 text-destructive shrink-0 mt-0.5" />
+          <AlertCircle className="w-5 h-5 text-[#141414] shrink-0 mt-0.5" />
           <p className="text-sm text-muted-foreground">{err}</p>
         </div>
       ) : !events ? (
@@ -258,7 +258,7 @@ function EventCard({
       {open && (
         <div className="px-3 sm:px-5 pb-5 pt-1">
           {displayOnly ? (
-            <div className="mb-3 rounded-xl border border-amber-200 bg-amber-50/90 px-4 py-2.5 text-sm font-medium text-amber-900 text-center">
+            <div className="mb-3 rounded-xl border-2 border-[#141414] bg-white px-4 py-2.5 text-sm font-medium text-[#141414] text-center">
               {lang === "cn" ? "此场次已截止报名（仅供查看）" : "Registration closed (view only)"}
             </div>
           ) : null}
@@ -518,7 +518,7 @@ function EventBooking({
     ) : mapState.kind === "loading" ? (
       <div className="glass-card rounded-2xl p-10 flex items-center justify-center text-muted-foreground"><Loader2 className="w-5 h-5 animate-spin" /></div>
     ) : mapState.kind === "error" ? (
-      <div className="glass-card rounded-2xl p-6 flex items-start gap-3"><AlertCircle className="w-5 h-5 text-destructive shrink-0 mt-0.5" /><p className="text-sm text-muted-foreground">{mapState.msg}</p></div>
+      <div className="glass-card rounded-2xl p-6 flex items-start gap-3"><AlertCircle className="w-5 h-5 text-[#141414] shrink-0 mt-0.5" /><p className="text-sm text-muted-foreground">{mapState.msg}</p></div>
     ) : mapState.kind === "noplan" ? (
       <div className="glass-card rounded-2xl p-6 text-center text-sm text-muted-foreground">{lang === "cn" ? "本场暂未设置座位图。" : "No seat map configured yet."}</div>
     ) : (
@@ -562,13 +562,13 @@ function EventBooking({
             <div className="max-w-4xl mx-auto pointer-events-auto">
               {freeRemaining > 0 && (
                 <div className="mb-2 flex justify-center">
-                  <span className="inline-flex items-center gap-1 rounded-full bg-background/95 backdrop-blur text-primary text-xs font-bold px-3 py-1 shadow border border-primary/20">
+                  <span className="inline-flex items-center gap-1 rounded-full bg-[#fed50a] text-[#141414] text-xs font-bold px-3 py-1 shadow border-2 border-[#141414]">
                     <Ticket className="w-3.5 h-3.5" />
                     {lang === "cn" ? `剩余 ${freeRemaining} 张免费门票` : `${freeRemaining} free ticket${freeRemaining === 1 ? "" : "s"} left`}
                   </span>
                 </div>
               )}
-              <div className="rounded-2xl shadow-xl border border-border/60 bg-background/95 backdrop-blur px-4 py-3 flex items-center gap-3">
+              <div className="rounded-2xl shadow-xl border-2 border-[#141414] bg-white px-4 py-3 flex items-center gap-3">
                 <div className="min-w-0 flex-1">
                   <p className="text-sm font-bold">
                     {seatSelection
@@ -585,7 +585,7 @@ function EventBooking({
                   type="button"
                   onClick={goToAddons}
                   disabled={seatCount < 1}
-                  className="shrink-0 h-10 px-4 rounded-full bg-primary text-primary-foreground text-sm font-bold disabled:opacity-40"
+                  className="shrink-0 h-10 px-4 rounded-full bg-primary text-primary-foreground border-2 border-[#141414] text-sm font-bold disabled:opacity-40"
                 >
                   {lang === "cn" ? `确认 — ${seatCount} 张票` : `Confirm — ${seatCount}`}
                 </button>
@@ -605,21 +605,21 @@ function EventBooking({
           </button>
           <div className="glass-card rounded-2xl p-5 space-y-3">
             <div className="flex items-start gap-2">
-              <Utensils className="w-5 h-5 text-primary mt-0.5 shrink-0" />
+              <Utensils className="w-5 h-5 text-[#141414] mt-0.5 shrink-0" />
               <div>
                 <p className="font-medium">{lang === "cn" ? "需要加购午餐吗？" : "Would you like to add lunch?"}</p>
                 <p className="text-xs text-muted-foreground">RM {lunchPrice.toFixed(2)} / {lang === "cn" ? "份（含两天午餐）" : "set (both days' lunch)"}</p>
               </div>
             </div>
-            <div className="flex items-center gap-2 rounded-xl bg-destructive/10 text-destructive px-3 py-2 text-sm font-medium">
+            <div className="flex items-center gap-2 rounded-xl border-2 border-[#141414] bg-white text-[#141414] px-3 py-2 text-sm font-medium">
               <AlertTriangle className="w-4 h-4 shrink-0" />
               {lang === "cn" ? "注意：午餐不适合素食者。" : "Note: Lunch is not suitable for vegetarians."}
             </div>
             <div className="grid grid-cols-2 gap-2">
-              <button type="button" onClick={() => chooseLunch("no")} className={`h-11 rounded-xl border text-sm font-medium transition-colors ${lunchChoice === "no" ? "border-primary bg-primary/5 text-primary" : "border-border/60 hover:bg-muted/40"}`}>
+              <button type="button" onClick={() => chooseLunch("no")} className={`h-11 rounded-xl border-2 text-sm font-medium transition-colors ${lunchChoice === "no" ? "border-[#141414] bg-[#fed50a] text-[#141414]" : "border-[#141414]/25 hover:bg-muted/40"}`}>
                 {lang === "cn" ? "不用了" : "No thanks"}
               </button>
-              <button type="button" onClick={() => chooseLunch("yes")} className={`h-11 rounded-xl border text-sm font-medium transition-colors ${lunchChoice === "yes" ? "border-primary bg-primary/5 text-primary" : "border-border/60 hover:bg-muted/40"}`}>
+              <button type="button" onClick={() => chooseLunch("yes")} className={`h-11 rounded-xl border-2 text-sm font-medium transition-colors ${lunchChoice === "yes" ? "border-[#141414] bg-[#fed50a] text-[#141414]" : "border-[#141414]/25 hover:bg-muted/40"}`}>
                 {lang === "cn" ? "要加购" : "Add lunch"}
               </button>
             </div>
@@ -629,7 +629,7 @@ function EventBooking({
                   <p className="text-sm font-medium">{lang === "cn" ? "午餐份数" : "Lunch sets"}</p>
                   <Stepper value={lunchQty} min={1} max={Math.max(1, seatCount)} onChange={setLunchQty} />
                 </div>
-                <button type="button" onClick={confirmAddons} className="w-full h-11 rounded-full bg-primary text-primary-foreground text-sm font-bold">
+                <button type="button" onClick={confirmAddons} className="btn-gradient w-full h-11 rounded-full text-sm font-bold">
                   {lang === "cn" ? `确认加购 × ${lunchQty}` : `Confirm × ${lunchQty}`}
                 </button>
               </div>
@@ -664,34 +664,34 @@ function EventBooking({
                 value={email}
                 onChange={(e) => { setEmail(e.target.value); if (emailError) setEmailError(null); }}
                 placeholder="you@example.com"
-                className={`mt-1 w-full rounded-xl border bg-background px-3 py-2 text-sm outline-none focus:border-primary ${emailError ? "border-destructive" : "border-border/60"}`}
+                className={`mt-1 w-full rounded-xl border-2 bg-white px-3 py-2 text-sm outline-none focus:border-[#141414] focus:shadow-[0_0_0_3px_rgba(254,213,10,0.5)] ${emailError ? "border-[#141414]" : "border-[#141414]/30"}`}
               />
               <p className="text-xs text-muted-foreground mt-1">{lang === "cn" ? "报名成功后二维码门票会显示在下一页，请截图保存。" : "Your QR ticket shows on the next page — screenshot it."}</p>
-              {emailError && <p className="text-xs text-destructive mt-1">{emailError}</p>}
+              {emailError && <p className="text-xs text-[#141414] font-semibold mt-1">{emailError}</p>}
             </div>
-            <div className="rounded-xl border border-destructive/40 bg-destructive/10 p-3 space-y-2">
+            <div className="rounded-xl border-2 border-[#141414] bg-[#141414] p-3 space-y-2">
               <div className="flex items-start gap-2">
-                <AlertTriangle className="w-4 h-4 text-destructive shrink-0 mt-0.5" />
-                <p className="text-sm text-destructive font-medium">
+                <AlertTriangle className="w-4 h-4 text-[#fed50a] shrink-0 mt-0.5" />
+                <p className="text-sm text-white font-medium">
                   {lang === "cn" ? "付款一旦完成，恕不退款。请在继续前仔细确认您的订单。" : "Once payment is made, no refund will be issued. Please review your order carefully before proceeding."}
                 </p>
               </div>
-              <label className="flex items-center gap-2 text-sm font-medium cursor-pointer">
+              <label className="flex items-center gap-2 text-sm font-medium text-white cursor-pointer">
                 <input
                   type="checkbox"
                   checked={acknowledged}
                   onChange={(e) => { setAcknowledged(e.target.checked); if (policyError) setPolicyError(null); }}
-                  className="w-4 h-4 rounded border-border accent-primary"
+                  className="w-4 h-4 rounded border-border accent-[#fed50a]"
                 />
                 {lang === "cn" ? "我已知悉不退款政策" : "I acknowledge the no-refund policy"}
               </label>
-              {policyError && <p className="text-xs text-destructive">{policyError}</p>}
+              {policyError && <p className="text-xs text-[#fed50a] font-semibold">{policyError}</p>}
             </div>
             <button
               type="button"
               disabled={submitting}
               onClick={handleSubmit}
-              className="w-full h-11 rounded-full bg-primary text-primary-foreground text-sm font-bold shadow-sm disabled:opacity-50 flex items-center justify-center gap-2"
+              className="btn-gradient w-full h-11 rounded-full text-sm font-bold disabled:opacity-50 flex items-center justify-center gap-2"
             >
               {submitting ? <Loader2 className="w-4 h-4 animate-spin" /> : null}
               {total > 0
@@ -706,7 +706,7 @@ function EventBooking({
           to body so the transformed/overflow-hidden event card can't clip it. */}
       {mismatchOpen && createPortal(
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm p-4" onClick={() => setMismatchOpen(false)}>
-          <div className="w-full max-w-sm rounded-2xl bg-background p-5 shadow-2xl" onClick={(e) => e.stopPropagation()}>
+          <div className="w-full max-w-sm rounded-2xl bg-white border-2 border-[#141414] p-5 shadow-2xl" onClick={(e) => e.stopPropagation()}>
             <p className="font-bold">{lang === "cn" ? "午餐份数与人数不一致" : "Lunch count doesn't match"}</p>
             <p className="text-sm text-muted-foreground mt-1">
               {lang === "cn"
@@ -714,8 +714,8 @@ function EventBooking({
                 : `You have ${seatCount} ticket${seatCount === 1 ? "" : "s"} but ordered ${lunchQty} lunch. Continue?`}
             </p>
             <div className="flex gap-2 mt-4">
-              <button type="button" onClick={() => setMismatchOpen(false)} className="flex-1 h-10 rounded-xl bg-muted text-sm font-medium">{lang === "cn" ? "返回修改" : "Go back"}</button>
-              <button type="button" onClick={() => { setMismatchOpen(false); setPhase("summary"); }} className="flex-1 h-10 rounded-xl bg-primary text-primary-foreground text-sm font-medium">{lang === "cn" ? "确定继续" : "Continue"}</button>
+              <button type="button" onClick={() => setMismatchOpen(false)} className="flex-1 h-10 rounded-xl border-2 border-[#141414] bg-white text-sm font-medium">{lang === "cn" ? "返回修改" : "Go back"}</button>
+              <button type="button" onClick={() => { setMismatchOpen(false); setPhase("summary"); }} className="flex-1 h-10 rounded-xl bg-primary text-primary-foreground border-2 border-[#141414] text-sm font-medium">{lang === "cn" ? "确定继续" : "Continue"}</button>
             </div>
           </div>
         </div>,
@@ -738,9 +738,9 @@ function Stepper({ value, min, max, onChange, disabled }: { value: number; min: 
   const clamp = (n: number) => Math.max(min, Math.min(max, n));
   return (
     <div className="flex items-center gap-3">
-      <button type="button" disabled={disabled || value <= min} onClick={() => onChange(clamp(value - 1))} className="h-9 w-9 rounded-full border border-border/60 flex items-center justify-center disabled:opacity-40"><Minus className="w-4 h-4" /></button>
+      <button type="button" disabled={disabled || value <= min} onClick={() => onChange(clamp(value - 1))} className="h-9 w-9 rounded-full border-2 border-[#141414]/40 flex items-center justify-center disabled:opacity-40"><Minus className="w-4 h-4" /></button>
       <span className="min-w-[2ch] text-center text-lg font-bold tabular-nums">{value}</span>
-      <button type="button" disabled={disabled || value >= max} onClick={() => onChange(clamp(value + 1))} className="h-9 w-9 rounded-full border border-border/60 flex items-center justify-center disabled:opacity-40"><Plus className="w-4 h-4" /></button>
+      <button type="button" disabled={disabled || value >= max} onClick={() => onChange(clamp(value + 1))} className="h-9 w-9 rounded-full border-2 border-[#141414]/40 flex items-center justify-center disabled:opacity-40"><Plus className="w-4 h-4" /></button>
     </div>
   );
 }
@@ -777,7 +777,7 @@ function OpenFromQai({ lang }: { lang: "cn" | "en" }) {
     <div className="px-4 sm:px-6 pb-16 pt-24 md:pt-28">
       <div className="max-w-md mx-auto">
         <div className="glass-card rounded-3xl p-8 sm:p-10 text-center">
-          <div className="w-14 h-14 rounded-2xl flex items-center justify-center mx-auto mb-5 text-white" style={{ background: "linear-gradient(135deg, #FF7E5F, #FF3D6E)" }}>
+          <div className="w-14 h-14 rounded-2xl flex items-center justify-center mx-auto mb-5 text-[#fed50a]" style={{ background: "#141414" }}>
             <CalendarDays className="w-6 h-6" />
           </div>
           <h1 className="text-2xl font-display font-bold mb-2">{lang === "cn" ? "线下活动报名" : "Offline Event Booking"}</h1>
@@ -785,8 +785,8 @@ function OpenFromQai({ lang }: { lang: "cn" | "en" }) {
             {lang === "cn" ? "请从你的 QAI 后台打开活动报名，这样才能识别你的账号。" : "Please open event booking from your QAI dashboard so we can recognise your account."}
           </p>
           <div className="mt-5 flex items-center gap-2 rounded-xl border border-border/60 bg-muted/40 p-1.5 pl-3">
-            <a href={QAI_URL} target="_blank" rel="noreferrer" className="text-sm font-mono truncate flex-1 text-left text-primary hover:underline">{QAI_URL}</a>
-            <button type="button" onClick={copy} className="flex items-center gap-1.5 rounded-lg bg-primary text-primary-foreground text-xs font-medium px-3 py-1.5 shrink-0 hover:opacity-90 transition-opacity">
+            <a href={QAI_URL} target="_blank" rel="noreferrer" className="text-sm font-mono truncate flex-1 text-left text-[#141414] hover:underline">{QAI_URL}</a>
+            <button type="button" onClick={copy} className="flex items-center gap-1.5 rounded-lg bg-primary text-primary-foreground border-2 border-[#141414] text-xs font-medium px-3 py-1.5 shrink-0 hover:opacity-90 transition-opacity">
               {copied ? <Check className="w-3.5 h-3.5" /> : <Copy className="w-3.5 h-3.5" />}
               {copied ? (lang === "cn" ? "已复制" : "Copied") : (lang === "cn" ? "复制" : "Copy")}
             </button>
@@ -805,7 +805,7 @@ function ToolDisabled({ lang }: { lang: "cn" | "en" }) {
     <div className="px-4 sm:px-6 pb-16 pt-24 md:pt-28">
       <div className="max-w-md mx-auto">
         <div className="glass-card rounded-3xl p-8 sm:p-10 text-center">
-          <div className="w-14 h-14 rounded-2xl flex items-center justify-center mx-auto mb-5 text-white" style={{ background: "linear-gradient(135deg, #FF7E5F, #FF3D6E)" }}>
+          <div className="w-14 h-14 rounded-2xl flex items-center justify-center mx-auto mb-5 text-[#fed50a]" style={{ background: "#141414" }}>
             <CalendarDays className="w-6 h-6" />
           </div>
           <h1 className="text-2xl font-display font-bold mb-2">{lang === "cn" ? "活动报名" : "Event Booking"}</h1>
