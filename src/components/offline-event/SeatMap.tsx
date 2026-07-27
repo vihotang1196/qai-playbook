@@ -170,33 +170,23 @@ export function SeatMap({ seatGroups, selectedSeatIds, selectedGroupId, onToggle
   const dividerCfg: OeDivider = divider ?? { enabled: hasLongTable, axis: "vertical", pos: 75 };
 
   const stageBar = (
-    <div className="cv-stage cv-stage-enter h-14 rounded-2xl flex items-center justify-center font-semibold tracking-[0.3em] text-[hsl(0_0%_10%)] border border-[hsl(346_85%_75%/0.5)] backdrop-blur-2xl shadow-[inset_0_1px_0_hsl(0_0%_100%/0.8),inset_0_-1px_2px_hsl(16_90%_72%/0.22),0_10px_30px_-8px_hsl(346_85%_70%/0.35)] bg-[linear-gradient(180deg,hsl(340_100%_94%/0.75)_0%,hsl(340_95%_88%/0.65)_50%,hsl(16_100%_82%/0.55)_100%)]" style={{ animationDelay: "500ms" }}>
+    <div className="cv-stage cv-stage-enter h-14 rounded-2xl flex items-center justify-center font-semibold tracking-[0.3em] text-[#fed50a] border-2 border-[#141414] bg-[#141414]" style={{ animationDelay: "500ms" }}>
       <span className="drop-shadow-sm">{lang === "cn" ? "舞台" : "STAGE"}</span>
     </div>
   );
   const doorPill = (
-    <div className="w-[88px] h-[36px] flex items-center justify-center px-2 rounded-xl text-[hsl(0_0%_10%)] text-xs font-bold tracking-wider text-center border border-[hsl(346_85%_75%/0.55)] backdrop-blur-xl shadow-[inset_0_1px_0_hsl(0_0%_100%/0.85),0_6px_18px_-4px_hsl(346_85%_70%/0.35)] bg-[linear-gradient(180deg,hsl(340_100%_94%/0.85)_0%,hsl(340_95%_88%/0.75)_50%,hsl(16_100%_82%/0.65)_100%)]">
+    <div className="w-[88px] h-[36px] flex items-center justify-center px-2 rounded-xl text-[#141414] text-xs font-bold tracking-wider text-center border-2 border-[#141414] bg-white">
       {lang === "cn" ? "入口" : "ENTRANCE"}
     </div>
   );
 
   return (
-    <div
-      className="rounded-3xl p-4 sm:p-12 relative overflow-hidden border border-white/60 backdrop-blur-2xl shadow-[0_24px_70px_-20px_hsl(220_40%_30%/0.18),inset_0_1px_0_hsl(0_0%_100%/0.9),inset_0_-1px_0_hsl(220_30%_70%/0.2)]"
-      style={{
-        backgroundImage: [
-          "radial-gradient(700px 500px at 50% 20%, hsl(340 100% 95% / 0.45), transparent 70%)",
-          "radial-gradient(700px 500px at 15% 90%, hsl(340 100% 95% / 0.45), transparent 70%)",
-          "radial-gradient(600px 420px at 90% 10%, hsl(16 100% 94% / 0.45), transparent 70%)",
-          "linear-gradient(160deg, hsl(0 0% 100% / 0.7) 0%, hsl(340 100% 97% / 0.55) 50%, hsl(340 100% 97% / 0.5) 100%)",
-        ].join(","),
-      }}
-    >
+    <div className="rounded-3xl p-4 sm:p-12 relative overflow-hidden border-2 border-[#141414] bg-white shadow-[0_8px_28px_rgba(20,20,20,0.06)]">
       {/* Stage (top) — desktop only (doesn't scale with pan/zoom) */}
       {!isMobile && stageAtTop && <div className="relative mb-12">{stageBar}</div>}
 
       {warning && (
-        <div className="mb-4 flex items-center gap-2 px-4 py-2.5 rounded-lg bg-destructive/10 border border-destructive text-destructive text-sm font-medium animate-in fade-in slide-in-from-top-1">
+        <div className="mb-4 flex items-center gap-2 px-4 py-2.5 rounded-lg bg-white border-2 border-[#141414] text-[#141414] text-sm font-medium animate-in fade-in slide-in-from-top-1">
           <AlertCircle size={16} />
           {warning}
         </div>
@@ -205,13 +195,13 @@ export function SeatMap({ seatGroups, selectedSeatIds, selectedGroupId, onToggle
       {/* Mobile zoom controls */}
       {isMobile && (
         <div className="absolute top-3 right-3 z-20 flex flex-col gap-1.5 pointer-events-auto">
-          <button type="button" onClick={() => setScale((s) => clampScale(s * 1.2))} className="h-9 w-9 rounded-full bg-white/80 backdrop-blur-md border border-white/70 shadow-md flex items-center justify-center text-foreground active:scale-95 transition" aria-label="Zoom in">
+          <button type="button" onClick={() => setScale((s) => clampScale(s * 1.2))} className="h-9 w-9 rounded-full bg-white border-2 border-[#141414] flex items-center justify-center text-[#141414] active:scale-95 transition" aria-label="Zoom in">
             <ZoomIn className="h-4 w-4" />
           </button>
-          <button type="button" onClick={() => setScale((s) => clampScale(s / 1.2))} className="h-9 w-9 rounded-full bg-white/80 backdrop-blur-md border border-white/70 shadow-md flex items-center justify-center text-foreground active:scale-95 transition" aria-label="Zoom out">
+          <button type="button" onClick={() => setScale((s) => clampScale(s / 1.2))} className="h-9 w-9 rounded-full bg-white border-2 border-[#141414] flex items-center justify-center text-[#141414] active:scale-95 transition" aria-label="Zoom out">
             <ZoomOut className="h-4 w-4" />
           </button>
-          <button type="button" onClick={resetView} className="h-9 w-9 rounded-full bg-white/80 backdrop-blur-md border border-white/70 shadow-md flex items-center justify-center text-foreground active:scale-95 transition" aria-label="Reset view">
+          <button type="button" onClick={resetView} className="h-9 w-9 rounded-full bg-white border-2 border-[#141414] flex items-center justify-center text-[#141414] active:scale-95 transition" aria-label="Reset view">
             <Maximize2 className="h-4 w-4" />
           </button>
         </div>
@@ -219,7 +209,7 @@ export function SeatMap({ seatGroups, selectedSeatIds, selectedGroupId, onToggle
 
       {/* Mobile hint when zoomed out below the click threshold */}
       {isMobile && !clickEnabled && !readOnly && (
-        <div className="absolute top-3 left-3 z-20 pointer-events-none rounded-full px-3 py-1 text-[11px] font-medium text-foreground bg-white/80 backdrop-blur-md border border-white/70 shadow">
+        <div className="absolute top-3 left-3 z-20 pointer-events-none rounded-full px-3 py-1 text-[11px] font-medium text-[#141414] bg-white border-2 border-[#141414]">
           {lang === "cn" ? "双指缩放放大后可选座" : "Pinch / double-tap to zoom in & select seats"}
         </div>
       )}
@@ -258,9 +248,9 @@ export function SeatMap({ seatGroups, selectedSeatIds, selectedGroupId, onToggle
             <div className="relative" style={{ paddingLeft: hasLongTable ? 28 : 0 }}>
               {dividerCfg.enabled && (
                 dividerCfg.axis === "vertical" ? (
-                  <div aria-hidden="true" className="pointer-events-none absolute inset-y-0 z-0" style={{ left: `${dividerCfg.pos}%`, width: 0, borderLeft: "2px dashed hsl(346 85% 70% / 0.55)" }} />
+                  <div aria-hidden="true" className="pointer-events-none absolute inset-y-0 z-0" style={{ left: `${dividerCfg.pos}%`, width: 0, borderLeft: "2px dashed rgba(20,20,20,0.4)" }} />
                 ) : (
-                  <div aria-hidden="true" className="pointer-events-none absolute inset-x-0 z-0" style={{ top: `${dividerCfg.pos}%`, height: 0, borderTop: "2px dashed hsl(346 85% 70% / 0.55)" }} />
+                  <div aria-hidden="true" className="pointer-events-none absolute inset-x-0 z-0" style={{ top: `${dividerCfg.pos}%`, height: 0, borderTop: "2px dashed rgba(20,20,20,0.4)" }} />
                 )
               )}
               {Array.from({ length: ROWS }, (_, rowIdx) => (
@@ -306,15 +296,15 @@ export function SeatMap({ seatGroups, selectedSeatIds, selectedGroupId, onToggle
             )}
             {/* Wall */}
             <div className="mt-1 mb-4">
-              <div className="w-full h-[44px] rounded-xl border border-[hsl(346_80%_75%/0.5)] backdrop-blur-md shadow-[inset_0_1px_0_hsl(0_0%_100%/0.85),inset_0_-1px_2px_hsl(16_90%_72%/0.18),0_4px_14px_-4px_hsl(346_85%_60%/0.3)] bg-[linear-gradient(180deg,hsl(340_95%_92%/0.85)_0%,hsl(340_95%_90%/0.7)_55%,hsl(16_100%_82%/0.6)_100%)]" aria-hidden="true" />
+              <div className="w-full h-[44px] rounded-xl border-2 border-[#141414]/30 bg-[#141414]/5" aria-hidden="true" />
             </div>
 
             {/* Legend */}
             <div className="mt-5 flex justify-center">
-              <div className="rounded-full inline-flex flex-wrap items-center justify-center gap-6 text-xs font-medium text-[hsl(0_0%_10%)] px-5 py-2 border border-white/70 bg-white/60 backdrop-blur-xl shadow-[0_4px_16px_-4px_hsl(220_40%_30%/0.15),inset_0_1px_0_hsl(0_0%_100%/0.9)]">
-                <LegendDot className="bg-white border border-[hsl(0_0%_80%)]" label={lang === "cn" ? "可选" : "Available"} />
-                <LegendDot className="bg-[#FF3D6E] border border-[#FF3D6E]" label={lang === "cn" ? "已选" : "Selected"} />
-                <LegendDot className="bg-[hsl(0_0%_70%)] border border-[hsl(0_0%_60%)]" label={lang === "cn" ? "已订" : "Booked"} />
+              <div className="rounded-full inline-flex flex-wrap items-center justify-center gap-6 text-xs font-medium text-[#141414] px-5 py-2 border-2 border-[#141414] bg-white">
+                <LegendDot className="bg-white border-2 border-[#141414]" label={lang === "cn" ? "可选" : "Available"} />
+                <LegendDot className="bg-[#fed50a] border-2 border-[#141414]" label={lang === "cn" ? "已选" : "Selected"} />
+                <LegendDot className="bg-[#141414] border-2 border-[#141414]" label={lang === "cn" ? "已订" : "Booked"} />
               </div>
             </div>
           </div>
@@ -392,13 +382,13 @@ const SeatGroupCell = memo(function SeatGroupCell({
         }}
         className={cn(
           "cv-seat w-9 h-9 rounded-full text-[12px] font-semibold font-sans flex items-center justify-center border leading-none shrink-0 tracking-tight",
-          isBooked && "bg-[hsl(0_0%_72%)]/80 border-[hsl(0_0%_60%)] text-[hsl(0_0%_25%)] backdrop-blur-md cursor-not-allowed shadow-[inset_0_1px_1.5px_hsl(0_0%_100%/0.6),inset_0_-1px_2px_hsl(0_0%_0%/0.1)]",
+          isBooked && "bg-[#141414] border-2 border-[#141414] text-white/55 cursor-not-allowed",
           !isBooked && !isSelected &&
-            "text-[hsl(0_0%_25%)] border-white/80 bg-[radial-gradient(circle_at_30%_22%,hsl(0_0%_100%/0.95),hsl(40_25%_97%/0.9)_70%)] shadow-[inset_0_1.5px_2px_hsl(0_0%_100%/0.95),inset_0_-1px_2px_hsl(40_20%_60%/0.15),0_2px_8px_-2px_hsl(40_20%_40%/0.18)] hover:shadow-[inset_0_1.5px_2px_hsl(0_0%_100%/0.95),0_0_16px_hsl(346_92%_75%/0.45),0_2px_8px_-2px_hsl(40_20%_40%/0.18)]",
+            "text-[#141414] border-2 border-[#141414] bg-white hover:shadow-[0_0_0_3px_rgba(254,213,10,0.55)]",
           !isBooked && isSelected &&
-            "text-[hsl(0_0%_10%)] border-2 border-[hsl(346_92%_62%)] bg-[linear-gradient(180deg,hsl(340_95%_88%),hsl(16_100%_82%))] shadow-[inset_0_1px_1.5px_hsl(0_0%_100%/0.7),0_0_16px_hsl(16_100%_82%/0.6),0_3px_10px_-2px_hsl(16_95%_70%/0.5)]",
+            "text-[#141414] border-2 border-[#141414] bg-[#fed50a] shadow-[0_0_0_2px_#141414]",
           dimmed && "opacity-40",
-          atLimit && "opacity-40 cursor-not-allowed hover:shadow-none",
+          atLimit && "opacity-40 cursor-not-allowed hover:shadow-none border-dashed",
           readOnly && "cursor-default hover:shadow-none pointer-events-none",
         )}
         title={`${group.label} ${seatLabel} ${n}`}
@@ -409,7 +399,7 @@ const SeatGroupCell = memo(function SeatGroupCell({
   };
 
   const tableClass =
-    "rounded-xl text-[hsl(0_0%_10%)] text-[11px] font-bold flex items-center justify-center tracking-wide border border-[hsl(346_85%_70%/0.45)] shadow-[inset_0_1.5px_2px_hsl(0_0%_100%/0.9),inset_0_-1px_2px_hsl(16_90%_72%/0.18),0_4px_14px_-2px_hsl(346_85%_70%/0.3)] bg-[linear-gradient(180deg,hsl(340_100%_96%/0.85)_0%,hsl(340_95%_88%/0.7)_55%,hsl(346_85%_75%/0.6)_100%)]";
+    "rounded-xl text-[#141414] text-[11px] font-bold flex items-center justify-center tracking-wide border-2 border-[#141414] bg-white";
 
   return (
     <div className={cn("cv-seat-group flex flex-col items-center", isVip ? "cv-seat-vip-enter" : "cv-seat-g-enter")} style={{ ["--cv-d" as string]: `${groupDelay}ms` }}>
