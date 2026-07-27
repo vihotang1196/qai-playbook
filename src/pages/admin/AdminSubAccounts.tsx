@@ -1,14 +1,14 @@
 import { useEffect, useRef, useState } from "react";
 import { Loader2, Search, RefreshCw, ExternalLink, Building2, ShieldAlert } from "lucide-react";
 import { toast } from "sonner";
-import { ADMIN_TOOLS, type ToolKey } from "@/lib/admin/tools";
 import {
   listLocations,
-  setToolAccess,
+  setPlaybookAccess,
   syncLocations,
-  isToolEnabled,
+  isPlaybookEnabled,
   getCanaryMode,
   setCanaryMode,
+  PLAYBOOK_KEY,
   type AdminLocation,
 } from "@/lib/adminApi";
 
@@ -74,20 +74,23 @@ export default function AdminSubAccounts() {
     return () => clearTimeout(t);
   }, [query]);
 
-  const toggle = async (loc: AdminLocation, tool: ToolKey, next: boolean) => {
-    const key = `${loc.location_id}:${tool}`;
-    setBusy(key);
+  const toggle = async (loc: AdminLocation, next: boolean) => {
+    setBusy(loc.location_id);
     // optimistic
     setLocations((list) =>
-      list.map((l) => (l.location_id === loc.location_id ? { ...l, access: { ...l.access, [tool]: next } } : l)),
+      list.map((l) =>
+        l.location_id === loc.location_id ? { ...l, access: { ...l.access, [PLAYBOOK_KEY]: next } } : l,
+      ),
     );
     try {
-      await setToolAccess(loc.location_id, tool, next);
-      toast.success(next ? "已开启" : "已关闭");
+      await setPlaybookAccess(loc.location_id, next);
+      toast.success(next ? "已开启 Playbook" : "已关闭 Playbook");
     } catch (e) {
       // revert
       setLocations((list) =>
-        list.map((l) => (l.location_id === loc.location_id ? { ...l, access: { ...l.access, [tool]: !next } } : l)),
+        list.map((l) =>
+          l.location_id === loc.location_id ? { ...l, access: { ...l.access, [PLAYBOOK_KEY]: !next } } : l,
+        ),
       );
       toast.error(e instanceof Error ? e.message : "保存失败");
     } finally {
@@ -114,7 +117,8 @@ export default function AdminSubAccounts() {
         <div>
           <h1 className="text-xl font-display font-bold">Sub Account & 权限</h1>
           <p className="text-sm text-muted-foreground mt-1">
-            开/关每个 Sub Account 每个工具的权限{total != null ? ` · 共 ${total} 个 Sub Account` : ""}
+            开/关每个 Sub Account 的 Playbook 使用权限（整个产品，不分工具）
+            {total != null ? ` · 共 ${total} 个 Sub Account` : ""}
           </p>
         </div>
         <button
@@ -194,22 +198,17 @@ export default function AdminSubAccounts() {
                 </div>
 
                 <div className="flex items-center gap-4 shrink-0">
-                  {ADMIN_TOOLS.map((t) =>
-                    t.live ? (
-                      <label key={t.key} className="flex items-center gap-1.5 cursor-pointer select-none">
-                        <span className="text-xs text-muted-foreground hidden sm:inline">{t.name.cn}</span>
-                        <Toggle
-                          on={isToolEnabled(loc, t.key, canary)}
-                          busy={busy === `${loc.location_id}:${t.key}`}
-                          onChange={(v) => toggle(loc, t.key, v)}
-                        />
-                      </label>
-                    ) : (
-                      <span key={t.key} className="text-[11px] text-muted-foreground/50 hidden md:inline">
-                        {t.name.cn} · 即将
-                      </span>
-                    ),
-                  )}
+                  {/* ONE switch: the Playbook is a single product, not
+                      separately-purchasable tools. On = this sub-account can use
+                      everything; off = nothing. */}
+                  <label className="flex items-center gap-1.5 cursor-pointer select-none">
+                    <span className="text-xs text-muted-foreground hidden sm:inline">Playbook</span>
+                    <Toggle
+                      on={isPlaybookEnabled(loc, canary)}
+                      busy={busy === loc.location_id}
+                      onChange={(v) => toggle(loc, v)}
+                    />
+                  </label>
                   <a
                     href={`/review-boost/location/${loc.location_id}?embed=true`}
                     target="_blank"

@@ -45,16 +45,28 @@ export async function isCanaryMode(sb: SupabaseClient): Promise<boolean> {
   }
 }
 
+// ── ONE master switch per sub-account (owner decision) ────────────────────
+// The Playbook is sold as ONE product, not as separately-purchasable tools, so
+// access is a single "Playbook on/off" per sub-account instead of a per-tool
+// matrix. It is stored in location_tool_access under this reserved key, reusing
+// the existing table + Admin Portal + audit-log plumbing.
+//
+// The older per-tool rows (review_boost / copywriter / offline_event / helpdesk)
+// are left in the table but are NO LONGER CONSULTED — kept only so the split
+// could be reinstated later without a data loss.
+export const PLAYBOOK_KEY = "playbook";
+
 /**
- * The one access gate. Pass `req` to also grant signed-in platform admins access
- * (recommended for every customer-facing endpoint, so the owner can always open
- * his own tools). The admin check runs ONLY when access would otherwise be
- * denied, so normal traffic never pays for the extra auth round-trip.
+ * The one access gate: may this sub-account use the Playbook at all?
+ *
+ * Pass `req` to also grant signed-in platform admins access (recommended for
+ * every customer-facing endpoint, so the owner can never lock himself out). The
+ * admin check runs ONLY when access would otherwise be denied, so normal traffic
+ * never pays for the extra auth round-trip.
  */
-export async function hasToolAccess(
+export async function hasPlaybookAccess(
   sb: SupabaseClient,
   locationId: string,
-  toolKey: string,
   req?: Request,
 ): Promise<boolean> {
   const id = (locationId || "").trim();
@@ -64,14 +76,28 @@ export async function hasToolAccess(
     .from("location_tool_access")
     .select("enabled")
     .eq("location_id", id)
-    .eq("tool_key", toolKey)
+    .eq("tool_key", PLAYBOOK_KEY)
     .maybeSingle();
   if (error) throw error;
 
-  // no row: canary → deny (whitelist), normal → allow (default-allow)
+  // no row: canary → deny (whitelist), normal → allow (default ON)
   const granted = data ? data.enabled !== false : !(await isCanaryMode(sb));
   if (granted) return true;
   return req ? await isAdminRequest(req) : false;
+}
+
+/**
+ * Back-compat shim: the per-tool gate collapsed into the single Playbook switch,
+ * so `toolKey` is accepted but IGNORED. Kept so any missed call site still gets
+ * the correct (master-switch) answer rather than silently diverging.
+ */
+export async function hasToolAccess(
+  sb: SupabaseClient,
+  locationId: string,
+  _toolKey: string,
+  req?: Request,
+): Promise<boolean> {
+  return hasPlaybookAccess(sb, locationId, req);
 }
 
 /** Is the caller a signed-in platform admin? Never throws. */

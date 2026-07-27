@@ -12,6 +12,7 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { corsHeaders, json, serviceClient } from "../_shared/ghl.ts";
 import { requireAdmin } from "../_shared/admin.ts";
+import { PLAYBOOK_KEY } from "../_shared/access.ts";
 
 // Tool registry (server-side mirror of src/lib/admin/tools.ts). Access can only
 // be set for a known tool_key.
@@ -101,6 +102,49 @@ serve(async (req) => {
           action: "set_tool_access",
           target_location_id: location_id,
           tool_key,
+          detail: { from, to: enabled },
+        });
+        return json({ ok: true, enabled });
+      }
+
+      // ── The ONE master switch: may this sub-account use the Playbook? ───
+      // The Playbook is sold as one product, not as separately-purchasable
+      // tools, so this replaces the per-tool matrix. Stored in
+      // location_tool_access under the reserved `playbook` key, so it reuses the
+      // existing table + audit plumbing. Default (no row) = ON in normal mode,
+      // OFF in canary mode (whitelist).
+      case "setPlaybookAccess": {
+        const location_id = String(body?.location_id || "").trim();
+        const enabled = !!body?.enabled;
+        if (!location_id) return json({ error: "location_id required" }, 400);
+
+        const { data: cur, error: curErr } = await sb
+          .from("location_tool_access")
+          .select("enabled")
+          .eq("location_id", location_id)
+          .eq("tool_key", PLAYBOOK_KEY)
+          .maybeSingle();
+        if (curErr) throw curErr;
+        const from = cur ? (cur.enabled as boolean) : null; // null = never set
+
+        const { error: upErr } = await sb.from("location_tool_access").upsert(
+          {
+            location_id,
+            tool_key: PLAYBOOK_KEY,
+            enabled,
+            updated_at: new Date().toISOString(),
+            updated_by: admin.user_id,
+          },
+          { onConflict: "location_id,tool_key" },
+        );
+        if (upErr) throw upErr;
+
+        await sb.from("admin_audit_log").insert({
+          admin_user_id: admin.user_id,
+          admin_email: admin.email,
+          action: "set_playbook_access",
+          target_location_id: location_id,
+          tool_key: PLAYBOOK_KEY,
           detail: { from, to: enabled },
         });
         return json({ ok: true, enabled });

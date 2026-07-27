@@ -48,13 +48,18 @@ export type AdminAuditEntry = {
 };
 
 /** True unless explicitly disabled (default-allow). */
-/** Effective access for one (location, tool) — must match the server's rule in
+/** The reserved key holding the ONE master switch (mirrors PLAYBOOK_KEY in
+ *  supabase/functions/_shared/access.ts). The Playbook is one product, so access
+ *  is a single on/off per sub-account rather than a per-tool matrix. */
+export const PLAYBOOK_KEY = "playbook";
+
+/** Effective Playbook access for a sub-account — must match the server's rule in
  *  _shared/access.ts, including which way "never set" falls:
- *    normal mode → no row means ALLOWED  (default-allow)
+ *    normal mode → no row means ALLOWED  (default ON)
  *    canary mode → no row means DENIED   (whitelist)
  *  Pass the live canary flag, or the toggle will show a denied sub-account as on. */
-export function isToolEnabled(loc: AdminLocation, tool: ToolKey, canary = false): boolean {
-  const v = loc.access?.[tool];
+export function isPlaybookEnabled(loc: AdminLocation, canary = false): boolean {
+  const v = loc.access?.[PLAYBOOK_KEY];
   return canary ? v === true : v !== false;
 }
 
@@ -65,8 +70,9 @@ export async function listLocations(
   return callAdmin("listLocations", { query, limit });
 }
 
-export async function setToolAccess(location_id: string, tool_key: ToolKey, enabled: boolean): Promise<void> {
-  await callAdmin("setToolAccess", { location_id, tool_key, enabled });
+/** Turn the whole Playbook on/off for one sub-account (the only access switch). */
+export async function setPlaybookAccess(location_id: string, enabled: boolean): Promise<void> {
+  await callAdmin("setPlaybookAccess", { location_id, enabled });
 }
 
 /** Canary (whitelist) rollout mode — platform-wide.

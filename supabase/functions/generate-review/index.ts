@@ -15,7 +15,7 @@
 // ════════════════════════════════════════════════════════════════════════
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { corsHeaders, json, serviceClient } from "../_shared/ghl.ts";
-import { hasToolAccess } from "../_shared/access.ts";
+import { hasPlaybookAccess } from "../_shared/access.ts";
 import { logToolUsage } from "../_shared/usage.ts";
 import { checkRateLimit, locKey, DAY_MS } from "../_shared/ratelimit.ts";
 
@@ -211,7 +211,7 @@ serve(async (req) => {
       const count = Math.min(Math.max(Number(body?.count) || 3, 1), 5);
 
       const sb = serviceClient();
-      if (!(await hasToolAccess(sb, locationId, "review_boost", req))) return json({ error: "tool_disabled" }, 403);
+      if (!(await hasPlaybookAccess(sb, locationId, req))) return json({ error: "tool_disabled" }, 403);
       // Own-data only: the campaign must belong to THIS location.
       const { data: campaign, error } = await sb
         .from("rb_campaigns")
@@ -244,7 +244,7 @@ serve(async (req) => {
       }
 
       // Admin Portal access gate — RB disabled for this location → no generation.
-      if (!(await hasToolAccess(sb, qr.location_id as string, "review_boost", req))) {
+      if (!(await hasPlaybookAccess(sb, qr.location_id as string, req))) {
         return json({ error: "tool_disabled" }, 403);
       }
 
@@ -323,7 +323,7 @@ serve(async (req) => {
       if (error) throw error;
       const belongs = gen && (gen.rb_qr_codes as { short_code?: string })?.short_code === code;
       if (!belongs) return json({ error: "not found" }, 404);
-      if (!(await hasToolAccess(sb, gen.location_id as string, "review_boost", req))) {
+      if (!(await hasPlaybookAccess(sb, gen.location_id as string, req))) {
         return json({ error: "tool_disabled" }, 403);
       }
       if (Date.now() - new Date(gen.created_at as string).getTime() > REGEN_MAX_AGE_MS) {

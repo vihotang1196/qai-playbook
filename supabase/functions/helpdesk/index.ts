@@ -21,7 +21,7 @@
 // ════════════════════════════════════════════════════════════════════════
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { corsHeaders, json, serviceClient } from "../_shared/ghl.ts";
-import { hasToolAccess } from "../_shared/access.ts";
+import { hasPlaybookAccess } from "../_shared/access.ts";
 
 const TOOL_KEY = "helpdesk";
 
@@ -42,7 +42,7 @@ serve(async (req) => {
       case "access": {
         const locationId = String(body?.locationId || body?.location_id || "").trim();
         if (!locationId) return json({ error: "tool_disabled" }, 403);
-        if (!(await hasToolAccess(sb, locationId, TOOL_KEY, req))) {
+        if (!(await hasPlaybookAccess(sb, locationId, req))) {
           return json({ error: "tool_disabled" }, 403);
         }
         return json({ ok: true });

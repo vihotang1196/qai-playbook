@@ -10,7 +10,7 @@
 // ════════════════════════════════════════════════════════════════════════
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { corsHeaders, json, serviceClient } from "../_shared/ghl.ts";
-import { hasToolAccess } from "../_shared/access.ts";
+import { hasPlaybookAccess } from "../_shared/access.ts";
 import type { SupabaseClient } from "https://esm.sh/@supabase/supabase-js@2.49.4";
 
 // Campaign columns returned to the customer app (all its own; no cross-location
@@ -84,7 +84,7 @@ serve(async (req) => {
 
     // Admin Portal access gate — if RB is disabled for this location, block the
     // WHOLE customer app (management + scan). Default-allow (no row = allowed).
-    if (!(await hasToolAccess(sb, locationId, "review_boost", req))) {
+    if (!(await hasPlaybookAccess(sb, locationId, req))) {
       return json({ error: "tool_disabled" }, 403);
     }
 

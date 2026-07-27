@@ -11,7 +11,7 @@
 //   (optional) MINIMAX_VOICE_ID_EN / MINIMAX_VOICE_ID_MS for per-language voices
 
 import { serviceClient } from "../_shared/ghl.ts";
-import { hasToolAccess } from "../_shared/access.ts";
+import { hasPlaybookAccess } from "../_shared/access.ts";
 import { logToolUsage } from "../_shared/usage.ts";
 import { checkRateLimit, locKey, rateLimitMessage, DAY_MS, HOUR_MS } from "../_shared/ratelimit.ts";
 
@@ -107,7 +107,7 @@ Deno.serve(async (req: Request) => {
   }
 
   const sb = serviceClient();
-  if (!(await hasToolAccess(sb, locationId, TOOL_KEY, req))) {
+  if (!(await hasPlaybookAccess(sb, locationId, req))) {
     return json(
       {
         error: lang === "en"

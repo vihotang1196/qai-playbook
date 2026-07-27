@@ -17,7 +17,7 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { corsHeaders, json, serviceClient } from "../_shared/ghl.ts";
 import { requireAdmin } from "../_shared/admin.ts";
-import { hasToolAccess } from "../_shared/access.ts";
+import { hasPlaybookAccess } from "../_shared/access.ts";
 import { logToolUsage } from "../_shared/usage.ts";
 import { checkRateLimit, locKey, rateLimitMessage, DAY_MS, HOUR_MS } from "../_shared/ratelimit.ts";
 
@@ -420,7 +420,7 @@ serve(async (req) => {
     // ── Gate 1b: whitelist / per-account access ───────────────────────────
     // In canary mode only whitelisted sub-accounts may use the AI (admins always
     // can, via the req passed through). Friendly bubble, never a red error.
-    if (locationId && !(await hasToolAccess(sb, locationId, TOOL_KEY, req))) {
+    if (locationId && !(await hasPlaybookAccess(sb, locationId, req))) {
       return friendlyReply(
         conversationId,
         uiLang === "cn"
