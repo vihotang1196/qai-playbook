@@ -43,10 +43,17 @@ Your answer must:
 2. Give a SHORT summary of the steps (2–5 brief bullet points) based on the article's text.
 3. Tell them to open the guide for the full details (screenshots / video).
 
+VIDEO STEPS — important:
+- Some articles contain a block marked 「[视频步骤 …（由视频内容整理，可直接告诉用户）]…[视频步骤结束]」. That is a FAITHFUL, pre-extracted text version of what the tutorial video actually shows and says.
+- Treat it as normal, trustworthy article content: you MAY and SHOULD walk the user through those steps directly. This is NOT fabrication — it came from the video itself.
+- When a guide has video steps, actually ANSWER the how-to (name the concrete buttons/fields in order, keeping their original English UI names), then add that the guide's video shows the same flow visually. Do NOT tell the user to "go watch the video" as the whole answer.
+- Keep it digestible: summarise the key steps rather than dumping every line, unless the user asks for the full detail.
+- A bare 「[视频]」 marker (no steps block) means that video was NOT transcribed — in that case fall back to the old behaviour: say the full walkthrough is in the guide's video.
+
 Rules:
 - Answer ONLY from the knowledge base. Do NOT invent steps that aren't in the articles.
 - ALWAYS write at least one sentence of text — NEVER return an empty message. If you read/found a relevant guide, you MUST give the user a short text reply, even when the guide is mostly screenshots/video with little text. In that case, name the guide and say something like 「这篇指南主要是图文步骤，请打开《标题》查看完整操作。」("This guide is mostly step-by-step screenshots — open 《Title》 for the full walkthrough.") in the user's language. Never fabricate the visual steps, but never stay silent either.
-- Many guides are mostly screenshots/video with little text — that's expected. Give what you can from the title and any text, and clearly say the full step-by-step (with images/video) is in the linked article.
+- Many guides are mostly screenshots with little text — that's expected. Give what you can from the title and any text (including any 视频步骤 block), and clearly say the full step-by-step (with images/video) is in the linked article.
 - If nothing relevant is found, say so politely and suggest contacting the support team. Don't make up an answer.
 - Reply in the SAME language as the user's question (Chinese / English / Malay).
 - Be concise and friendly. Mention the guide you're pointing to BY NAME.
@@ -73,12 +80,49 @@ const TOOLS = [
   },
 ];
 
+/** Storage object path — the key hd_video_steps rows are cached under. */
+function storagePathFromUrl(url: string): string {
+  const marker = "/helpdesk-media/";
+  const i = url.indexOf(marker);
+  const raw = i >= 0 ? url.slice(i + marker.length) : url;
+  return decodeURIComponent(raw.split("?")[0]);
+}
+
+/** Cached video steps for one article, keyed by storage path. Only `done` rows
+ *  are returned — a failed/pending video keeps the plain [视频] marker so the
+ *  answer degrades to "open the guide and watch it" instead of going silent. */
+// deno-lint-ignore no-explicit-any
+async function videoStepsFor(sb: any, articleId: string): Promise<Record<string, string>> {
+  const { data } = await sb
+    .from("hd_video_steps")
+    .select("storage_path, steps_text, status")
+    .eq("article_id", articleId)
+    .eq("status", "done");
+  const map: Record<string, string> = {};
+  for (const r of data || []) {
+    const t = String(r.steps_text || "").trim();
+    if (t) map[r.storage_path as string] = t;
+  }
+  return map;
+}
+
 /** Replace media markdown with short markers — the AI reads text, not images;
- *  this also keeps long Storage URLs out of the model's context. */
-function stripMedia(md: string): string {
+ *  this also keeps long Storage URLs out of the model's context.
+ *
+ *  Videos are the exception: when a cached transcript exists for that video
+ *  (preprocessed once into hd_video_steps by a multimodal model), the marker is
+ *  replaced by the actual step-by-step text, so the AI can TELL the user what
+ *  the video shows instead of only linking to it. Without a cache hit it falls
+ *  back to the bare [视频] marker exactly as before. */
+function stripMedia(md: string, videoSteps?: Record<string, string>): string {
   return (md || "")
     .replace(/!\[[^\]]*\]\([^)]*\)/g, "[图片]")
-    .replace(/\[📹[^\]]*\]\([^)]*\)/g, "[视频]")
+    .replace(/\[📹([^\]]*)\]\(([^)]*)\)/g, (_m, caption: string, url: string) => {
+      const steps = videoSteps?.[storagePathFromUrl(url)];
+      if (!steps) return "[视频]";
+      const label = (caption || "").trim();
+      return `\n[视频步骤${label ? ` · ${label}` : ""}（由视频内容整理，可直接告诉用户）]\n${steps}\n[视频步骤结束]\n`;
+    })
     .replace(/\[📎[^\]]*\]\([^)]*\)/g, "[附件]");
 }
 
@@ -106,6 +150,29 @@ async function searchKnowledge(sb: any, query: string) {
     .or(ors.join(","))
     .limit(40);
   const cand = rows || [];
+
+  // Also search the cached VIDEO STEPS. A guide can be almost pure video with a
+  // near-empty body — invisible to the title/content search above — yet its
+  // spoken/on-screen steps mention exactly what the user asked. Any article
+  // matched this way is pulled into the candidate set (if not already there).
+  const stepMatched = new Set<string>();
+  const { data: vsRows } = await sb
+    .from("hd_video_steps")
+    .select("article_id")
+    .eq("status", "done")
+    .or(terms.map((t) => `steps_text.ilike.%${t}%`).join(","))
+    .limit(40);
+  for (const v of vsRows || []) stepMatched.add(v.article_id as string);
+
+  const haveIds = new Set(cand.map((r: any) => r.id as string));
+  const missing = [...stepMatched].filter((id) => !haveIds.has(id));
+  if (missing.length) {
+    const { data: extra } = await sb
+      .from("hd_articles")
+      .select("id, title, content, folder_id")
+      .in("id", missing.slice(0, 20));
+    for (const r of extra || []) cand.push(r);
+  }
   if (!cand.length) return [];
 
   const fids = [...new Set(cand.map((r: any) => r.folder_id).filter(Boolean))];
@@ -127,6 +194,9 @@ async function searchKnowledge(sb: any, query: string) {
         if (cl.includes(tt)) s += 1;
       }
       if (tl.includes(ql)) s += 4;
+      // A hit inside the cached video steps is real evidence too — without this
+      // a video-only guide (empty body) would always score 0 and never surface.
+      if (stepMatched.has(r.id as string)) s += 2;
       return { r, s };
     })
     .sort((a: any, b: any) => b.s - a.s)
@@ -149,7 +219,16 @@ async function getArticleForAI(sb: any, id: string) {
     const { data: f } = await sb.from("hd_folders").select("name").eq("id", data.folder_id).maybeSingle();
     folder = (f?.name as string) ?? null;
   }
-  return { id: data.id, title: data.title, folder, content: stripMedia(data.content).slice(0, 6000) };
+  // Inline any cached video steps for this article, so a video-only guide still
+  // hands the model real instructions. Budget is larger than the old 6000 cap
+  // because the steps are appended into the body.
+  const steps = await videoStepsFor(sb, data.id as string);
+  return {
+    id: data.id,
+    title: data.title,
+    folder,
+    content: stripMedia(data.content, steps).slice(0, 14000),
+  };
 }
 
 // deno-lint-ignore no-explicit-any
