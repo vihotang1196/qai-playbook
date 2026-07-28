@@ -736,31 +736,17 @@ function EventBooking({
           )}
           <div className="pb-32">{seatArea(true)}</div>
 
-          {/* THE SAME bar, positioned two ways:
-              standalone → portalled + `fixed` (floats above the page, nicest);
-              framed     → INLINE right under the seat map. Inside GHL the iframe
-              is given a tall height and the PARENT scrolls, so the iframe's own
-              viewport is the whole tall frame — `fixed bottom-0` then sits at the
-              very bottom of that frame, off-screen and clipped, which is why the
-              confirm button was unreachable. Inline can't be clipped. */}
-          {/* BOTH placements are rendered while we work out which one survives
-              GHL's layout. Diagnosis so far was inconclusive: `fixed` was only
-              half-visible, and inline vanished entirely — which points at the
-              iframe scrolling INTERNALLY at a modest height (so inline lands
-              below the tall seat map, out of view) rather than being tall with
-              the parent scrolling, as first assumed. Until measured, having a
-              reachable confirm button matters more than having exactly one.
-              `?oedebug=1` prints the measurements. */}
-          {seatCount > 0 && (
-            <>
-              <div className="max-w-4xl mx-auto">{barInner}</div>
-              {createPortal(
-                <div className="fixed bottom-0 left-0 right-0 z-40 px-3 sm:px-4 pb-4 pointer-events-none">
-                  <div className="max-w-4xl mx-auto pointer-events-auto">{barInner}</div>
-                </div>,
-                document.body,
-              )}
-            </>
+          {/* Floating bar, portalled to <body>. SETTLED BY OBSERVATION in the
+              real GHL frame: this one IS visible there, so the iframe scrolls
+              internally and `fixed` correctly pins to the iframe's own viewport.
+              An inline bar was tried and removed — it landed below the tall
+              91-seat map, out of view. Portalled because the event card is
+              overflow-hidden and would clip a fixed child. */}
+          {seatCount > 0 && createPortal(
+            <div className="fixed bottom-0 left-0 right-0 z-40 px-3 sm:px-4 pb-4 pointer-events-none">
+              <div className="max-w-4xl mx-auto pointer-events-auto">{barInner}</div>
+            </div>,
+            document.body,
           )}
         </>
       )}
