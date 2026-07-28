@@ -307,6 +307,8 @@ function EventBooking({
   // (`fixed` pins to the iframe's own tall viewport, off-screen for the user).
   const framed = inIframe();
   const [submitting, setSubmitting] = useState(false);
+  // Guards doBooking against double submission in the same tick (see doBooking).
+  const inFlight = useRef(false);
   const [done, setDone] = useState<OeBooking | null>(null);
 
   // Stepped flow (matches the old app): selecting → addons → summary, all on the
@@ -521,6 +523,14 @@ function EventBooking({
   // from the pre-step flow except that a seat clash sends the user back to step 1.
   async function doBooking() {
     if (seatCount < 1) return;
+    // SYNCHRONOUS lock. `disabled={submitting}` is not enough on its own: the
+    // state update is async, so a fast double-click fires onClick twice before
+    // React re-renders the disabled button — which would create two pending
+    // bookings and two Stripe sessions, holding seats twice. A ref flips in the
+    // same tick, so the second click can never get in. Deliberately not a
+    // debounce: a delay does not stop a slow double-click, only a lock does.
+    if (inFlight.current) return;
+    inFlight.current = true;
     setSubmitting(true);
     try {
       const input = {
@@ -598,6 +608,10 @@ function EventBooking({
         toast.error(msg);
       }
     } finally {
+      // Always released, on every path — success, seat clash, rate limit, popup
+      // blocked, thrown error. A lock that can stick would leave the customer
+      // permanently unable to book.
+      inFlight.current = false;
       setSubmitting(false);
     }
   }
