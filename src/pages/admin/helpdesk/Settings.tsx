@@ -77,6 +77,7 @@ export default function HelpdeskSettings() {
   const [newDbId, setNewDbId] = useState("");
   const [adding, setAdding] = useState(false);
   const [syncingId, setSyncingId] = useState<string | null>(null);
+  const [syncingAll, setSyncingAll] = useState(false);
   const [progress, setProgress] = useState<SyncProgress | null>(null);
   const [forceReimport, setForceReimport] = useState(false);
   const [lastResult, setLastResult] = useState<Record<string, { done: number; skipped: number; failed: number }>>({});
@@ -118,15 +119,44 @@ export default function HelpdeskSettings() {
     }
   }
 
-  async function onSyncDb(id: string) {
-    if (syncingId) return;
+  /** Sync EVERY connected database, one after another (never in parallel — the
+   *  batches are already heavy and Notion rate-limits). Each database reports
+   *  its own result as it finishes, so a long run shows progress instead of
+   *  going quiet; one failing database doesn't abort the rest. */
+  async function onSyncAll() {
+    if (syncingId || syncingAll || !dbIds?.length) return;
+    setSyncingAll(true);
+    let okCount = 0;
+    let failCount = 0;
+    try {
+      for (const id of dbIds) {
+        // Sequential on purpose (see the doc comment): each database still
+        // toasts its own result, and a failure only costs that one database.
+        if (await onSyncDb(id)) okCount++;
+        else failCount++;
+      }
+      const msg =
+        failCount === 0
+          ? `全部同步完成（${okCount} 个数据库）`
+          : `同步结束：${okCount} 个成功，${failCount} 个失败`;
+      failCount === 0 ? toast.success(msg) : toast.error(msg);
+    } finally {
+      setSyncingAll(false);
+    }
+  }
+
+  /** Sync ONE database end to end (plan → batches until drained).
+   *  Returns whether it fully succeeded; never throws, so a caller looping over
+   *  several databases can keep going. */
+  async function onSyncDb(id: string): Promise<boolean> {
+    if (syncingId) return false;
     setSyncingId(id);
     setProgress({ total: 0, processed: 0, done: 0, failed: 0, skipped: 0 });
     try {
       const plan = await planNotionSync(id, forceReimport);
       if (!plan.ok) {
         toast.error(plan.message || "规划失败");
-        return;
+        return false;
       }
       const total = plan.total ?? 0;
       const skipped = plan.skipped ?? 0;
@@ -136,13 +166,15 @@ export default function HelpdeskSettings() {
       if ((plan.pending ?? 0) === 0) {
         toast.success(`都是最新的，无需更新（${skipped} 篇）`);
         setLastResult((prev) => ({ ...prev, [id]: { done, skipped, failed } }));
-        return;
+        return true;
       }
       let remaining = plan.pending ?? 0;
+      let batchError = false;
       while (remaining > 0) {
         const b = await runNotionSyncBatch(id);
         if (!b.ok) {
           toast.error(b.message || "同步失败");
+          batchError = true;
           break;
         }
         done += b.batchDone ?? 0;
@@ -153,8 +185,10 @@ export default function HelpdeskSettings() {
       toast.success(`同步完成：导入/更新 ${done}，跳过 ${skipped}，失败 ${failed}`);
       setLastResult((prev) => ({ ...prev, [id]: { done, skipped, failed } }));
       getStorageUsage().then(setUsage).catch(() => {});
+      return !batchError && failed === 0;
     } catch (e) {
       toast.error(e instanceof Error ? e.message : "同步出错");
+      return false;
     } finally {
       setSyncingId(null);
     }
@@ -286,10 +320,19 @@ export default function HelpdeskSettings() {
           >
             <Database className="w-5 h-5" />
           </div>
-          <div>
+          <div className="min-w-0 flex-1">
             <h2 className="font-display font-semibold">已连接的数据库</h2>
-            <p className="text-sm text-muted-foreground">手动加入要同步的库，每个可单独同步。只同步你加进来的这些。</p>
+            <p className="text-sm text-muted-foreground">手动加入要同步的库。可一键同步全部，也可单独同步。只同步你加进来的这些。</p>
           </div>
+          {/* One-click: run every connected database in turn. */}
+          <Button
+            onClick={onSyncAll}
+            disabled={syncingAll || !!syncingId || !dbIds?.length}
+            className="gap-1.5 shrink-0"
+          >
+            {syncingAll ? <Loader2 className="w-4 h-4 animate-spin" /> : <RefreshCw className="w-4 h-4" />}
+            {syncingAll ? "同步中…" : "一键同步全部"}
+          </Button>
         </div>
 
         <label className="flex items-center gap-2 mb-3 text-sm text-muted-foreground cursor-pointer select-none">
@@ -336,7 +379,7 @@ export default function HelpdeskSettings() {
                       size="sm"
                       className="gap-1.5 shrink-0"
                       onClick={() => onSyncDb(id)}
-                      disabled={!!syncingId}
+                      disabled={!!syncingId || syncingAll}
                     >
                       {isSyncing ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <RefreshCw className="w-3.5 h-3.5" />}
                       {isSyncing ? "同步中…" : "同步"}
@@ -346,7 +389,7 @@ export default function HelpdeskSettings() {
                       size="icon"
                       className="h-8 w-8 shrink-0 text-[#141414] hover:text-[#141414]"
                       onClick={() => onRemoveDb(id)}
-                      disabled={!!syncingId}
+                      disabled={!!syncingId || syncingAll}
                       aria-label="移除"
                     >
                       <Trash2 className="w-3.5 h-3.5" />
