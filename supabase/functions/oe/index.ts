@@ -15,7 +15,7 @@
 // ════════════════════════════════════════════════════════════════════════
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { corsHeaders, json, serviceClient } from "../_shared/ghl.ts";
-import { hasPlaybookAccess } from "../_shared/access.ts";
+import { hasOfflineEventAccess } from "../_shared/access.ts";
 import { resolveOeStripe } from "../_shared/stripe.ts";
 import { logToolUsage } from "../_shared/usage.ts";
 import { checkRateLimit, emailKey, HOUR_MS } from "../_shared/ratelimit.ts";
@@ -289,7 +289,7 @@ serve(async (req) => {
             { onConflict: "location_id", ignoreDuplicates: true },
           );
 
-        const enabled = await hasPlaybookAccess(sb, locationId, req);
+        const enabled = await hasOfflineEventAccess(sb, locationId, req);
         if (!enabled) return json({ context: { enabled: false } });
 
         const { data: settingsRow } = await sb
@@ -326,7 +326,7 @@ serve(async (req) => {
 
       // ── List bookable events (live) + display-only ──────────────────────
       case "listEvents": {
-        if (!(await hasPlaybookAccess(sb, locationId, req))) return json({ error: "tool_disabled" }, 403);
+        if (!(await hasOfflineEventAccess(sb, locationId, req))) return json({ error: "tool_disabled" }, 403);
 
         const { data: events, error } = await sb
           .from("oe_events")
@@ -363,7 +363,7 @@ serve(async (req) => {
 
       // ── One event + its floor plan + already-claimed seat labels ────────
       case "getEvent": {
-        if (!(await hasPlaybookAccess(sb, locationId, req))) return json({ error: "tool_disabled" }, 403);
+        if (!(await hasOfflineEventAccess(sb, locationId, req))) return json({ error: "tool_disabled" }, 403);
         const eventId = String(body?.event_id || "").trim();
         if (!eventId) return json({ error: "event_id required" }, 400);
         // Release any stale unpaid holds on this event so the seat map is fresh.
@@ -401,7 +401,7 @@ serve(async (req) => {
       // oe_claim_seats inserts all seats in one statement; a UNIQUE collision or
       // capacity overflow aborts it → the just-created booking row is rolled back.
       case "createBooking": {
-        if (!(await hasPlaybookAccess(sb, locationId, req))) return json({ error: "tool_disabled" }, 403);
+        if (!(await hasOfflineEventAccess(sb, locationId, req))) return json({ error: "tool_disabled" }, 403);
         // Reconcile this location's stale unpaid holds first (frees seats + free allowance).
         await sweepStalePending(sb, { locationId });
 
@@ -499,7 +499,7 @@ serve(async (req) => {
       // booking; a 30-min expiry releases them via the checkout.session.expired
       // webhook. The webhook flips pending → confirmed on payment.
       case "createCheckout": {
-        if (!(await hasPlaybookAccess(sb, locationId, req))) return json({ error: "tool_disabled" }, 403);
+        if (!(await hasOfflineEventAccess(sb, locationId, req))) return json({ error: "tool_disabled" }, 403);
 
         const origin = String(body?.origin || "").trim();
         if (!/^https?:\/\/[^\s/]+/.test(origin)) return json({ error: "origin_required" }, 400);
@@ -650,7 +650,7 @@ serve(async (req) => {
       // Stripe itself says it's paid. Idempotent (guarded on status=pending);
       // seats were already held at checkout, so nothing is re-claimed here.
       case "confirmBooking": {
-        if (!(await hasPlaybookAccess(sb, locationId, req))) return json({ error: "tool_disabled" }, 403);
+        if (!(await hasOfflineEventAccess(sb, locationId, req))) return json({ error: "tool_disabled" }, 403);
         const sessionId = String(body?.session_id || body?.session || "").trim();
         const code = String(body?.booking_code || body?.booking || "").trim();
         if (!sessionId && !code) return json({ error: "missing_reference" }, 400);
@@ -734,7 +734,7 @@ serve(async (req) => {
       // pending/cancelled are hidden. Each row carries its booker email so the
       // team can tell whose ticket is whose.
       case "listMyBookings": {
-        if (!(await hasPlaybookAccess(sb, locationId, req))) return json({ error: "tool_disabled" }, 403);
+        if (!(await hasOfflineEventAccess(sb, locationId, req))) return json({ error: "tool_disabled" }, 403);
 
         const { data, error } = await sb
           .from("oe_bookings")

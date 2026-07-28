@@ -86,6 +86,52 @@ export async function hasPlaybookAccess(
   return req ? await isAdminRequest(req) : false;
 }
 
+// ── Offline Event sub-switch ──────────────────────────────────────────────
+// Booking a paid, seat-limited, physical event is not the same commitment as
+// reading the help center, so Offline Event gets ONE extra gate on top of the
+// master switch: "may this customer book offline classes?"
+//
+// Semantics deliberately differ from the master switch — this is an explicit
+// OPT-OUT, never a whitelist:
+//   no row          → allowed (all 911 sub-accounts start able to book)
+//   enabled = false → blocked, even though the Playbook itself is on
+// Canary mode is NOT consulted here; the master switch already decides who is
+// in the rollout at all, and making this a second whitelist would mean hand-
+// toggling every sub-account twice.
+export const OFFLINE_EVENT_KEY = "offline_event";
+
+/**
+ * The Offline Event gate: master Playbook switch AND the per-customer booking
+ * opt-out. Admins pass either way (same reasoning as `hasPlaybookAccess`).
+ */
+export async function hasOfflineEventAccess(
+  sb: SupabaseClient,
+  locationId: string,
+  req?: Request,
+): Promise<boolean> {
+  const id = (locationId || "").trim();
+  if (!id) return false;
+
+  // Master switch first — it already handles canary + the admin bypass.
+  if (!(await hasPlaybookAccess(sb, id, req))) return false;
+
+  const { data, error } = await sb
+    .from("location_tool_access")
+    .select("enabled")
+    .eq("location_id", id)
+    .eq("tool_key", OFFLINE_EVENT_KEY)
+    .maybeSingle();
+  // Fail OPEN on a read blip: the master switch already passed, so the safe
+  // failure here is "let the paying customer book", not "silently break them".
+  if (error) {
+    console.error("offline-event sub-switch read failed (allowing):", error);
+    return true;
+  }
+
+  if (data?.enabled === false) return req ? await isAdminRequest(req) : false;
+  return true;
+}
+
 /**
  * Back-compat shim: the per-tool gate collapsed into the single Playbook switch,
  * so `toolKey` is accepted but IGNORED. Kept so any missed call site still gets
