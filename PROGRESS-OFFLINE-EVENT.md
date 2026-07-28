@@ -6,12 +6,19 @@ event date → choose seats on a floor-plan seat map → add lunch → **pay via
 Stripe (MYR + 8% SST)** → get a **QR e-ticket on the web page** → staff **scan
 the QR to check in** (2-day event: day1/day2). **IN PROGRESS — P0–P8 DONE (booking +
 payment + e-ticket + check-in + full admin: bookings/manual-add/change/events/settings +
-floor-plan visual editor + test data cleaned); only P9 (polish + merge to main) remains.**
+floor-plan visual editor + test data cleaned). P9 mostly done (see the P9 section);
+what remains is the pre-launch checklist + merge to `main`.**
 
 This file records the owner's locked decisions, the old-version facts, and the
 phased plan so a new session can pick up without re-researching.
 
-_Last updated: 2026-07-22 — **P0–P6 DONE (P6 admin check-in landed), ALL committed +
+_Last updated: **2026-07-28** — see **“2026-07-23 → 07-28: platform work + P9”** near the
+bottom for everything after 07-22 (this branch is now the trunk for ALL FIVE tools:
+the Brutalist rebrand, rate limiting, the one-Playbook access switch, canary rollout,
+the Helpdesk video AI, the free-allowance reset, and the E/F sub-account manager all
+live here). The paragraph below is the 07-22 snapshot, kept for the P5/P6 detail._
+
+_2026-07-22 snapshot — **P0–P6 DONE (P6 admin check-in landed), ALL committed +
 pushed to `feat/offline-event`.** P6 admin half = QR check-in: admin picks the active
 event + Day 1/2, opens the scanner (native BarcodeDetector + `jsqr` fallback + manual
 BK-code entry), scans the customer's ticket QR → requireAdmin-gated `offline-event-admin`
@@ -454,7 +461,114 @@ e-ticket+check-in → admin+seat editor → polish.
     `https://hkqzzfyigmvisaftdmwh.supabase.co/functions/v1/oe-stripe-webhook`, events
     `checkout.session.completed` + `checkout.session.expired`. Complements (doesn't replace) the
     return-page verify — both idempotent, whichever fires first wins.
-- [ ] **P9 — Polish + merge.** `/tools` cards, copy polish, merge to `main`.
+- [x] **P9 — Customer-flow polish (DONE 2026-07-23).** Stepped booking flow (seats →
+  lunch → summary) instead of one long page; customer navbar rebuilt (Help Center +
+  Tools dropdown, 线下活动报名 later promoted to the main menu); "back to events" on the
+  success ticket; bookings list shows location_id + lunch columns; settings gained the
+  look-up-any-sub-account-by-location_id panel (SUPERSEDED 07-28 by the F manager below);
+  per-sub-account default landing page + `/help` fallback; isolated port-5185 dev config.
+
+## 2026-07-23 → 07-28: platform work + P9 (57 commits, all on this branch)
+
+This branch became the **trunk for all five tools** — `feat/helpdesk` and
+`feat/copywriter` were dev-merged in (3d3c68a, 7a13958), so everything below ships
+together when this merges to `main`. `main` is ~119 commits behind and is what
+playbook.qiai.tech still serves.
+
+- **Layout + navbar fixes (07-24).** Real sticky footer at any window size; guides page
+  widened; booking page natural height; the confirm bar only appears once a seat is
+  picked and never covers the footer; navbar collapses to a hamburger at `lg` so items
+  never crush-wrap; 小工具/指南 moved into the left nav row; 指南 dropdown links to the
+  full pages.
+- **Q.Ai Brutalist rebrand (07-24 → 07-27, batches 1 → 3.6).** Owner-approved full
+  re-skin coral-glass → yellow/black/white. Sample first at `/qai-style` (427a52b), then
+  the shared skin (batch 1), presentational pages (2), Helpdesk (3.1), ticket surfaces
+  (3.2), Admin Portal (3.3 + 3.3b flattening status colours — owner: 彻底一致), Review
+  Boost + /scan (3.4), the customer booking flow (3.5), and the SeatMap (3.6). All
+  style-only — no behaviour change in any batch.
+- **Helpdesk video AI (07-27, phases 1/2/4).** `hd_video_steps` cache table; video-steps
+  preprocessing in `helpdesk-admin` (WaveSpeed → gemini-3-flash-preview); Angel AI now
+  answers from inside video tutorials. Batch size 2–3 — 5 hits the 150s edge limit;
+  re-runs skip already-converted videos. Real cost ≈ 2¢/video.
+- **Pre-launch rate limiting (07-27, steps 1 → 5b).** Shared limiter built on
+  `tool_usage` (step 1), then applied to `helpdesk-chat` (2), copywriter copy+voice (3),
+  Review Boost incl. closing the regenerate hole (4), and event booking + checkout
+  (5) with a per-location backstop (5b).
+- **Access model (07-27).** Canary/whitelist rollout mode, flipped from the Admin Portal
+  with no redeploy (645c37d); then per-tool access collapsed into **ONE `playbook`
+  master switch** (a640a20) — the older per-tool keys stayed in the table but stopped
+  being consulted. That dormancy became a trap; see the 07-28 cleanup below.
+- **Fixes (07-28).** Stripe mode badge showed Sandbox while actually LIVE — made
+  authoritative by resolving the mode the same way the charge does, and it now shows the
+  key prefix (d940aa1). Every native browser dialog replaced with in-app `ConfirmDialog`
+  (90efc4b, b14634c) — a suppressed `window.confirm()` returns false, which is the real
+  cause of the long-standing "点了没反应" reports. Helpdesk gained an AI answer-language
+  switch + WhatsApp button, and one-click "sync all" for Notion.
+
+### Launch prep (2026-07-28)
+
+- [x] **Free allowance zeroed across the board (cda1e62).** The allowance table is
+  SPARSE — a sub-account with no row inherits the global default on first visit, so
+  clearing the 6 existing rows would still have handed the other ~909 the old 1票/2座.
+  Migration `20260728120000` writes an explicit **0/0 row for all 911 sub-accounts**
+  (909 inserts + 2 updates), zeroes 4 leftover test-id rows, and only then drops the
+  global default to **1票/1座** — all in ONE transaction, so no customer can slip
+  through between the two steps. Verified: 915 rows, 0 non-zero, 0 locations without a
+  row. The test account `gsRRLb2A8IoATd9qWNmh` (AJ | QiAi Demo🔥) was then given back
+  1票/2座 so the FREE booking path stays testable.
+- [x] **Dormant per-tool access rows cleared (1acf7dc).** ⚠️ **The lesson worth keeping:**
+  when the per-tool keys were parked (a640a20) their rows were left in the table, asleep.
+  Re-activating `offline_event` would have silently applied year-old test toggles to real
+  customers — a full scan found `offline_event = false` on the real client **Ong pei
+  shirl**, which would have blocked their booking with no visible cause. New admin action
+  `listAccessOverrides` makes every explicit row visible; migration `20260728140000`
+  dropped every non-`playbook` row. **Always scan for sleeping data before re-activating
+  a dormant feature.**
+- [x] **E — per-customer offline-class switch (38f1cc7).** `hasOfflineEventAccess` =
+  master Playbook switch **AND** a per-customer opt-out (`no row` → allowed;
+  `enabled=false` → blocked). Opt-out, not whitelist: canary already decides who is in
+  the rollout, so a second whitelist would mean toggling all 911 twice. Reads fail OPEN;
+  admins always pass. All 7 gates in the `oe` fn now use it.
+- [x] **F — sub-account manager (58d2587).** Settings page now lists **all 911**
+  sub-accounts (driven off `ghl_locations`, not the sparse allowance table), 50/page,
+  server-side search across name + location_id, GHL sync, per-row allowance + 回到默认,
+  the offline-class toggle, and a read-only "Playbook 已关" badge. Fixed a silent bug on
+  the way: the old one-shot name lookup joined every id in one `.in()` and started
+  414-ing once the allowance table grew — every business name had gone `null`.
+  **Verification method worth reusing:** test customer-facing behaviour with an
+  ANONYMOUS request. An admin session bypasses every gate by design, so admin-side
+  testing cannot see what a customer sees. Proven this way: switch off → `/events`
+  shows "活动报名暂未对你的账号开放" while `/help` for the SAME customer still works.
+
+### Current access state (2026-07-28) — pre-launch step ② is DONE
+
+Canary mode is **ON** (whitelist). `location_tool_access` holds exactly:
+
+| location | key | value | effect |
+|---|---|---|---|
+| `gsRRLb2A8IoATd9qWNmh` (AJ QiAi Demo🔥) | `playbook` | true | the only account real customers can use |
+| `gsRRLb2A8IoATd9qWNmh` | `offline_event` | true | offline classes allowed |
+| `qRI68jTZHoSutcigyIhn` (Ong pei shirl) | `playbook` | false | closed until full launch (owner's call) |
+
+Everyone else has no row → canary denies. Verified anonymously: test account
+`enabled: true`, Ong pei shirl `false`, a normal customer `false`.
+
+### Remaining before launch (owner's list)
+
+- [ ] **C** — make the Admin Portal 归档 entry obvious (owner archived one item and
+      couldn't find it, thought it was broken).
+- [ ] **G** — customer "设为默认页": show the current default + allow clear/change.
+- [ ] **H** — customer navbar → icons + hover labels (also eases the half-screen crush).
+- [ ] **I** — drop canary mode in favour of one "全部开启" button.
+- [ ] **J** — clear test data (list → owner confirms → delete). Keep the Notion KB.
+      ⚠️ one archived order RM1,715 `BK-1QUH` is to be deleted.
+- [ ] **K** — full Notion sync (currently 53/1200) → `planVideoSteps` +
+      `runVideoStepsBatch` (batch_size 2–3, never 5 — 150s edge limit; re-runs skip
+      already-converted videos).
+- [ ] **B (partial)** — the 挂件品牌 placeholder is already gone (6e4aa97); still sweep
+      for other 即将上线/TODO placeholders. The copywriter one is INTENTIONAL — leave it.
+- [ ] **Merge to `main`** + Vercel deploy, then GHL menu links for the test sub-account,
+      then "全部开启" = full launch.
 
 ## oe_ table map (old → new; built in P1)
 `event_dates`→`oe_events` (+ per-event price) · `floor_plans`→`oe_floor_plans`
