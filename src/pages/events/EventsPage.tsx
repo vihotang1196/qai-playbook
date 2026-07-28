@@ -302,10 +302,6 @@ function EventBooking({
   const [qty, setQty] = useState(1); // for seat-selection-disabled events
   const [lunchQty, setLunchQty] = useState(0);
   const [email, setEmail] = useState("");
-  // Framed = inside the GHL iframe. Decided once: it changes BOTH how checkout
-  // opens (Stripe refuses to be iframed) and how the confirm bar is positioned
-  // (`fixed` pins to the iframe's own tall viewport, off-screen for the user).
-  const framed = inIframe();
   const [submitting, setSubmitting] = useState(false);
   // Guards doBooking against double submission in the same tick (see doBooking).
   const inFlight = useRef(false);
@@ -804,21 +800,6 @@ function EventBooking({
       {/* ── Step 1: select seats (+ fixed bottom confirm bar) ── */}
       {phase === "selecting" && (
         <>
-          {/* TEMPORARY (`?oedebug=1`): measures the real embedding instead of
-              guessing at it. The mechanism matters — if the iframe scrolls
-              internally, `fixed` is correct; if it is tall and the PARENT
-              scrolls, inline is. Remove once GHL has told us which. */}
-          {new URLSearchParams(window.location.search).get("oedebug") === "1" && (
-            <div className="rounded-lg bg-[#141414] text-[#fed50a] text-[11px] font-mono p-2 leading-relaxed break-all">
-              inIframe={String(framed)} · seatCount={seatCount} · phase={phase}
-              <br />
-              innerH={window.innerHeight} · docH={document.documentElement.scrollHeight} ·
-              scrollsInternally={String(document.documentElement.scrollHeight > window.innerHeight + 4)}
-              <br />
-              bothBarsRendered={String(seatCount > 0)} · ancestorsClip=
-              {String(!!rootRef.current && getComputedStyle(rootRef.current.parentElement ?? rootRef.current).overflow !== "visible")}
-            </div>
-          )}
           <div className="pb-32">{seatArea(true)}</div>
 
           {/* Floating bar, portalled to <body>. SETTLED BY OBSERVATION in the
