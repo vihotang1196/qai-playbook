@@ -540,9 +540,43 @@ playbook.qiai.tech still serves.
   testing cannot see what a customer sees. Proven this way: switch off → `/events`
   shows "活动报名暂未对你的账号开放" while `/help` for the SAME customer still works.
 
+- [x] **I — one launch switch + ONE copy of the access rule (bfc0369).** Owner asked to
+  drop "灰度模式" for a single 「全部开启」 button. **The mechanism was already right and
+  was kept** — a flippable global flag is the only thing satisfying all three
+  requirements at once: (1) only the test account today, (2) everyone after one click,
+  (3) sub-accounts synced LATER usable by default. A default-deny master switch fails
+  (3) — every future customer would need opening by hand — and bulk-writing 911 `true`
+  rows fails it too, since a later sync still has no row and the global default still
+  has to decide. So: rename what the owner sees, collapse the duplication.
+  **The rule now lives once**, in `_shared/access.ts` `playbookAllowed(row, whitelistMode)`:
+  *no row* → whitelist denies / normal allows; *row* → the row wins **in both modes**.
+  That second half is what makes 全部开启 safe — it never resurrects a customer who was
+  deliberately switched off. It had been re-implemented in THREE places (customer gate,
+  `adminApi.isPlaybookEnabled`, the OE sub-account manager); both servers now call the
+  helper and **ship the computed answer**, and the client copy is deleted, so the admin
+  toggle can't disagree with reality. (Drift there is invisible to an admin — admins
+  bypass the gate.) UI = two states, one button: black 内测中 +「全部开启」(in-app confirm,
+  no typed phrase since it reverses in one click) / white 已全面开放 +「改回内测」. New
+  `listPlaybookRoster` names who is whitelisted and who is separately switched off.
+  **Stored key stays `canary_mode`** — renaming needs a migration and any instant where
+  the flag reads absent fails OPEN, which pre-launch would admit all 911 at once.
+  Redeployed every fn that bundles `access.ts` (oe, rb, helpdesk, helpdesk-chat,
+  generate-copy/voice/review, admin, offline-event-admin) so one rule really is one rule.
+
+  Verified ANONYMOUSLY across all three states, incl. a location_id with no row anywhere
+  standing in for a future GHL sync:
+
+  | | 内测中 | 全部开启 | 改回内测 |
+  |---|---|---|---|
+  | test account | on | on | on |
+  | no-row customer | off | **ON** | off |
+  | simulated new sync | off | **ON** | off |
+  | deliberately switched off | off | **off** | off |
+
 ### Current access state (2026-07-28) — pre-launch step ② is DONE
 
-Canary mode is **ON** (whitelist). `location_tool_access` holds exactly:
+Rollout flag is **内测中** (`canary_mode.enabled = true`, i.e. whitelist).
+`location_tool_access` holds exactly:
 
 | location | key | value | effect |
 |---|---|---|---|
@@ -559,7 +593,6 @@ Everyone else has no row → canary denies. Verified anonymously: test account
       couldn't find it, thought it was broken).
 - [ ] **G** — customer "设为默认页": show the current default + allow clear/change.
 - [ ] **H** — customer navbar → icons + hover labels (also eases the half-screen crush).
-- [ ] **I** — drop canary mode in favour of one "全部开启" button.
 - [ ] **J** — clear test data (list → owner confirms → delete). Keep the Notion KB.
       ⚠️ one archived order RM1,715 `BK-1QUH` is to be deleted.
 - [ ] **K** — full Notion sync (currently 53/1200) → `planVideoSteps` +
