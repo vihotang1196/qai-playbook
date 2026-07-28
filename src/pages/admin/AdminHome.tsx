@@ -3,15 +3,15 @@ import { Building2, BarChart3, ScrollText, CalendarDays, LifeBuoy } from "lucide
 import type { AdminIdentity } from "@/lib/adminAuth";
 
 /**
- * Admin Portal home (`/admin`). Step A: proves login + guard + allowlist work.
- * The cards are placeholders for the modules landing in later steps
- * (B: sub-accounts + per-tool access; D: usage stats; audit log).
+ * Admin Portal home (`/admin`) — the module launcher. Every card now points at a
+ * built module; `soon` is kept on the card type so a future, not-yet-shipped
+ * module can be listed with an "即将上线" badge without touching the layout.
  */
 export default function AdminHome() {
   const admin = useOutletContext<AdminIdentity>();
 
   const cards = [
-    { icon: <Building2 className="w-5 h-5" />, title: "Sub Account & 权限", desc: "开/关每个 Sub Account 每个工具的权限", to: "/admin/sub-accounts", soon: null },
+    { icon: <Building2 className="w-5 h-5" />, title: "Sub Account & 权限", desc: "开/关每个 Sub Account 的 Playbook 使用权限 · 灰度模式", to: "/admin/sub-accounts", soon: null },
     { icon: <CalendarDays className="w-5 h-5" />, title: "Offline Event", desc: "线下活动报名 · 选座 · 收款 · 电子票 · 签到", to: "/admin/offline-event", soon: null },
     { icon: <LifeBuoy className="w-5 h-5" />, title: "Helpdesk", desc: "共享 AI 客服的知识库、对话与挂件设置", to: "/admin/helpdesk", soon: null },
     { icon: <ScrollText className="w-5 h-5" />, title: "审计日志", desc: "谁改了谁的权限、谁触发同步", to: "/admin/audit", soon: null },

@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { Plug, Loader2, CheckCircle2, XCircle, Palette, ListTree, Copy, Database, RefreshCw, Trash2, Plus } from "lucide-react";
+import { Plug, Loader2, CheckCircle2, XCircle, ListTree, Copy, Database, RefreshCw, Trash2, Plus } from "lucide-react";
 import { toast } from "sonner";
 import {
   testNotion,
@@ -21,9 +21,9 @@ type SyncProgress = { total: number; processed: number; done: number; failed: nu
 
 /**
  * Helpdesk settings (`/admin/helpdesk/settings`).
- * P4a: Notion connection TEST only — enter a database ID, confirm we can reach
- * it and read its title + page count. Imports nothing. Actual sync (batched,
- * for the ~1100-article corpus) is P4b; widget branding is P9.
+ * Notion connection test (enter a database ID, confirm we can reach it and read
+ * its title + page count — imports nothing), the connected-database list, and
+ * the batched sync (per database or all at once) for the ~1100-article corpus.
  */
 export default function HelpdeskSettings() {
   const [dbId, setDbId] = useState("");
@@ -434,18 +434,6 @@ export default function HelpdeskSettings() {
         )}
       </div>
 
-      {/* Widget branding — later phase */}
-      <div className="glass-card rounded-2xl p-6 opacity-70">
-        <div className="flex items-center gap-3">
-          <div className="w-10 h-10 rounded-xl flex items-center justify-center text-muted-foreground bg-muted shrink-0">
-            <Palette className="w-5 h-5" />
-          </div>
-          <div>
-            <h2 className="font-display font-semibold">挂件品牌</h2>
-            <p className="text-sm text-muted-foreground">标题 / 颜色 / logo — P9 再做。</p>
-          </div>
-        </div>
-      </div>
     </div>
   );
 }
