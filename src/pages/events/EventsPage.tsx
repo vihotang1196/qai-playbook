@@ -14,6 +14,7 @@ import {
   Plus,
   ArrowLeft,
   Utensils,
+  XCircle,
 } from "lucide-react";
 import { toast } from "sonner";
 import { useLang } from "@/i18n/LanguageContext";
@@ -48,13 +49,21 @@ import {
  */
 export default function EventsPage() {
   const { lang } = useLang();
+  // Read once from the URL — cheap, and needed before any data call (see below).
+  const [embeddedCancel] = useState<boolean>(() => {
+    const q = new URLSearchParams(window.location.search);
+    return q.get("embed") === "1" && q.get("checkout") === "cancelled";
+  });
   const [locationId] = useState<string>(() => resolveLocationId());
   const [ctx, setCtx] = useState<OeContext | null>(null);
   const [err, setErr] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
 
   const loadCtx = useCallback(() => {
-    if (!locationId) {
+    // The effect below is declared before the embeddedCancel early-return, so it
+    // still fires on that render — bail out HERE too, or the "no requests at
+    // all" promise would be broken by a stray resolveContext call.
+    if (embeddedCancel || !locationId) {
       setLoading(false);
       return;
     }
@@ -67,11 +76,20 @@ export default function EventsPage() {
         setErr(e instanceof Error ? e.message : "加载失败");
         setLoading(false);
       });
-  }, [locationId]);
+  }, [locationId, embeddedCancel]);
 
   useEffect(() => {
     loadCtx();
   }, [loadCtx]);
+
+  // ── Cancelled checkout in a spawned tab ──────────────────────────────────
+  // FIRST, before the locationId gate and before loadCtx fires: this tab exists
+  // only because Stripe bounced the customer back, and it needs no data at all,
+  // so nothing is requested. Showing the full event list here would invite them
+  // to rebook in the throwaway tab and forget the GHL iframe they started in.
+  // Only with embed=1 — a normal cancel (e.g. a WhatsApp link on a phone) still
+  // gets the ordinary event list, unchanged.
+  if (embeddedCancel) return <EmbeddedCancelled lang={lang} />;
 
   if (!locationId) return <OpenFromQai lang={lang} />;
 
@@ -967,6 +985,45 @@ function Stepper({ value, min, max, onChange, disabled }: { value: number; min: 
 
 // ── Gates ─────────────────────────────────────────────────────────────────
 const QAI_URL = "https://app.qiai.tech/";
+
+/**
+ * Cancelled checkout, embedded flow. A throwaway tab: no data, no event list, no
+ * path back into browsing here — the customer's real session is the GHL iframe
+ * they came from. The close button only appears when an opener exists, because
+ * window.close() and the opener reference are governed by the same browser rule;
+ * offering a button that silently does nothing is worse than not offering one.
+ */
+function EmbeddedCancelled({ lang }: { lang: "cn" | "en" }) {
+  const hasOpener = (() => {
+    try {
+      return !!window.opener;
+    } catch {
+      return false;
+    }
+  })();
+  return (
+    <Shell>
+      <div className="glass-card rounded-2xl p-6 text-center space-y-3">
+        <div className="w-11 h-11 rounded-2xl mx-auto flex items-center justify-center text-[#141414]" style={{ background: "#fed50a" }}>
+          <XCircle className="w-6 h-6" />
+        </div>
+        <p className="text-lg font-bold">{lang === "cn" ? "已取消付款" : "Payment cancelled"}</p>
+        <p className="text-sm text-muted-foreground">
+          {lang === "cn" ? "请切回上一个标签页继续。" : "Switch back to the previous tab to continue."}
+        </p>
+        {hasOpener && (
+          <button
+            type="button"
+            onClick={() => window.close()}
+            className="h-11 px-5 rounded-full bg-primary text-primary-foreground border-2 border-[#141414] text-sm font-bold"
+          >
+            {lang === "cn" ? "关闭本页" : "Close this tab"}
+          </button>
+        )}
+      </div>
+    </Shell>
+  );
+}
 
 function OpenFromQai({ lang }: { lang: "cn" | "en" }) {
   const [copied, setCopied] = useState(false);
