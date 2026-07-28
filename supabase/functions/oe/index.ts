@@ -503,6 +503,11 @@ serve(async (req) => {
 
         const origin = String(body?.origin || "").trim();
         if (!/^https?:\/\/[^\s/]+/.test(origin)) return json({ error: "origin_required" }, 400);
+        // OPTIONAL flag: only added when the caller says it is inside the GHL
+        // iframe (so checkout ran in a spawned tab that may close itself).
+        // Absent → empty string → URLs byte-identical to before this change, so
+        // Checkout sessions already in flight are unaffected by the deploy.
+        const embedParam = body?.embed === true ? "&embed=1" : "";
         // Reconcile this location's stale unpaid holds first (frees seats + free allowance).
         await sweepStalePending(sb, { locationId });
 
@@ -607,10 +612,10 @@ serve(async (req) => {
             // return page can't confirm the booking, so no ticket ever appears.
             success_url:
               `${origin}/checkout/return?booking=${encodeURIComponent(bookingId)}` +
-              `&session={CHECKOUT_SESSION_ID}&location_id=${encodeURIComponent(locationId)}`,
+              `&session={CHECKOUT_SESSION_ID}&location_id=${encodeURIComponent(locationId)}${embedParam}`,
             // Same reason: a cancel must land on the customer's OWN events page,
             // not a location-less one that shows the "open from QAI" gate.
-            cancel_url: `${origin}/events?location_id=${encodeURIComponent(locationId)}&checkout=cancelled`,
+            cancel_url: `${origin}/events?location_id=${encodeURIComponent(locationId)}&checkout=cancelled${embedParam}`,
             expires_at: Math.floor(Date.now() / 1000) + HOLD_SECONDS + 120,
           });
 

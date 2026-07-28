@@ -173,7 +173,14 @@ export async function createBooking(
  *  shows its QR ticket. `origin` = window.location.origin (for the return URLs). */
 export async function createCheckout(
   locationId: string,
-  input: { event_id: string; email: string; phone?: string; seats?: string[]; quantity?: number; lunch_qty?: number; origin: string },
+  input: {
+    event_id: string; email: string; phone?: string; seats?: string[]; quantity?: number;
+    lunch_qty?: number; origin: string;
+    /** OPTIONAL. True when booking from inside the GHL iframe, so the return and
+     *  cancel pages know they are a spawned tab and can offer to close
+     *  themselves. Omitting it keeps the pre-existing behaviour exactly. */
+    embed?: boolean;
+  },
 ): Promise<{ ok: true; checkoutUrl: string; bookingCode: string }> {
   return callOe("createCheckout", locationId, input);
 }

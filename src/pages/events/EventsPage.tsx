@@ -486,7 +486,12 @@ function EventBooking({
         }
 
         toast.message(lang === "cn" ? "正在打开付款页…" : "Opening payment…");
-        const { checkoutUrl, bookingCode } = await createCheckout(locationId, { ...input, origin: window.location.origin });
+        const { checkoutUrl, bookingCode } = await createCheckout(locationId, {
+          ...input,
+          origin: window.location.origin,
+          // Tells the return/cancel pages they are a spawned tab (framed flow).
+          embed: framed,
+        });
         setPayCode(bookingCode);
 
         if (!framed) {
