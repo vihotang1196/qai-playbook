@@ -72,15 +72,53 @@ export type OeStripeConfig = {
  * tools would have their own mode source but reuse the same platform keys.
  */
 export async function resolveOeStripe(sb: SupabaseClient): Promise<OeStripeConfig> {
-  const { data } = await sb
-    .from("oe_settings")
-    .select("value")
-    .eq("key", "stripe_payment_mode")
-    .maybeSingle();
-  const mode: OeStripeMode = data?.value === "live" ? "live" : "sandbox";
+  const mode = await resolveOeMode(sb);
 
   const { name, key } = platformStripeSecret(mode);
   if (!key) throw new Error(`Stripe secret not configured: ${name}`);
 
   return { mode, secretKey: key, webhookSecret: platformWebhookSecret(mode), stripe: makeStripeClient(key) };
+}
+
+/** THE single source of truth for "which mode is Offline Event in". Read live
+ *  from the DB on every call — never cached, so a mode switch takes effect on
+ *  the very next charge. */
+async function resolveOeMode(sb: SupabaseClient): Promise<OeStripeMode> {
+  const { data } = await sb
+    .from("oe_settings")
+    .select("value")
+    .eq("key", "stripe_payment_mode")
+    .maybeSingle();
+  return data?.value === "live" ? "live" : "sandbox";
+}
+
+export type ActiveStripeInfo = {
+  /** The mode a charge created RIGHT NOW would use. */
+  mode: OeStripeMode;
+  /** Identifying prefix of the ACTUAL secret that would be used, e.g. "sk_live_"
+   *  — never the key itself. Empty when the key isn't configured. */
+  keyPrefix: string;
+  /** False = a charge would FAIL (the mode's secret isn't set). */
+  configured: boolean;
+  /** Which secret name(s) were looked up, for a precise error message. */
+  secretName: string;
+};
+
+/**
+ * Describe what the money path would ACTUALLY do right now, for display.
+ *
+ * Deliberately built on the SAME mode lookup + key lookup that resolveOeStripe
+ * uses, so the badge in the admin can never drift from the key a real charge
+ * gets: if this says sk_live_, the next Checkout session is real money.
+ * Returns only the key's prefix — the secret itself never leaves the server.
+ */
+export async function describeActiveStripe(sb: SupabaseClient): Promise<ActiveStripeInfo> {
+  const mode = await resolveOeMode(sb);
+  const { name, key } = platformStripeSecret(mode);
+  return {
+    mode,
+    keyPrefix: key ? key.slice(0, 8) : "",
+    configured: !!key,
+    secretName: name,
+  };
 }

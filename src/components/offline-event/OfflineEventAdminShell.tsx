@@ -1,7 +1,7 @@
-import { useEffect, useState } from "react";
-import { NavLink, Outlet } from "react-router-dom";
-import { CalendarDays } from "lucide-react";
-import { getSettings } from "@/lib/offlineEventAdmin";
+import { useCallback, useEffect, useState } from "react";
+import { NavLink, Outlet, useLocation } from "react-router-dom";
+import { CalendarDays, AlertTriangle } from "lucide-react";
+import { getSettings, OE_STRIPE_MODE_EVENT, type OeActiveStripe } from "@/lib/offlineEventAdmin";
 
 /**
  * Offline Event admin — nested INSIDE the Admin Portal at `/admin/offline-event/*`.
@@ -23,16 +23,53 @@ const SUBNAV = [
 ];
 
 export default function OfflineEventAdminShell() {
-  // Always-on Stripe mode badge — one glance tells you test vs. live everywhere
-  // in the Offline Event admin. Re-fetched when the route re-mounts the shell.
-  const [mode, setMode] = useState<"sandbox" | "live" | null>(null);
-  useEffect(() => {
-    let cancelled = false;
+  // ── Always-on Stripe mode badge (MONEY-CRITICAL) ───────────────────────
+  // This shell is a LAYOUT route: switching sub-tabs does NOT remount it. The
+  // badge used to load once on mount, so after flipping the mode on the Settings
+  // tab it kept showing the OLD mode until a full page reload — you could be in
+  // LIVE while the badge said Sandbox. That is exactly backwards for something
+  // that decides whether real cards get charged.
+  //
+  // Now it re-reads on every route change inside the tool, whenever the window
+  // regains focus, and immediately when Settings announces a change. What it
+  // shows is `activeStripe` — resolved server-side by the SAME code a real
+  // charge uses — not the raw setting, so the badge cannot claim a mode the
+  // charge won't honour.
+  const [active, setActive] = useState<OeActiveStripe | null>(null);
+  const location = useLocation();
+
+  const refresh = useCallback(() => {
     getSettings()
-      .then((r) => !cancelled && setMode(r.settings.stripe_payment_mode))
-      .catch(() => {/* badge is best-effort */});
-    return () => { cancelled = true; };
+      .then((r) =>
+        setActive(
+          r.activeStripe ?? {
+            // Older deployments of the fn don't send activeStripe; fall back to
+            // the raw setting rather than showing nothing.
+            mode: r.settings.stripe_payment_mode,
+            keyPrefix: "",
+            configured: true,
+            secretName: "",
+          },
+        ),
+      )
+      .catch(() => {/* badge is best-effort; keep the last known value */});
   }, []);
+
+  useEffect(() => {
+    refresh();
+  }, [refresh, location.pathname]);
+
+  useEffect(() => {
+    const onFocus = () => refresh();
+    window.addEventListener("focus", onFocus);
+    window.addEventListener(OE_STRIPE_MODE_EVENT, onFocus);
+    return () => {
+      window.removeEventListener("focus", onFocus);
+      window.removeEventListener(OE_STRIPE_MODE_EVENT, onFocus);
+    };
+  }, [refresh]);
+
+  const mode = active?.mode ?? null;
 
   return (
     <div>
@@ -49,9 +86,29 @@ export default function OfflineEventAdminShell() {
             className={`ml-1 rounded-full px-2.5 py-1 text-[11px] font-semibold ${
               mode === "live" ? "bg-[#141414] text-[#fed50a]" : "bg-[#fed50a]/25 text-[#141414]"
             }`}
-            title="Stripe 付款模式"
+            title="Stripe 付款模式（服务端实时读取）"
           >
             {mode === "live" ? "● 正式模式 Live" : "● 测试模式 Sandbox"}
+          </span>
+        )}
+        {/* The actual secret that a charge would use, right now. Prefix only —
+            the key never leaves the server. This is the one-glance proof that
+            the badge above matches reality. */}
+        {active?.configured && active.keyPrefix && (
+          <code
+            className="rounded-md border border-[#141414]/20 bg-[#141414]/[0.04] px-1.5 py-0.5 text-[10px] font-mono text-[#141414]"
+            title="服务端建 Stripe 会话时实际使用的密钥前缀"
+          >
+            {active.keyPrefix}…
+          </code>
+        )}
+        {active && !active.configured && (
+          <span
+            className="inline-flex items-center gap-1 rounded-full bg-[#141414] px-2.5 py-1 text-[11px] font-semibold text-[#fed50a]"
+            title={`未配置：${active.secretName}`}
+          >
+            <AlertTriangle className="w-3 h-3" />
+            密钥未配置 · 收款会失败
           </span>
         )}
       </div>

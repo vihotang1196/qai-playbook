@@ -15,7 +15,7 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { corsHeaders, json, serviceClient } from "../_shared/ghl.ts";
 import { requireAdmin } from "../_shared/admin.ts";
-import { platformLiveKeyConfigured } from "../_shared/stripe.ts";
+import { platformLiveKeyConfigured, describeActiveStripe } from "../_shared/stripe.ts";
 
 // Best-effort audit trail for admin write actions (who changed what, when).
 // Never blocks the action if logging fails.
@@ -783,6 +783,9 @@ serve(async (req) => {
 
         const { count: pendingCount } = await sb.from("oe_bookings").select("id", { count: "exact", head: true }).eq("status", "pending");
         const liveKeyConfigured = platformLiveKeyConfigured();
+        // What the money path would ACTUALLY do right now (same resolution the
+        // charge uses) — so the admin badge can't drift from reality.
+        const activeStripe = await describeActiveStripe(sb);
 
         return json({
           settings: {
@@ -794,6 +797,7 @@ serve(async (req) => {
             default_free_seats: get("default_free_seats", "2"),
           },
           liveKeyConfigured,
+          activeStripe,
           pendingCount: pendingCount ?? 0,
         });
       }

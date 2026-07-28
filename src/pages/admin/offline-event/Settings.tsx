@@ -8,6 +8,7 @@ import {
   updateSubaccountSettings,
   deleteSubaccountSettings,
   listLocations,
+  OE_STRIPE_MODE_EVENT,
   type OeSettingsResponse,
   type OeStripeMode,
   type OeSubaccountRow,
@@ -43,6 +44,7 @@ export default function OfflineEventSettings() {
   // stripe switch
   const [confirmText, setConfirmText] = useState("");
   const [switching, setSwitching] = useState(false);
+  const [confirmSandbox, setConfirmSandbox] = useState(false);
   const [switchErr, setSwitchErr] = useState<string | null>(null);
 
   const load = () => {
@@ -103,6 +105,10 @@ export default function OfflineEventSettings() {
       await setStripeMode(mode);
       setConfirmText("");
       load();
+      // Tell the always-on badge in the shell to re-read NOW. The shell is a
+      // layout route and doesn't remount on this action, so without this the
+      // money-mode badge would keep showing the previous mode until a reload.
+      window.dispatchEvent(new Event(OE_STRIPE_MODE_EVENT));
     } catch (e) {
       const msg = e instanceof Error ? e.message : "切换失败";
       setSwitchErr(msg === "live_key_missing" ? "正式密钥未配置，无法切换。" : msg);
@@ -209,8 +215,11 @@ export default function OfflineEventSettings() {
           </div>
         ) : (
           <div className="mt-4">
+            {/* In-app confirmation, NOT window.confirm(): a suppressed native
+                dialog returns false, which silently skipped the switch — you'd
+                think you were back in Sandbox while still charging real cards. */}
             <button
-              onClick={() => { if (window.confirm("切回测试模式？之后的下单将不再真实扣款。")) doSwitch("sandbox"); }}
+              onClick={() => setConfirmSandbox(true)}
               disabled={switching}
               className="h-10 px-4 rounded-xl bg-muted text-sm font-medium flex items-center gap-1.5 disabled:opacity-50"
             >
@@ -220,6 +229,52 @@ export default function OfflineEventSettings() {
         )}
         {switchErr && <p className="text-sm text-destructive mt-2">{switchErr}</p>}
       </div>
+
+      {confirmSandbox && (
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm p-4"
+          onClick={() => !switching && setConfirmSandbox(false)}
+        >
+          <div
+            className="w-full max-w-sm rounded-2xl bg-white border-2 border-[#141414] p-5"
+            onClick={(ev) => ev.stopPropagation()}
+          >
+            <div className="flex items-start gap-3">
+              <div className="w-10 h-10 rounded-xl bg-[#141414] flex items-center justify-center text-[#fed50a] shrink-0">
+                <ShieldCheck className="w-5 h-5" />
+              </div>
+              <div className="min-w-0">
+                <p className="font-display font-bold">切回测试模式？</p>
+                <p className="text-sm text-muted-foreground mt-1">
+                  之后顾客下单将使用测试卡，<b className="text-[#141414]">不再真实扣款</b>。已完成的真实订单不受影响。
+                </p>
+              </div>
+            </div>
+            <div className="flex gap-2 mt-4">
+              <button
+                type="button"
+                onClick={() => setConfirmSandbox(false)}
+                disabled={switching}
+                className="flex-1 h-10 rounded-xl border-2 border-[#141414] bg-white text-sm font-medium disabled:opacity-60"
+              >
+                取消
+              </button>
+              <button
+                type="button"
+                onClick={async () => {
+                  await doSwitch("sandbox");
+                  setConfirmSandbox(false);
+                }}
+                disabled={switching}
+                className="flex-1 h-10 rounded-xl bg-[#141414] text-[#fed50a] text-sm font-bold inline-flex items-center justify-center gap-1.5 disabled:opacity-60"
+              >
+                {switching ? <Loader2 className="w-4 h-4 animate-spin" /> : null}
+                确认切回测试
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* ── Charge settings ── */}
       <div className="glass-card rounded-2xl p-5 space-y-3">

@@ -323,9 +323,24 @@ export type OeSettingsValues = {
   default_free_seats: string;
 };
 
+/** What the money path would ACTUALLY do right now — resolved server-side by the
+ *  same code a real charge uses, so the UI can't show a mode the charge won't
+ *  honour. `keyPrefix` is only the identifying prefix (e.g. "sk_live_"). */
+export type OeActiveStripe = {
+  mode: "sandbox" | "live";
+  keyPrefix: string;
+  configured: boolean;
+  secretName: string;
+};
+
+/** Broadcast after the Stripe mode is changed, so the always-on badge in the
+ *  admin shell re-reads immediately instead of waiting for a reload. */
+export const OE_STRIPE_MODE_EVENT = "oe:stripe-mode-changed";
+
 export type OeSettingsResponse = {
   settings: OeSettingsValues;
   liveKeyConfigured: boolean;
+  activeStripe?: OeActiveStripe;
   pendingCount: number;
 };
 
