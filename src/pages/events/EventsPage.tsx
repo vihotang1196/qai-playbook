@@ -412,6 +412,18 @@ function EventBooking({
   const [payBlocked, setPayBlocked] = useState(false);
   const [payCode, setPayCode] = useState<string | null>(null);
 
+  // The ONE way a confirmed paid booking reaches the UI. Polling and the
+  // broadcast accelerator both call this — there is no second render path.
+  const applyConfirmed = useCallback(
+    (b: OeBooking) => {
+      setDone(b);
+      setPayUrl(null);
+      setPayBlocked(false);
+      onBooked();
+    },
+    [onBooked],
+  );
+
   useEffect(() => {
     if (!payCode || !payUrl || done) return;
     let active = true;
@@ -421,10 +433,7 @@ function EventBooking({
         const r = await getBooking(locationId, payCode);
         if (!active) return;
         if (r.status === "confirmed" && r.booking) {
-          setDone(r.booking);
-          setPayUrl(null);
-          setPayBlocked(false);
-          onBooked();
+          applyConfirmed(r.booking);
           return; // stop polling
         }
         if (r.status === "cancelled") {
@@ -447,6 +456,63 @@ function EventBooking({
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [payCode, payUrl, done, locationId]);
+
+  // ── Broadcast accelerator (PARALLEL to the polling above, never a
+  // replacement) ───────────────────────────────────────────────────────────
+  // The payment tab announces success, which just makes the switch feel instant
+  // instead of up-to-4-seconds late. The polling loop remains the proven path
+  // and is untouched; if this listener never fires, nothing is lost.
+  //
+  // The message is treated as a NUDGE and nothing more: its payload is never
+  // rendered. We re-ask the server (getBooking), which is the only authority on
+  // whether money actually arrived, and only a confirmed answer reaches the UI.
+  useEffect(() => {
+    if (!payCode || done) return;
+    let active = true;
+    let ch: BroadcastChannel | null = null;
+
+    const onNudge = async (data: unknown) => {
+      const d = data as { type?: string; bookingCode?: string } | null;
+      if (!d || d.type !== "checkout_success") return;
+      // Must be THIS booking — otherwise a second tab paying for a different
+      // order could flip this one's UI.
+      if (d.bookingCode !== payCode) return;
+      try {
+        const r = await getBooking(locationId, payCode);
+        if (!active) return;
+        if (r.status === "confirmed" && r.booking) applyConfirmed(r.booking);
+      } catch {
+        /* ignore — the polling loop will get there */
+      }
+    };
+
+    const onMessage = (e: MessageEvent) => {
+      // Same-origin only. Anything else is not ours, no matter what it claims.
+      if (e.origin !== window.location.origin) return;
+      void onNudge(e.data);
+    };
+
+    try {
+      if (typeof BroadcastChannel !== "undefined") {
+        ch = new BroadcastChannel("qai-checkout");
+        ch.onmessage = (e) => void onNudge(e.data);
+      }
+    } catch {
+      /* unsupported → polling only */
+    }
+    window.addEventListener("message", onMessage);
+
+    return () => {
+      active = false;
+      window.removeEventListener("message", onMessage);
+      try {
+        ch?.close();
+      } catch {
+        /* already closed */
+      }
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [payCode, done, locationId, applyConfirmed]);
 
   const emailValid = (v: string) => /^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(v.trim());
 
