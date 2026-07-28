@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
 import { Loader2, AlertCircle, Plus, Pencil, Trash2, X, CalendarDays } from "lucide-react";
+import { toast } from "sonner";
 import {
   listEventsAdmin,
   createEvent,
@@ -102,14 +103,38 @@ export default function OfflineEventEventDates() {
     }
   };
 
-  const del = async (e: OeAdminEvent) => {
-    if (!window.confirm(`确定删除「${e.display_label}」？此操作不可撤销。`)) return;
+  // Delete confirmation lives in the app's own dialog, NOT window.confirm().
+  // A native confirm() returns false when the browser suppresses dialogs (the
+  // "prevent additional dialogs" checkbox, an embedding iframe, automation),
+  // which made the whole delete abort SILENTLY — the reported "clicking delete
+  // does nothing". The same went for the alert() that carried the server's
+  // refusal reason, so even a correct "this event has bookings" never showed.
+  const [confirmTarget, setConfirmTarget] = useState<OeAdminEvent | null>(null);
+  const [deleting, setDeleting] = useState(false);
+
+  const confirmDelete = async () => {
+    const e = confirmTarget;
+    if (!e || deleting) return;
+    setDeleting(true);
     try {
       await deleteEvent(e.id);
+      setConfirmTarget(null);
+      toast.success(`已删除「${e.display_label}」`);
       load();
     } catch (er) {
       const msg = er instanceof Error ? er.message : "删除失败";
-      alert(msg === "has_bookings" ? "该活动已有报名，不能删除。请改为「关闭 off」。" : msg);
+      // The server returns the booking count with has_bookings — show it, so the
+      // reason is concrete instead of a bare refusal.
+      const n = (er as { detail?: { count?: number } })?.detail?.count;
+      setConfirmTarget(null);
+      toast.error(
+        msg === "has_bookings"
+          ? `「${e.display_label}」已有 ${n ?? ""}${n ? " 个" : ""}报名，不能删除。可以把状态改成「关闭 off」，它就不再对外开放。`
+          : msg,
+        { duration: 8000 },
+      );
+    } finally {
+      setDeleting(false);
     }
   };
 
@@ -161,7 +186,7 @@ export default function OfflineEventEventDates() {
                   <button onClick={() => openEdit(e)} className="w-9 h-9 rounded-lg bg-muted flex items-center justify-center text-muted-foreground hover:text-foreground" title="编辑">
                     <Pencil className="w-4 h-4" />
                   </button>
-                  <button onClick={() => del(e)} className="w-9 h-9 rounded-lg bg-[#141414]/[0.06] flex items-center justify-center text-[#141414] hover:bg-[#141414]/[0.12]" title="删除">
+                  <button onClick={() => setConfirmTarget(e)} className="w-9 h-9 rounded-lg bg-[#141414]/[0.06] flex items-center justify-center text-[#141414] hover:bg-[#141414]/[0.12]" title="删除">
                     <Trash2 className="w-4 h-4" />
                   </button>
                 </div>
@@ -229,6 +254,56 @@ export default function OfflineEventEventDates() {
                   {editId ? "保存" : "创建"}
                 </button>
               </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Delete confirmation — in-app, so it can't be suppressed like the native
+          confirm() this replaced. */}
+      {confirmTarget && (
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm p-4"
+          onClick={() => !deleting && setConfirmTarget(null)}
+        >
+          <div
+            className="w-full max-w-sm rounded-2xl bg-white border-2 border-[#141414] p-5"
+            onClick={(ev) => ev.stopPropagation()}
+          >
+            <div className="flex items-start gap-3">
+              <div className="w-10 h-10 rounded-xl bg-[#141414] flex items-center justify-center text-[#fed50a] shrink-0">
+                <Trash2 className="w-5 h-5" />
+              </div>
+              <div className="min-w-0">
+                <p className="font-display font-bold">删除活动？</p>
+                <p className="text-sm text-muted-foreground mt-1 break-words">
+                  「{confirmTarget.display_label}」将被永久删除，无法撤销。
+                  {(confirmTarget.booking_count ?? 0) > 0 && (
+                    <span className="block mt-1 font-medium text-[#141414]">
+                      这个活动已有 {confirmTarget.booking_count} 个报名，删不掉——请改用「关闭 off」。
+                    </span>
+                  )}
+                </p>
+              </div>
+            </div>
+            <div className="flex gap-2 mt-4">
+              <button
+                type="button"
+                onClick={() => setConfirmTarget(null)}
+                disabled={deleting}
+                className="flex-1 h-10 rounded-xl border-2 border-[#141414] bg-white text-sm font-medium disabled:opacity-60"
+              >
+                取消
+              </button>
+              <button
+                type="button"
+                onClick={confirmDelete}
+                disabled={deleting}
+                className="flex-1 h-10 rounded-xl bg-[#141414] text-white text-sm font-bold inline-flex items-center justify-center gap-1.5 disabled:opacity-60"
+              >
+                {deleting ? <Loader2 className="w-4 h-4 animate-spin" /> : null}
+                确认删除
+              </button>
             </div>
           </div>
         </div>
