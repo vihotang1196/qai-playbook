@@ -1,6 +1,23 @@
-import { Outlet } from "react-router-dom";
+import { Outlet, useLocation } from "react-router-dom";
 import Navbar from "@/components/Navbar";
 import Footer from "@/components/Footer";
+
+/**
+ * Is this a throwaway tab spawned for Stripe checkout? Only the return page and
+ * an embedded cancel ever carry `embed=1` (the server appends it to those two
+ * URLs). Such a tab is used once and closed, so the site nav would only tempt
+ * the customer to keep browsing HERE and lose track of the GHL iframe their
+ * session actually lives in.
+ *
+ * Scoped by PATH as well as the flag, so a stray `embed=1` on any other route
+ * can never strip that route's navigation.
+ */
+function isSpawnedCheckoutTab(pathname: string, search: string): boolean {
+  const q = new URLSearchParams(search);
+  if (q.get("embed") !== "1") return false;
+  if (pathname.startsWith("/checkout/return")) return true;
+  return pathname.startsWith("/events") && q.get("checkout") === "cancelled";
+}
 
 /**
  * App shell shared by every route inside it (homepage + Review Boost customer
@@ -14,6 +31,11 @@ import Footer from "@/components/Footer";
  * Pages must NOT render their own background, Navbar or Footer.
  */
 const Layout = () => {
+  const { pathname, search } = useLocation();
+  // Display-only: hides the chrome on spawned checkout tabs. No page logic is
+  // touched — the return page's countdown, close(), 800ms fallback and broadcast
+  // all behave identically either way.
+  const bareTab = isSpawnedCheckoutTab(pathname, search);
   return (
     // Flex column + min-h-screen makes this a classic sticky footer: the content
     // region (flex-1) grows to fill the viewport at ANY window size, so the Footer
@@ -33,13 +55,13 @@ const Layout = () => {
         }}
       />
 
-      <Navbar />
+      {!bareTab && <Navbar />}
       {/* Content region — grows to fill so the Footer sticks to the bottom. Not a
           <main> (some pages render their own <main>, which mustn't nest). */}
       <div className="flex flex-1 flex-col">
         <Outlet />
       </div>
-      <Footer />
+      {!bareTab && <Footer />}
     </div>
   );
 };
