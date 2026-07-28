@@ -15,6 +15,9 @@ export async function sendChat(params: {
   channel?: string;
   askerEmail?: string | null; // GHL staff who's asking (attribution; Need 2)
   askerName?: string | null;
+  /** Force the AI to answer in this language. Null/omitted = detect it from the
+   *  question (the original behaviour). Independent of the site's UI language. */
+  answerLang?: "cn" | "en" | null;
 }): Promise<ChatReply> {
   const { data, error } = await getSupabase().functions.invoke("helpdesk-chat", {
     body: {
@@ -25,6 +28,7 @@ export async function sendChat(params: {
       channel: params.channel ?? "web",
       askerEmail: params.askerEmail ?? null,
       askerName: params.askerName ?? null,
+      answerLang: params.answerLang ?? null,
     },
   });
   if (error) {

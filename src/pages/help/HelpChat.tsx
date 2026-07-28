@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from "react";
-import { Send, Loader2, RotateCcw, Bot, User, FileText, Sparkles, ThumbsUp, ThumbsDown } from "lucide-react";
+import { Send, Loader2, RotateCcw, Bot, User, FileText, Sparkles, ThumbsUp, ThumbsDown, MessageCircle } from "lucide-react";
 import { sendChat, sendFeedback, type ChatSource } from "@/lib/helpdeskChat";
 import Markdown from "@/components/helpdesk/Markdown";
 import { Button } from "@/components/ui/button";
@@ -14,6 +14,26 @@ type Turn = { role: "user" | "assistant"; content: string; sources?: ChatSource[
  * under an answer opens that article IN THIS PAGE (via onOpenArticle), not a new
  * tab. visitorId persists in localStorage so a visitor's turns stay one thread.
  */
+
+// ── AI answer language — SEPARATE from the site's UI language ─────────────
+// The navbar EN/中文 toggle controls the interface. This controls only what
+// language Angel AI ANSWERS in, because the two are genuinely independent: a
+// customer may read the UI in Chinese but want the answer in English to forward
+// to someone, or vice versa. "auto" keeps the original behaviour (the model
+// replies in whatever language the question was asked in).
+type AnswerLang = "auto" | "cn" | "en";
+const ANSWER_LANG_KEY = "hd_answer_lang";
+
+function loadAnswerLang(): AnswerLang {
+  try {
+    const v = sessionStorage.getItem(ANSWER_LANG_KEY);
+    return v === "cn" || v === "en" ? v : "auto";
+  } catch {
+    return "auto";
+  }
+}
+
+const WHATSAPP_URL = "https://wa.me/601112436811";
 
 const VISITOR_KEY = "hd_visitor_id";
 function getVisitorId(): string {
@@ -47,7 +67,18 @@ export default function HelpChat({
   const [sending, setSending] = useState(false);
   const [conversationId, setConversationId] = useState<string | null>(null);
   const [feedback, setFeedback] = useState<Record<number, "up" | "down">>({});
+  // Remembered for the tab session so the customer picks once, not every visit.
+  const [answerLang, setAnswerLang] = useState<AnswerLang>(loadAnswerLang);
   const visitorId = useRef<string>(getVisitorId());
+
+  function pickAnswerLang(v: AnswerLang) {
+    setAnswerLang(v);
+    try {
+      sessionStorage.setItem(ANSWER_LANG_KEY, v);
+    } catch {
+      /* private mode — the in-memory choice still applies for this visit */
+    }
+  }
   const scrollRef = useRef<HTMLDivElement>(null);
 
   // Record a 👍/👎 on the answer at turn index i. Optimistic; best-effort write.
@@ -85,6 +116,8 @@ export default function HelpChat({
         channel: "widget",
         askerEmail: staffEmail || null,
         askerName: staffName || null,
+        // Omitted when "auto" so the server keeps detecting from the question.
+        answerLang: answerLang === "auto" ? null : answerLang,
       });
       setConversationId(reply.conversationId);
       setTurns((t) => [...t, { role: "assistant", content: reply.answer, sources: reply.sources }]);
@@ -111,6 +144,49 @@ export default function HelpChat({
 
   return (
     <div className="glass-card rounded-2xl p-4 flex flex-col h-full min-h-0">
+      {/* Toolbar above the thread: talk to a human, and pick the AI's reply
+          language. Deliberately ABOVE the messages so it's visible before the
+          first question, and it doesn't cover any content. */}
+      <div className="flex items-center gap-2 flex-wrap pb-3 mb-3 border-b border-[#141414]/10">
+        <a
+          href={WHATSAPP_URL}
+          target="_blank"
+          rel="noreferrer"
+          className="inline-flex items-center gap-1.5 rounded-xl border-2 border-[#141414] bg-[#fed50a] px-3 py-1.5 text-xs font-bold text-[#141414] hover:opacity-90 transition-opacity"
+        >
+          <MessageCircle className="w-3.5 h-3.5" />
+          {lang === "cn" ? "WhatsApp 联系真人" : "Chat with a human"}
+        </a>
+
+        <div className="ml-auto flex items-center gap-1.5">
+          <span className="text-[11px] text-muted-foreground hidden sm:inline">
+            {lang === "cn" ? "AI 回答语言" : "AI answers in"}
+          </span>
+          <div className="inline-flex rounded-xl border-2 border-[#141414] overflow-hidden">
+            {(
+              [
+                { v: "auto", cn: "自动", en: "Auto" },
+                { v: "cn", cn: "中文", en: "中文" },
+                { v: "en", cn: "English", en: "English" },
+              ] as { v: AnswerLang; cn: string; en: string }[]
+            ).map((o) => (
+              <button
+                key={o.v}
+                type="button"
+                onClick={() => pickAnswerLang(o.v)}
+                className={`px-2.5 py-1 text-[11px] font-bold transition-colors ${
+                  answerLang === o.v
+                    ? "bg-[#141414] text-[#fed50a]"
+                    : "bg-white text-[#141414] hover:bg-[#141414]/[0.06]"
+                }`}
+              >
+                {lang === "cn" ? o.cn : o.en}
+              </button>
+            ))}
+          </div>
+        </div>
+      </div>
+
       <div ref={scrollRef} className="flex-1 min-h-0 overflow-y-auto space-y-4 pr-1">
         {turns.length === 0 ? (
           <div className="text-center py-10 text-muted-foreground text-sm px-4">

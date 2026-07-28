@@ -274,7 +274,25 @@ async function getArticleForAI(sb: any, id: string) {
 }
 
 // deno-lint-ignore no-explicit-any
-async function runChat(sb: any, apiKey: string, history: any[], userMessage: string) {
+async function runChat(
+  sb: any,
+  apiKey: string,
+  history: any[],
+  userMessage: string,
+  answerLang?: "cn" | "en" | null,
+) {
+  // A forced answer language is APPENDED to the system prompt rather than baked
+  // into it, so the default ("auto") path keeps the original prompt byte-for-byte
+  // and its original behaviour.
+  const system = answerLang
+    ? SYSTEM_PROMPT +
+      "\n\nLANGUAGE OVERRIDE: the user has explicitly chosen the answer language. " +
+      "Reply ENTIRELY in " +
+      (answerLang === "cn" ? "Chinese" : "English") +
+      ", regardless of which language they wrote the question in. This overrides the " +
+      "\"reply in the SAME language as the user's question\" rule above. Keep product / " +
+      "UI names in their original form."
+    : SYSTEM_PROMPT;
   const messages: any[] = [...history, { role: "user", content: userMessage }];
   const readIds: string[] = [];
   const titleById = new Map<string, string>();
@@ -284,7 +302,7 @@ async function runChat(sb: any, apiKey: string, history: any[], userMessage: str
     const resp = await fetch(ANTHROPIC_URL, {
       method: "POST",
       headers: { "x-api-key": apiKey, "anthropic-version": "2023-06-01", "content-type": "application/json" },
-      body: JSON.stringify({ model: MODEL, max_tokens: 1024, system: SYSTEM_PROMPT, tools: TOOLS, messages }),
+      body: JSON.stringify({ model: MODEL, max_tokens: 1024, system, tools: TOOLS, messages }),
     });
     if (!resp.ok) {
       const b = await resp.text().catch(() => "");
@@ -481,7 +499,10 @@ serve(async (req) => {
       meta: { channel, admin: isAdminCaller || undefined },
     });
 
-    const { answer, sources } = await runChat(sb, apiKey, history, message);
+    // Customer-chosen answer language (independent of the site's UI language).
+    // Anything other than cn/en means "auto" → detect from the question.
+    const answerLang = body?.answerLang === "cn" || body?.answerLang === "en" ? body.answerLang : null;
+    const { answer, sources } = await runChat(sb, apiKey, history, message, answerLang);
     const hasSources = sources.length > 0;
     // The model should always emit a short text answer when it read an article
     // (system prompt). If it still returns nothing but DID read article(s),
