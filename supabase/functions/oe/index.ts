@@ -331,7 +331,10 @@ serve(async (req) => {
         const { data: events, error } = await sb
           .from("oe_events")
           .select(
-            "id, display_label, start_date, end_date, time_slot, status, price_per_seat, capacity, theme_zh, theme_en, notice_zh, notice_en, floor_plan_id, seat_selection_enabled, sort_order",
+            // title_*/start_time/end_time added for the customer card: it renders
+            // the real name, a generated date range and a formatted time. Field
+            // list only — no query or write behaviour changed here.
+            "id, display_label, title_zh, title_en, start_date, end_date, start_time, end_time, time_slot, status, price_per_seat, capacity, theme_zh, theme_en, notice_zh, notice_en, floor_plan_id, seat_selection_enabled, sort_order",
           )
           .in("status", ["live", "display"])
           .order("sort_order", { ascending: true })
@@ -372,7 +375,8 @@ serve(async (req) => {
         const { data: event, error } = await sb
           .from("oe_events")
           .select(
-            "id, display_label, start_date, end_date, time_slot, status, price_per_seat, capacity, theme_zh, theme_en, notice_zh, notice_en, floor_plan_id, seat_selection_enabled",
+            // Same additive field list as listEvents (see the note there).
+            "id, display_label, title_zh, title_en, start_date, end_date, start_time, end_time, time_slot, status, price_per_seat, capacity, theme_zh, theme_en, notice_zh, notice_en, floor_plan_id, seat_selection_enabled",
           )
           .eq("id", eventId)
           .in("status", ["live", "display"])
@@ -754,7 +758,11 @@ serve(async (req) => {
         const { data, error } = await sb
           .from("oe_bookings")
           .select(
-            "booking_id, email, event_label, free_seats, addon_seats, lunch_qty, total, qr_payload, created_at, oe_events(start_date, end_date, time_slot, theme_zh, theme_en)",
+            // event_label stays as-is — it is the SNAPSHOT taken at booking time
+            // and changing its source is batch 3b. The embedded oe_events fields
+            // grow by title_*/start_time/end_time so the ticket can show the
+            // event's current name and a formatted time.
+            "booking_id, email, event_label, free_seats, addon_seats, lunch_qty, total, qr_payload, created_at, oe_events(title_zh, title_en, start_date, end_date, start_time, end_time, time_slot, theme_zh, theme_en)",
           )
           .eq("ghl_location_id", locationId)
           .eq("status", "confirmed")

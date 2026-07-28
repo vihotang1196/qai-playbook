@@ -19,6 +19,7 @@ import {
 import { toast } from "sonner";
 import { useLang } from "@/i18n/LanguageContext";
 import { resolveLocationId, inIframe } from "@/lib/ghl";
+import { formatEventDate, formatEventTime, eventTitle, eventTheme } from "@/lib/offlineEventFormat";
 import { SeatMap } from "@/components/offline-event/SeatMap";
 import { QrTicket } from "@/components/offline-event/QrTicket";
 import { MyBookings } from "@/components/offline-event/MyBookings";
@@ -251,23 +252,44 @@ function EventCard({
   onToggle: () => void;
   onBooked: () => void;
 }) {
-  const theme = (lang === "cn" ? event.theme_zh : event.theme_en) || event.display_label;
-  const notice = lang === "cn" ? event.notice_zh : event.notice_en;
+  const title = eventTitle(event.title_zh, event.title_en, lang);
+  // en → zh ONLY. It must never fall back to the event's name: doing that is how
+  // the name came to be displayed as the theme, the same bug as name-as-date.
+  const theme = eventTheme(event.theme_zh, event.theme_en, lang);
+  // Notice falls back to Chinese rather than vanishing — a silently missing
+  // notice means the customer saw nothing and we have no "was told" record.
+  const noticeFellBack = lang === "en" && !((event.notice_en ?? "").trim()) && !!(event.notice_zh ?? "").trim();
+  const notice = (lang === "cn" ? event.notice_zh : (event.notice_en || event.notice_zh)) || "";
+  // Dates are GENERATED; display_label plays no part in rendering any more.
+  const dateText = formatEventDate(event.start_date, event.end_date, lang);
+  const timeText = formatEventTime(event.start_time, event.end_time, event.time_slot);
   const displayOnly = event.status === "display";
 
   return (
     <div className="glass-card rounded-2xl overflow-hidden">
-      <button type="button" onClick={onToggle} className="w-full text-left px-5 py-4 flex items-center gap-3">
+      {/* Roomier, with a clear type hierarchy: NAME largest, then the real date,
+          then time + theme as a small tag. Kept to ~4 compact lines so at least
+          three cards still fit on one screen. Price/seats-left keep their spot. */}
+      <button type="button" onClick={onToggle} className="w-full text-left px-5 sm:px-6 py-5 sm:py-6 flex items-center gap-4">
         <div className="min-w-0 flex-1">
-          <p className="font-display font-semibold truncate">{theme}</p>
-          <div className="flex flex-wrap items-center gap-x-4 gap-y-1 mt-1 text-xs text-muted-foreground">
-            <span className="inline-flex items-center gap-1"><CalendarDays className="w-3.5 h-3.5" />{event.display_label}</span>
-            {event.time_slot && <span className="inline-flex items-center gap-1"><Clock className="w-3.5 h-3.5" />{event.time_slot}</span>}
+          <p className="font-display font-bold text-lg sm:text-xl leading-snug truncate">{title}</p>
+          <p className="mt-1.5 inline-flex items-center gap-1.5 text-sm sm:text-base font-semibold text-[#141414]">
+            <CalendarDays className="w-4 h-4 shrink-0" />
+            {dateText}
+          </p>
+          <div className="flex flex-wrap items-center gap-x-3 gap-y-1.5 mt-1.5 text-xs text-muted-foreground">
+            {timeText && <span className="inline-flex items-center gap-1"><Clock className="w-3.5 h-3.5" />{timeText}</span>}
+            {/* No theme → the tag isn't rendered at all. */}
+            {theme && (
+              <span className="inline-flex items-center rounded-full bg-[#fed50a] text-[#141414] border-2 border-[#141414] px-2 py-0.5 text-[11px] font-bold">
+                {theme}
+              </span>
+            )}
           </div>
         </div>
         <div className="text-right shrink-0">
-          <p className="text-sm font-bold tabular-nums">RM {Number(event.price_per_seat).toFixed(0)}</p>
-          <p className="text-[11px] text-muted-foreground">
+          <p className="text-base sm:text-lg font-bold tabular-nums">RM {Number(event.price_per_seat).toFixed(0)}</p>
+          <p className="text-[11px] text-muted-foreground mt-0.5">
             {event.seats_left != null ? (lang === "cn" ? `剩 ${event.seats_left} 座` : `${event.seats_left} left`) : lang === "cn" ? "座位充足" : "seats open"}
           </p>
         </div>
@@ -281,7 +303,16 @@ function EventCard({
               {lang === "cn" ? "此场次已截止报名（仅供查看）" : "Registration closed (view only)"}
             </div>
           ) : null}
-          {notice && <p className="mb-3 text-sm text-muted-foreground">{notice}</p>}
+          {notice && (
+            <div className="mb-3">
+              {/* Says the language switched, so an English reader knows this is a
+                  fallback and not a broken page. */}
+              {noticeFellBack && (
+                <p className="text-[11px] font-semibold text-muted-foreground mb-0.5">Notice shown in Chinese</p>
+              )}
+              <p className="text-sm text-muted-foreground">{notice}</p>
+            </div>
+          )}
           <EventBooking lang={lang} locationId={locationId} ctx={ctx} event={event} readOnly={displayOnly} onBooked={onBooked} onExit={onToggle} />
         </div>
       )}

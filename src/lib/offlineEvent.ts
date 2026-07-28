@@ -71,8 +71,12 @@ export type OeBookingResult =
 export type OeEvent = {
   id: string;
   display_label: string;
+  title_zh: string | null;
+  title_en: string | null;
   start_date: string;
   end_date: string;
+  start_time: string | null;
+  end_time: string | null;
   time_slot: string;
   status: "live" | "display" | "off";
   price_per_seat: number;

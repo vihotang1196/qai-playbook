@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 import { X, Loader2, AlertCircle, CalendarDays, Clock, Ticket, ChevronLeft, QrCode, Mail } from "lucide-react";
 import { listMyBookings, type OeMyBooking } from "@/lib/offlineEvent";
 import { QrTicket } from "@/components/offline-event/QrTicket";
+import { eventTheme } from "@/lib/offlineEventFormat";
 
 /**
  * "My bookings" — the team's tickets for this location. A location is one
@@ -101,7 +102,9 @@ export function MyBookings({
               ) : (
                 <div className="space-y-3">
                   {bookings.map((b) => {
-                    const theme = (lang === "cn" ? b.theme_zh : b.theme_en) || b.event_label;
+                    // en → zh only. Never falls back to event_label (the booking's name snapshot):
+                    // that would print the event name where the theme belongs.
+                    const theme = eventTheme(b.theme_zh, b.theme_en, lang);
                     return (
                       <div key={b.booking_id} className="rounded-2xl border border-border/60 p-4">
                         <p className="font-display font-semibold text-sm">{theme}</p>
