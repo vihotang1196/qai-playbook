@@ -391,9 +391,9 @@ function EventBooking({
   // up, reserve its height at the very bottom of the page so it never overlaps
   // the shared footer when the user scrolls all the way down. Reset when the bar
   // hides (seats cleared / step change / booked) or this card unmounts.
-  // Inside an iframe the bar is INLINE (see the render below), so there is
-  // nothing overlapping the footer and no height to reserve.
-  const barActive = phase === "selecting" && seatCount > 0 && !done && !framed;
+  // The fixed bar renders in every context again (see the render below), so its
+  // height must be reserved again in every context too.
+  const barActive = phase === "selecting" && seatCount > 0 && !done;
   useEffect(() => {
     if (!barActive) return;
     const prev = document.body.style.paddingBottom;
@@ -719,8 +719,22 @@ function EventBooking({
       {/* ── Step 1: select seats (+ fixed bottom confirm bar) ── */}
       {phase === "selecting" && (
         <>
-          {/* No bottom padding when the bar is inline — it takes its own space. */}
-          <div className={framed ? "" : "pb-32"}>{seatArea(true)}</div>
+          {/* TEMPORARY (`?oedebug=1`): measures the real embedding instead of
+              guessing at it. The mechanism matters — if the iframe scrolls
+              internally, `fixed` is correct; if it is tall and the PARENT
+              scrolls, inline is. Remove once GHL has told us which. */}
+          {new URLSearchParams(window.location.search).get("oedebug") === "1" && (
+            <div className="rounded-lg bg-[#141414] text-[#fed50a] text-[11px] font-mono p-2 leading-relaxed break-all">
+              inIframe={String(framed)} · seatCount={seatCount} · phase={phase}
+              <br />
+              innerH={window.innerHeight} · docH={document.documentElement.scrollHeight} ·
+              scrollsInternally={String(document.documentElement.scrollHeight > window.innerHeight + 4)}
+              <br />
+              bothBarsRendered={String(seatCount > 0)} · ancestorsClip=
+              {String(!!rootRef.current && getComputedStyle(rootRef.current.parentElement ?? rootRef.current).overflow !== "visible")}
+            </div>
+          )}
+          <div className="pb-32">{seatArea(true)}</div>
 
           {/* THE SAME bar, positioned two ways:
               standalone → portalled + `fixed` (floats above the page, nicest);
@@ -729,16 +743,25 @@ function EventBooking({
               viewport is the whole tall frame — `fixed bottom-0` then sits at the
               very bottom of that frame, off-screen and clipped, which is why the
               confirm button was unreachable. Inline can't be clipped. */}
-          {seatCount > 0 && (framed
-            ? <div className="max-w-4xl mx-auto">{barInner}</div>
-            : createPortal(
-            <div className="fixed bottom-0 left-0 right-0 z-40 px-3 sm:px-4 pb-4 pointer-events-none">
-            <div className="max-w-4xl mx-auto pointer-events-auto">
-              {barInner}
-            </div>
-            </div>,
-            document.body,
-          ))}
+          {/* BOTH placements are rendered while we work out which one survives
+              GHL's layout. Diagnosis so far was inconclusive: `fixed` was only
+              half-visible, and inline vanished entirely — which points at the
+              iframe scrolling INTERNALLY at a modest height (so inline lands
+              below the tall seat map, out of view) rather than being tall with
+              the parent scrolling, as first assumed. Until measured, having a
+              reachable confirm button matters more than having exactly one.
+              `?oedebug=1` prints the measurements. */}
+          {seatCount > 0 && (
+            <>
+              <div className="max-w-4xl mx-auto">{barInner}</div>
+              {createPortal(
+                <div className="fixed bottom-0 left-0 right-0 z-40 px-3 sm:px-4 pb-4 pointer-events-none">
+                  <div className="max-w-4xl mx-auto pointer-events-auto">{barInner}</div>
+                </div>,
+                document.body,
+              )}
+            </>
+          )}
         </>
       )}
 
