@@ -1,7 +1,8 @@
 import { useCallback, useEffect, useState } from "react";
-import { Loader2, AlertCircle, Search, X, Ticket, RefreshCw, Archive, Ban, QrCode, UserPlus, Armchair, CalendarClock, Trash2 } from "lucide-react";
+import { Loader2, AlertCircle, Search, X, Ticket, RefreshCw, Archive, ArchiveRestore, Ban, QrCode, UserPlus, Armchair, CalendarClock, Trash2 } from "lucide-react";
 import {
   listBookings,
+  ORPHAN_EVENT,
   getBookingDetail,
   cancelBooking,
   archiveBooking,
@@ -15,6 +16,7 @@ import {
 } from "@/lib/offlineEventAdmin";
 import { toast } from "sonner";
 import ConfirmDialog from "@/components/ConfirmDialog";
+import { formatEventDateCompact } from "@/lib/offlineEventFormat";
 import { QrTicket } from "@/components/offline-event/QrTicket";
 import ManualAddModal from "@/components/offline-event/ManualAddModal";
 import SeatOpModal from "@/components/offline-event/SeatOpModal";
@@ -54,6 +56,9 @@ export default function OfflineEventBookings() {
   // How many rows the archive is hiding right now (same filters) — surfaced so
   // an archived booking never just looks lost.
   const [archivedCount, setArchivedCount] = useState(0);
+  const [orphanCount, setOrphanCount] = useState(0);
+  // Row whose archive/un-archive is awaiting confirmation.
+  const [confirmArchive, setConfirmArchive] = useState<OeBookingRow | null>(null);
   const [search, setSearch] = useState("");
 
   const [detail, setDetail] = useState<{ booking: OeBookingDetail; event: OeBookingEvent } | null>(null);
@@ -74,6 +79,7 @@ export default function OfflineEventBookings() {
         setRows(r.bookings);
         setTotal(r.total);
         setArchivedCount(r.archivedCount ?? 0);
+        setOrphanCount(r.orphanCount ?? 0);
       })
       .catch((e) => setErr(e instanceof Error ? e.message : "加载失败"));
   }, [eventId, status, includeArchived, search]);
@@ -159,10 +165,20 @@ export default function OfflineEventBookings() {
             onChange={(e) => setEventId(e.target.value)}
             className="h-10 rounded-xl border border-border bg-background px-3 text-sm"
           >
+            {/* Filter BY DATE, but the option's value stays the event uuid —
+                two events on the same day would otherwise be indistinguishable
+                and the filter would silently mix them. */}
             <option value="">全部活动</option>
             {events.map((e) => (
-              <option key={e.id} value={e.id}>{e.display_label}</option>
+              <option key={e.id} value={e.id}>{formatEventDateCompact(e.start_date, e.end_date)}</option>
             ))}
+            {/* Rendered only when orphans actually exist (event_id IS NULL, which
+                happens when an event with only-cancelled bookings is deleted —
+                the FK is ON DELETE SET NULL). A permanent zero-count option is
+                noise; a missing one hides real rows. Note the DEFAULT view above
+                (value "") applies no event filter at all, so orphans are always
+                visible there — that, not this option, is the real safeguard. */}
+            {orphanCount > 0 && <option value={ORPHAN_EVENT}>未关联活动（{orphanCount}）</option>}
           </select>
           <select
             value={status}
@@ -268,23 +284,34 @@ export default function OfflineEventBookings() {
                     className={`border-b border-border/30 hover:bg-muted/40 cursor-pointer ${b.is_archived ? "opacity-50" : ""}`}
                     onClick={() => openDetail(b.booking_id)}
                   >
-                    <td className="px-4 py-2 font-mono text-xs">{b.booking_id}</td>
-                    <td className="px-4 py-2 truncate max-w-[160px]">{b.email || "—"}</td>
-                    <td className="px-4 py-2 font-mono text-[11px] text-muted-foreground truncate max-w-[120px]" title={b.ghl_location_id || undefined}>{b.ghl_location_id || "—"}</td>
-                    <td className="px-4 py-2 truncate max-w-[160px]">{b.event_label}</td>
-                    <td className="px-4 py-2 tabular-nums">{b.seats.length}</td>
-                    <td className="px-4 py-2 tabular-nums text-xs">{b.lunch_qty > 0 ? `${b.lunch_qty} 份` : <span className="text-muted-foreground">—</span>}</td>
-                    <td className="px-4 py-2 text-right tabular-nums">{b.total > 0 ? `RM ${b.total.toFixed(2)}` : "免费"}</td>
-                    <td className="px-4 py-2">
+                    <td className="px-4 py-3.5 font-mono text-xs whitespace-nowrap">{b.booking_id}</td>
+                    <td className="px-4 py-3.5 truncate max-w-[160px]">{b.email || "—"}</td>
+                    <td className="px-4 py-3.5 font-mono text-[11px] text-muted-foreground truncate max-w-[120px]" title={b.ghl_location_id || undefined}>{b.ghl_location_id || "—"}</td>
+                    <td className="px-4 py-3.5 truncate max-w-[160px]">{b.event_label}</td>
+                    <td className="px-4 py-3.5 tabular-nums">{b.seats.length}</td>
+                    <td className="px-4 py-3.5 tabular-nums text-xs">{b.lunch_qty > 0 ? `${b.lunch_qty} 份` : <span className="text-muted-foreground">—</span>}</td>
+                    <td className="px-4 py-3.5 text-right tabular-nums">{b.total > 0 ? `RM ${b.total.toFixed(2)}` : "免费"}</td>
+                    <td className="px-4 py-3.5">
                       <span className={`inline-block rounded-full px-2 py-0.5 text-[11px] ${STATUS_META[b.status].cls}`}>
                         {STATUS_META[b.status].label}
                       </span>
                     </td>
-                    <td className="px-4 py-2 text-xs text-muted-foreground">
+                    <td className="px-4 py-3.5 text-xs text-muted-foreground">
                       {b.day1_status === "attended" ? "D1✓" : "D1·"} {b.day2_status === "attended" ? "D2✓" : "D2·"}
                     </td>
-                    <td className="px-4 py-2 text-right">
+                    <td className="px-4 py-3.5 text-right whitespace-nowrap">
                       <QrCode className="w-4 h-4 text-muted-foreground inline" />
+                      {/* stopPropagation: the row itself opens the detail modal,
+                          and archiving must not also open it. */}
+                      <button
+                        type="button"
+                        title={b.is_archived ? "取消归档" : "归档"}
+                        aria-label={b.is_archived ? "取消归档" : "归档"}
+                        onClick={(ev) => { ev.stopPropagation(); setConfirmArchive(b); }}
+                        className="ml-2 inline-flex h-7 w-7 items-center justify-center rounded-lg align-middle text-[#141414] hover:bg-[#141414]/[0.08]"
+                      >
+                        {b.is_archived ? <ArchiveRestore className="w-4 h-4" /> : <Archive className="w-4 h-4" />}
+                      </button>
                     </td>
                   </tr>
                 ))}
@@ -447,6 +474,50 @@ export default function OfflineEventBookings() {
           }}
         />
       )}
+
+      {/* Archive / un-archive confirmation.
+          TODO(批7): archiving will then RELEASE the seat and ISSUE credit, so the
+          paid-booking warning below becomes wrong and must be rewritten. Until
+          that lands, archiving a paid booking only blocks entry — it refunds
+          nothing and frees nothing — and saying so plainly is the whole point of
+          this dialog. */}
+      <ConfirmDialog
+        open={!!confirmArchive}
+        danger={!!confirmArchive && !confirmArchive.is_archived && confirmArchive.status === "confirmed"}
+        title={confirmArchive?.is_archived ? "取消归档？" : "归档这笔报名？"}
+        description={
+          confirmArchive?.is_archived ? (
+            <>
+              「<b className="text-[#141414]">{confirmArchive?.booking_id}</b>」将回到正常列表，
+              顾客可以再次签到入场。
+            </>
+          ) : confirmArchive?.status === "confirmed" ? (
+            <>
+              此单<b className="text-[#141414]">已收款 RM {(confirmArchive?.total ?? 0).toFixed(2)}</b>。
+              当前版本归档后：
+              <br />· 顾客<b className="text-[#141414]">无法签到入场</b>
+              <br />· 座位<b className="text-[#141414]">仍被占用</b>
+              <br />· <b className="text-[#141414]">不会退款</b>，也<b className="text-[#141414]">不会发放额度</b>
+              <br />
+              确定继续？
+            </>
+          ) : (
+            <>
+              「<b className="text-[#141414]">{confirmArchive?.booking_id}</b>」将从默认列表隐藏
+              （状态：{confirmArchive ? STATUS_META[confirmArchive.status].label : ""}）。随时可以取消归档。
+            </>
+          )
+        }
+        confirmLabel={confirmArchive?.is_archived ? "取消归档" : "归档"}
+        cancelLabel="返回"
+        onConfirm={() => {
+          if (!confirmArchive) return;
+          const { booking_id, is_archived } = confirmArchive;
+          setConfirmArchive(null);
+          doArchive(booking_id, !is_archived);
+        }}
+        onCancel={() => setConfirmArchive(null)}
+      />
 
       <ConfirmDialog
         open={!!confirmCancel}

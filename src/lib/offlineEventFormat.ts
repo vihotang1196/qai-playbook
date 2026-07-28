@@ -53,6 +53,23 @@ export function formatEventDate(startDate: string, endDate: string, lang: Lang):
     : `${dm(a)} ${a.getFullYear()} - ${dm(b)} ${b.getFullYear()} (${EN_WEEK[a.getDay()]} - ${EN_WEEK[b.getDay()]})`;
 }
 
+/**
+ * Compact range for dense UI (admin filter dropdowns): "2026-07-31 → 08-01",
+ * or just "2026-07-31" for a single day. Lives here, next to the human format,
+ * so date rendering stays in ONE module — the long form would overflow a select.
+ */
+export function formatEventDateCompact(startDate: string, endDate: string): string {
+  const a = parseYmd(startDate);
+  const b = parseYmd(endDate) ?? a;
+  if (!a || !b) return "";
+  if (startDate === endDate || a.getTime() === b.getTime()) return startDate.slice(0, 10);
+  const mmdd = `${String(b.getMonth() + 1).padStart(2, "0")}-${String(b.getDate()).padStart(2, "0")}`;
+  // Year repeated only when the range crosses into another one.
+  return a.getFullYear() === b.getFullYear()
+    ? `${startDate.slice(0, 10)} → ${mmdd}`
+    : `${startDate.slice(0, 10)} → ${endDate.slice(0, 10)}`;
+}
+
 /** "10:00:00" → "10:00 AM". Mirrors fmt12h in the offline-event-admin function
  *  so a client-formatted time and a server-generated time_slot never disagree:
  *  hour not zero-padded, minutes two digits, uppercase AM/PM. */

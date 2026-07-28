@@ -54,6 +54,17 @@ function snapshotEventName(ev: { title_zh?: string | null; display_label?: strin
   return (ev?.title_zh ?? "").trim() || String(ev?.display_label ?? "");
 }
 
+/**
+ * Sentinel for the "未关联活动" (orphan) booking filter. A non-empty string on
+ * purpose: "" is already the falsy "no filter" state, so an empty sentinel would
+ * collide with it and silently widen the query to everything.
+ *
+ * Orphans are real: oe_bookings.event_id is ON DELETE SET NULL, and deleteEvent
+ * only blocks events with NON-cancelled bookings — so deleting an event whose
+ * bookings are all cancelled nulls their event_id instead of refusing.
+ */
+const ORPHAN_EVENT = "__orphan__";
+
 /** Short, human-scannable booking code (mirrors the `oe` fn's generator). */
 function genBookingId(): string {
   const ts = Date.now().toString(36).slice(-4).toUpperCase();
@@ -461,7 +472,18 @@ serve(async (req) => {
             { count: "exact" },
           );
         if (!includeArchived) q = q.eq("is_archived", false);
-        if (eventId) q = q.eq("event_id", eventId);
+        // THREE distinct states, deliberately not two:
+        //   ""          → no event filter at all. The default view MUST include
+        //                 orphans (event_id IS NULL); that, not the dropdown
+        //                 option, is what stops them vanishing silently.
+        //   ORPHAN_EVENT→ only orphans. `.is(null)` — NOT `.eq("event_id", null)`,
+        //                 which PostgREST does not translate to IS NULL and which
+        //                 would quietly match nothing.
+        //   a uuid      → that event only.
+        // The sentinel is a non-empty string on purpose: "" would collide with
+        // the falsy check that means "no filter".
+        if (eventId === ORPHAN_EVENT) q = q.is("event_id", null);
+        else if (eventId) q = q.eq("event_id", eventId);
         if (status) q = q.eq("status", status);
         if (locId) q = q.eq("ghl_location_id", locId);
         if (search) q = q.or(`booking_id.ilike.%${search}%,email.ilike.%${search}%`);
@@ -486,7 +508,20 @@ serve(async (req) => {
         if (search) aq = aq.or(`booking_id.ilike.%${search}%,email.ilike.%${search}%`);
         const { count: archivedCount } = await aq;
 
-        return json({ bookings, total: count ?? bookings.length, archivedCount: archivedCount ?? 0 });
+        // So the UI can render the "未关联活动" option ONLY when such rows exist —
+        // a permanent "0" option is noise, but a hidden one means an orphan could
+        // appear with no way to single it out.
+        const { count: orphanCount } = await sb
+          .from("oe_bookings")
+          .select("id", { count: "exact", head: true })
+          .is("event_id", null);
+
+        return json({
+          bookings,
+          total: count ?? bookings.length,
+          archivedCount: archivedCount ?? 0,
+          orphanCount: orphanCount ?? 0,
+        });
       }
 
       // ── One booking's full detail + its event ────────────────────────────

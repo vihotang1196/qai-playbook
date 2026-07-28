@@ -147,6 +147,11 @@ export type OeBookingRow = {
   created_at: string;
 };
 
+/** Sentinel for the "未关联活动" filter — mirrors ORPHAN_EVENT in the
+ *  offline-event-admin function. Non-empty on purpose: "" already means
+ *  "no event filter", so an empty sentinel would collide with it. */
+export const ORPHAN_EVENT = "__orphan__";
+
 export type ListBookingsParams = {
   eventId?: string;
   status?: OeBookingStatus | "";
@@ -161,8 +166,8 @@ export type ListBookingsParams = {
  *  filters, so the list can say so instead of just looking empty. */
 export async function listBookings(
   params: ListBookingsParams = {},
-): Promise<{ bookings: OeBookingRow[]; total: number; archivedCount: number }> {
-  return await callOeAdmin<{ bookings: OeBookingRow[]; total: number; archivedCount: number }>("listBookings", params);
+): Promise<{ bookings: OeBookingRow[]; total: number; archivedCount: number; orphanCount: number }> {
+  return await callOeAdmin<{ bookings: OeBookingRow[]; total: number; archivedCount: number; orphanCount: number }>("listBookings", params);
 }
 
 export type OeBookingDetail = OeBookingRow & { qr_payload: string; archived_at: string | null; created_by: string | null };
