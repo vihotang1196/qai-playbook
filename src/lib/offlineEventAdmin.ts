@@ -94,7 +94,8 @@ export async function getCheckinBoard(eventId: string, day: 1 | 2): Promise<OeCh
 }
 
 export type OeCheckinResult = {
-  result: "ok" | "already" | "not_found" | "wrong_event";
+  /** `archived` = the booking was withdrawn (credit refunded); entry is refused. */
+  result: "ok" | "already" | "not_found" | "wrong_event" | "archived";
   code?: string;
   booking?: {
     booking_id: string;

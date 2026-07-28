@@ -332,7 +332,7 @@ serve(async (req) => {
         const { data: b, error: findErr } = await sb
           .from("oe_bookings")
           .select(
-            "id, booking_id, event_id, event_label, email, status, free_seats, addon_seats, day1_status, day2_status, day1_checked_in_at, day2_checked_in_at",
+            "id, booking_id, event_id, event_label, email, status, is_archived, free_seats, addon_seats, day1_status, day2_status, day1_checked_in_at, day2_checked_in_at",
           )
           .eq("booking_id", code)
           .maybeSingle();
@@ -346,6 +346,15 @@ serve(async (req) => {
           event_label: b.event_label,
           day,
         };
+
+        // Archived = the ticket has been withdrawn (and, once the credit system
+        // lands, refunded as credit). Refused BEFORE the wrong-event check,
+        // because a withdrawn ticket is void at every door, not just this one.
+        // Status alone used to decide this, so an archived-but-confirmed booking
+        // walked straight in — i.e. someone could be credited AND still attend.
+        if (b.is_archived === true) {
+          return json({ result: "archived", booking: info });
+        }
 
         // Locked to the chosen event — a ticket for another event is refused.
         if (eventId && b.event_id !== eventId) {

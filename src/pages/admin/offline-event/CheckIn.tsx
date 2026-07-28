@@ -127,6 +127,14 @@ export default function OfflineEventCheckIn() {
         } else if (res.result === "already") {
           const at = fmtTime(b?.checkedInAt);
           setFeedback({ kind: "warn", title: `已签到 · Day ${day}${at ? ` (${at})` : ""}`, detail: who });
+        } else if (res.result === "archived") {
+          // Distinct from "查无此票": the ticket is real, it has been withdrawn.
+          // Saying so lets staff explain it instead of assuming a bad scan.
+          setFeedback({
+            kind: "error",
+            title: "此票已归档，不能入场",
+            detail: `${who}（该报名已被撤回）`,
+          });
         } else if (res.result === "wrong_event") {
           setFeedback({
             kind: "error",
