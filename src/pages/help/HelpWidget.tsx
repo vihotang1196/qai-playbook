@@ -39,7 +39,7 @@ function useHelpLocation() {
   const [locationId] = useState<string>(() => resolveLocationId());
   const [location, setLocation] = useState<GhlLocation | null>(null);
   // null = still checking. Whether this sub-account may open the help center
-  // (Admin Portal toggle / canary whitelist). Fail-open inside checkHelpAccess.
+  // (Admin Portal toggle / 内测中 whitelist). Fail-open inside checkHelpAccess.
   const [allowed, setAllowed] = useState<boolean | null>(null);
 
   useEffect(() => {
@@ -78,7 +78,7 @@ export default function HelpWidget() {
 
   // No location_id → the "open from QAI" gate (mirrors RB's no-location state).
   if (!locationId) return <OpenFromQai lang={lang} />;
-  // Not switched on for this sub-account (canary whitelist / admin toggle).
+  // Not switched on for this sub-account (内测中 whitelist / admin toggle).
   if (allowed === false) return <HelpNotEnabled lang={lang} />;
 
   const businessName = location?.business_name?.trim();
@@ -162,7 +162,7 @@ const QAI_URL = "https://app.qiai.tech/";
 
 /** Shown when there's no identity (not opened from QAI). Customers know the QAI
  *  brand, not GHL — so this points them to app.qiai.tech with a copyable link. */
-/** Help center not switched on for this sub-account yet (canary whitelist or an
+/** Help center not switched on for this sub-account yet (内测中 whitelist or an
  *  explicit Admin Portal toggle). Same wording style as the other tools', and it
  *  reads correctly in both rollout modes. */
 function HelpNotEnabled({ lang }: { lang: "cn" | "en" }) {

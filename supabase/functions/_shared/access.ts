@@ -57,6 +57,29 @@ export async function isCanaryMode(sb: SupabaseClient): Promise<boolean> {
 export const PLAYBOOK_KEY = "playbook";
 
 /**
+ * THE rule, in one place: given a sub-account's stored `playbook` value (or
+ * null/undefined when it has no row) and the rollout flag, may it use the
+ * Playbook?
+ *
+ *   no row  → whitelist mode denies (内测中), normal mode allows (已全面开放)
+ *   row     → the row wins, in BOTH modes
+ *
+ * The row winning in both modes is what makes 「全部开启」 safe: flipping the
+ * global flag never resurrects a sub-account the owner deliberately switched
+ * off (a suspended customer must not quietly come back).
+ *
+ * Everything that answers "is this sub-account on?" MUST route through here —
+ * the gate below, the admin list, and the Offline Event sub-account manager.
+ * This used to be re-implemented in three places; when copies drift, the admin
+ * UI shows a toggle that disagrees with what customers actually get, and an
+ * admin can never notice because admins bypass the gate.
+ */
+export function playbookAllowed(row: boolean | null | undefined, whitelistMode: boolean): boolean {
+  if (row === null || row === undefined) return !whitelistMode;
+  return row !== false;
+}
+
+/**
  * The one access gate: may this sub-account use the Playbook at all?
  *
  * Pass `req` to also grant signed-in platform admins access (recommended for
@@ -80,8 +103,12 @@ export async function hasPlaybookAccess(
     .maybeSingle();
   if (error) throw error;
 
-  // no row: canary → deny (whitelist), normal → allow (default ON)
-  const granted = data ? data.enabled !== false : !(await isCanaryMode(sb));
+  // The ONE rule (playbookAllowed) — never re-implement it at a call site.
+  // The flag is only looked up when there is no row, since that is the only
+  // case it decides; a row answers on its own in either mode.
+  const stored = data ? (data.enabled as boolean) : null;
+  const granted =
+    stored !== null ? playbookAllowed(stored, false) : playbookAllowed(null, await isCanaryMode(sb));
   if (granted) return true;
   return req ? await isAdminRequest(req) : false;
 }

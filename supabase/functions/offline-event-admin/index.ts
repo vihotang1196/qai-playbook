@@ -16,7 +16,7 @@ import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { corsHeaders, json, serviceClient } from "../_shared/ghl.ts";
 import { requireAdmin } from "../_shared/admin.ts";
 import { platformLiveKeyConfigured, describeActiveStripe } from "../_shared/stripe.ts";
-import { isCanaryMode, OFFLINE_EVENT_KEY, PLAYBOOK_KEY } from "../_shared/access.ts";
+import { isCanaryMode, OFFLINE_EVENT_KEY, playbookAllowed, PLAYBOOK_KEY } from "../_shared/access.ts";
 
 // Best-effort audit trail for admin write actions (who changed what, when).
 // Never blocks the action if logging fails.
@@ -908,7 +908,7 @@ serve(async (req) => {
           .in("key", ["default_free_tickets", "default_free_seats"]);
         const sm: Record<string, string> = {};
         for (const r of st ?? []) sm[r.key as string] = r.value as string;
-        const canary = await isCanaryMode(sb);
+        const whitelistMode = await isCanaryMode(sb);
 
         return json({
           rows: locs.map((l) => {
@@ -926,8 +926,11 @@ serve(async (req) => {
               // Sub-switch: explicit opt-OUT only (mirrors hasOfflineEventAccess).
               oe_enabled: acc[OFFLINE_EVENT_KEY] !== false,
               // Master switch, read-only here (edited on the Sub Account page).
-              // No row means canary decides, exactly as the gate does.
-              playbook_enabled: acc[PLAYBOOK_KEY] !== undefined ? acc[PLAYBOOK_KEY] !== false : !canary,
+              // Same shared helper the customer gate uses — never re-derived.
+              playbook_enabled: playbookAllowed(
+                acc[PLAYBOOK_KEY] === undefined ? null : acc[PLAYBOOK_KEY],
+                whitelistMode,
+              ),
             };
           }),
           total: count ?? 0,
@@ -937,7 +940,7 @@ serve(async (req) => {
             free_tickets: Number(sm["default_free_tickets"] ?? 1),
             free_seats: Number(sm["default_free_seats"] ?? 1),
           },
-          canary,
+          whitelistMode,
         });
       }
 

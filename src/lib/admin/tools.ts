@@ -15,12 +15,12 @@ export type AdminTool = {
 
 export const ADMIN_TOOLS: AdminTool[] = [
   { key: "review_boost", name: { cn: "Review Boost", en: "Review Boost" }, live: true },
-  // live:true so the per-location toggle is usable — REQUIRED for the canary
-  // whitelist. This flag only controls the Admin Portal toggle; the customer nav
+  // live:true so the per-location toggle is usable — REQUIRED while the
+  // platform is 内测中 (whitelist). This flag only controls the Admin Portal toggle; the customer nav
   // entry is separate (still hidden in Navbar.tsx until the owner opens it).
   { key: "copywriter", name: { cn: "文案生成器", en: "Copywriter" }, live: true },
   // Helpdesk content stays agency-wide shared; this toggle only controls who may
-  // OPEN the help center (needed for the canary rollout).
+  // OPEN the help center (needed for the staged rollout).
   { key: "helpdesk", name: { cn: "帮助中心", en: "Helpdesk" }, live: true },
   // Live from P3: the customer /events flow enforces per-location access
   // (hasToolAccess) server-side in the `oe` edge fn.

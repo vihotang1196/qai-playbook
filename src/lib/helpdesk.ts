@@ -51,7 +51,7 @@ export type HelpArticle = {
 
 /**
  * Whether this sub-account may open the help center (Admin Portal toggle /
- * canary whitelist). Fail-OPEN on transient errors — the server still gates
+ * 内测中 whitelist). Fail-OPEN on transient errors — the server still gates
  * every real action, so a network blip must not wrongly show "not available".
  */
 export async function checkHelpAccess(locationId: string): Promise<boolean> {

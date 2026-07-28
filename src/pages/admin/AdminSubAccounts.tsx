@@ -1,15 +1,17 @@
 import { useEffect, useRef, useState } from "react";
-import { Loader2, Search, RefreshCw, ExternalLink, Building2, ShieldAlert } from "lucide-react";
+import { Loader2, Search, RefreshCw, ExternalLink, Building2, ShieldAlert, CheckCircle2 } from "lucide-react";
 import { toast } from "sonner";
+import ConfirmDialog from "@/components/ConfirmDialog";
 import {
   listLocations,
   setPlaybookAccess,
   syncLocations,
-  isPlaybookEnabled,
-  getCanaryMode,
-  setCanaryMode,
+  getRolloutMode,
+  setRolloutMode,
+  listPlaybookRoster,
   PLAYBOOK_KEY,
   type AdminLocation,
+  type PlaybookRoster,
 } from "@/lib/adminApi";
 
 /**
@@ -24,31 +26,35 @@ export default function AdminSubAccounts() {
   const [capped, setCapped] = useState(false);
   const [loading, setLoading] = useState(true);
   const [syncing, setSyncing] = useState(false);
-  const [busy, setBusy] = useState<string | null>(null); // `${location_id}:${tool}` being saved
-  // Canary (whitelist) rollout mode — platform-wide. Drives BOTH the banner and
-  // how a "never set" toggle must be shown (see isToolEnabled).
-  const [canary, setCanary] = useState(false);
-  const [canaryBusy, setCanaryBusy] = useState(false);
+  const [busy, setBusy] = useState<string | null>(null); // location_id being saved
+  // Platform rollout state: true = 内测中 (whitelist), false = 已全面开放.
+  const [whitelistMode, setWhitelistMode] = useState(false);
+  const [rolloutBusy, setRolloutBusy] = useState(false);
+  const [confirmOpenAll, setConfirmOpenAll] = useState(false);
   const seq = useRef(0);
 
   useEffect(() => {
-    getCanaryMode()
-      .then((r) => setCanary(r.enabled))
+    getRolloutMode()
+      .then((r) => setWhitelistMode(r.whitelistMode))
       .catch(() => {
         /* banner just stays off — never block the page on it */
       });
   }, []);
 
-  const flipCanary = async (next: boolean) => {
-    setCanaryBusy(true);
+  const flipRollout = async (nextWhitelist: boolean) => {
+    setRolloutBusy(true);
     try {
-      await setCanaryMode(next);
-      setCanary(next);
-      toast.success(next ? "已开启灰度模式（白名单）" : "已关闭灰度模式（全面开放）");
+      await setRolloutMode(nextWhitelist);
+      setWhitelistMode(nextWhitelist);
+      setConfirmOpenAll(false);
+      toast.success(nextWhitelist ? "已改回内测中（只有名单内可用）" : "已全面开放");
+      // Every row's effective state is computed server-side against this flag,
+      // so the list must be re-read — not patched locally.
+      await load(query.trim());
     } catch (e) {
       toast.error(e instanceof Error ? e.message : "切换失败");
     } finally {
-      setCanaryBusy(false);
+      setRolloutBusy(false);
     }
   };
 
@@ -61,6 +67,7 @@ export default function AdminSubAccounts() {
       setLocations(res.locations);
       setTotal(res.total);
       setCapped(res.capped);
+      setWhitelistMode(res.whitelistMode);
     } catch (e) {
       if (mine === seq.current) toast.error(e instanceof Error ? e.message : "加载失败");
     } finally {
@@ -76,22 +83,22 @@ export default function AdminSubAccounts() {
 
   const toggle = async (loc: AdminLocation, next: boolean) => {
     setBusy(loc.location_id);
-    // optimistic
-    setLocations((list) =>
-      list.map((l) =>
-        l.location_id === loc.location_id ? { ...l, access: { ...l.access, [PLAYBOOK_KEY]: next } } : l,
-      ),
-    );
+    // Optimistic. Writing an explicit row means the answer no longer depends on
+    // the rollout flag, so playbook_enabled follows the row directly.
+    const patch = (v: boolean) =>
+      setLocations((list) =>
+        list.map((l) =>
+          l.location_id === loc.location_id
+            ? { ...l, access: { ...l.access, [PLAYBOOK_KEY]: v }, playbook_enabled: v }
+            : l,
+        ),
+      );
+    patch(next);
     try {
       await setPlaybookAccess(loc.location_id, next);
       toast.success(next ? "已开启 Playbook" : "已关闭 Playbook");
     } catch (e) {
-      // revert
-      setLocations((list) =>
-        list.map((l) =>
-          l.location_id === loc.location_id ? { ...l, access: { ...l.access, [PLAYBOOK_KEY]: !next } } : l,
-        ),
-      );
+      patch(!next);
       toast.error(e instanceof Error ? e.message : "保存失败");
     } finally {
       setBusy(null);
@@ -131,38 +138,66 @@ export default function AdminSubAccounts() {
         </button>
       </div>
 
-      {/* Canary rollout switch. ON = whitelist (only sub-accounts toggled on can
-          use the tools); OFF = normal (everyone except those toggled off).
-          Admins always get through either way. Black block = "this is not the
-          normal state", consistent with the Stripe-LIVE warning. */}
+      {/* Rollout state — the launch switch. 内测中 = whitelist (only sub-accounts
+          switched on get in); 已全面开放 = everyone except those switched off.
+          Flipping it NEVER touches per-sub-account rows, so a deliberately
+          closed customer stays closed. Admins pass either way. Black block =
+          "not the normal state", consistent with the Stripe-LIVE warning. */}
       <div
         className={`mt-4 rounded-xl border-2 border-[#141414] p-4 flex items-start gap-3 ${
-          canary ? "bg-[#141414]" : "bg-white"
+          whitelistMode ? "bg-[#141414]" : "bg-white"
         }`}
       >
-        <ShieldAlert className={`w-5 h-5 shrink-0 mt-0.5 ${canary ? "text-[#fed50a]" : "text-[#141414]"}`} />
+        {whitelistMode ? (
+          <ShieldAlert className="w-5 h-5 shrink-0 mt-0.5 text-[#fed50a]" />
+        ) : (
+          <CheckCircle2 className="w-5 h-5 shrink-0 mt-0.5 text-[#141414]" />
+        )}
         <div className="min-w-0 flex-1">
-          <p className={`text-sm font-bold ${canary ? "text-white" : "text-[#141414]"}`}>
-            {canary ? "灰度模式 · 白名单生效中" : "全面开放中"}
+          <p className={`text-sm font-bold ${whitelistMode ? "text-white" : "text-[#141414]"}`}>
+            {whitelistMode ? "内测中 · 只有名单内的 Sub Account 能用" : "已全面开放"}
           </p>
-          <p className={`text-xs mt-0.5 ${canary ? "text-white/70" : "text-muted-foreground"}`}>
-            {canary
-              ? "只有下面明确开启的 Sub Account 能使用工具，其他人会看到「正在灰度测试」提示。你（管理员）不受限制。"
-              : "所有 Sub Account 都能使用工具，除了被明确关闭的。开启灰度模式后改为「只有开启的能用」。"}
+          <p className={`text-xs mt-0.5 ${whitelistMode ? "text-white/70" : "text-muted-foreground"}`}>
+            {whitelistMode
+              ? "名单外的 Sub Account 打开工具会看到「尚未开放」。你（管理员）不受限制。"
+              : `所有 Sub Account 都能用，除了被你单独关掉的。以后从 GHL 同步进来的新客户，默认就能用。`}
           </p>
+          {/* Who is actually in / out — otherwise the owner has to page through
+              911 rows to find out, which is how the test account sat locked out
+              without anyone noticing. */}
+          <RolloutRoster whitelistMode={whitelistMode} />
         </div>
         <button
           type="button"
-          onClick={() => flipCanary(!canary)}
-          disabled={canaryBusy}
+          onClick={() => (whitelistMode ? setConfirmOpenAll(true) : flipRollout(true))}
+          disabled={rolloutBusy}
           className={`shrink-0 inline-flex items-center gap-1.5 rounded-lg px-3 py-2 text-xs font-bold border-2 border-[#141414] disabled:opacity-60 ${
-            canary ? "bg-[#fed50a] text-[#141414]" : "bg-white text-[#141414]"
+            whitelistMode ? "bg-[#fed50a] text-[#141414]" : "bg-white text-[#141414]"
           }`}
         >
-          {canaryBusy ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : null}
-          {canary ? "关闭灰度 · 全面开放" : "开启灰度模式"}
+          {rolloutBusy ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : null}
+          {whitelistMode ? "全部开启" : "改回内测"}
         </button>
       </div>
+
+      <ConfirmDialog
+        open={confirmOpenAll}
+        title="全部开启？"
+        description={
+          <>
+            <b className="text-[#141414]">{total ?? 911} 个 Sub Account</b> 会立刻可以使用 Playbook，
+            以后新同步进来的也默认能用。
+            <br />
+            <span className="text-muted-foreground">
+              被你<b className="text-[#141414]">单独关掉</b>的客户不受影响，仍然是关的。随时可以一键「改回内测」。
+            </span>
+          </>
+        }
+        confirmLabel="全部开启"
+        cancelLabel="再等等"
+        onConfirm={() => flipRollout(false)}
+        onCancel={() => setConfirmOpenAll(false)}
+      />
 
       <div className="relative mt-4">
         <Search className="w-4 h-4 text-muted-foreground absolute left-3 top-1/2 -translate-y-1/2 z-10" />
@@ -204,7 +239,7 @@ export default function AdminSubAccounts() {
                   <label className="flex items-center gap-1.5 cursor-pointer select-none">
                     <span className="text-xs text-muted-foreground hidden sm:inline">Playbook</span>
                     <Toggle
-                      on={isPlaybookEnabled(loc, canary)}
+                      on={loc.playbook_enabled}
                       busy={busy === loc.location_id}
                       onChange={(v) => toggle(loc, v)}
                     />
@@ -225,6 +260,42 @@ export default function AdminSubAccounts() {
             <p className="mt-3 text-xs text-muted-foreground text-center">只显示前 50 个 · 用搜索找更多</p>
           )}
         </>
+      )}
+    </div>
+  );
+}
+
+/** Names the sub-accounts with an explicit row, so the rollout card says WHO is
+ *  in the whitelist / WHO stays locked out instead of only how the flag is set. */
+function RolloutRoster({ whitelistMode }: { whitelistMode: boolean }) {
+  const [roster, setRoster] = useState<PlaybookRoster | null>(null);
+
+  useEffect(() => {
+    listPlaybookRoster()
+      .then(setRoster)
+      .catch(() => {
+        /* purely informational — never block the card on it */
+      });
+  }, [whitelistMode]);
+
+  if (!roster) return null;
+  const label = (r: { location_id: string; business_name: string | null }) => r.business_name || r.location_id;
+  const tone = whitelistMode ? "text-white/70" : "text-muted-foreground";
+
+  return (
+    <div className={`text-xs mt-1.5 space-y-0.5 ${tone}`}>
+      {whitelistMode && (
+        <p>
+          名单内 <b className={whitelistMode ? "text-[#fed50a]" : "text-[#141414]"}>{roster.on.length}</b> 个
+          {roster.on.length > 0 && <>：{roster.on.map(label).join("、")}</>}
+        </p>
+      )}
+      {roster.off.length > 0 && (
+        <p>
+          另有 <b className={whitelistMode ? "text-[#fed50a]" : "text-[#141414]"}>{roster.off.length}</b> 个被单独关闭：
+          {roster.off.map(label).join("、")}
+          {!whitelistMode && "（全部开启不会把它们打开）"}
+        </p>
       )}
     </div>
   );

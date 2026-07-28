@@ -403,7 +403,8 @@ export type OeSubaccountPage = {
   page: number;
   pageSize: number;
   defaults: { free_tickets: number; free_seats: number };
-  canary: boolean;
+  /** true = 内测中 (a sub-account with no access row is denied). */
+  whitelistMode: boolean;
 };
 
 /** One page of ALL sub-accounts (not just those with an override row).

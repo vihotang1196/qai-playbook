@@ -11,7 +11,7 @@ export default function AdminHome() {
   const admin = useOutletContext<AdminIdentity>();
 
   const cards = [
-    { icon: <Building2 className="w-5 h-5" />, title: "Sub Account & 权限", desc: "开/关每个 Sub Account 的 Playbook 使用权限 · 灰度模式", to: "/admin/sub-accounts", soon: null },
+    { icon: <Building2 className="w-5 h-5" />, title: "Sub Account & 权限", desc: "开/关每个 Sub Account 的 Playbook 使用权限 · 上线开关", to: "/admin/sub-accounts", soon: null },
     { icon: <CalendarDays className="w-5 h-5" />, title: "Offline Event", desc: "线下活动报名 · 选座 · 收款 · 电子票 · 签到", to: "/admin/offline-event", soon: null },
     { icon: <LifeBuoy className="w-5 h-5" />, title: "Helpdesk", desc: "共享 AI 客服的知识库、对话与挂件设置", to: "/admin/helpdesk", soon: null },
     { icon: <ScrollText className="w-5 h-5" />, title: "审计日志", desc: "谁改了谁的权限、谁触发同步", to: "/admin/audit", soon: null },

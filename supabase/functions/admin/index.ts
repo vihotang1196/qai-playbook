@@ -12,7 +12,7 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { corsHeaders, json, serviceClient } from "../_shared/ghl.ts";
 import { requireAdmin } from "../_shared/admin.ts";
-import { PLAYBOOK_KEY } from "../_shared/access.ts";
+import { isCanaryMode, playbookAllowed, PLAYBOOK_KEY } from "../_shared/access.ts";
 
 // Tool registry (server-side mirror of src/lib/admin/tools.ts). Access can only
 // be set for a known tool_key.
@@ -69,8 +69,26 @@ serve(async (req) => {
         }
 
         const { count } = await sb.from("ghl_locations").select("location_id", { count: "exact", head: true });
-        const locations = (locs ?? []).map((l) => ({ ...l, access: accessMap[l.location_id as string] || {} }));
-        return json({ locations, total: count ?? null, capped: !query && (locs?.length ?? 0) >= limit });
+        // Compute the effective answer HERE, with the same helper the customer
+        // gate uses, and ship it. The frontend must never re-derive it — a
+        // second copy of the rule can drift, and an admin (who bypasses every
+        // gate) would never see the toggle disagreeing with reality.
+        const whitelistMode = await isCanaryMode(sb);
+        const locations = (locs ?? []).map((l) => {
+          const access = accessMap[l.location_id as string] || {};
+          const stored = access[PLAYBOOK_KEY];
+          return {
+            ...l,
+            access,
+            playbook_enabled: playbookAllowed(stored === undefined ? null : stored, whitelistMode),
+          };
+        });
+        return json({
+          locations,
+          total: count ?? null,
+          capped: !query && (locs?.length ?? 0) >= limit,
+          whitelistMode,
+        });
       }
 
       // ── Toggle a (sub-account, tool) on/off + write audit ───────────────
@@ -148,6 +166,40 @@ serve(async (req) => {
           detail: { from, to: enabled },
         });
         return json({ ok: true, enabled });
+      }
+
+      // ── Who has an EXPLICIT playbook row (the launch roster) ────────────
+      // In 内测中 the "on" list is literally the whitelist; in 已全面开放 the
+      // "off" list is who stays locked out. Without this the owner would have
+      // to page through 911 rows to find out — which is exactly how the test
+      // sub-account sat locked out unnoticed before launch.
+      case "listPlaybookRoster": {
+        const { data, error } = await sb
+          .from("location_tool_access")
+          .select("location_id, enabled")
+          .eq("tool_key", PLAYBOOK_KEY)
+          .limit(1000);
+        if (error) throw error;
+        const rows = data ?? [];
+        const names: Record<string, string> = {};
+        const ids = rows.map((r) => r.location_id as string);
+        // Chunked: one .in() with hundreds of ids builds a URL long enough for
+        // PostgREST to reject, and the failure is silent (every name goes null).
+        for (let i = 0; i < ids.length; i += 100) {
+          const { data: locs } = await sb
+            .from("ghl_locations")
+            .select("location_id, business_name")
+            .in("location_id", ids.slice(i, i + 100));
+          for (const l of locs ?? []) names[l.location_id as string] = (l.business_name as string) ?? "";
+        }
+        const shape = (want: boolean) =>
+          rows
+            .filter((r) => (r.enabled as boolean) === want)
+            .map((r) => ({
+              location_id: r.location_id as string,
+              business_name: names[r.location_id as string] || null,
+            }));
+        return json({ on: shape(true), off: shape(false) });
       }
 
       // ── Canary (whitelist) rollout mode ─────────────────────────────────
