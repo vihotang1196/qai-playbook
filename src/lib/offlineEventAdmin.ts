@@ -381,6 +381,49 @@ export async function updateSubaccountSettings(locationId: string, free_tickets:
   return await callOeAdmin("updateSubaccountSettings", { locationId, free_tickets, free_seats });
 }
 
+// ── Sub-account manager (all 911, server-paged) ─────────────────────────────
+
+export type OeSubaccountManagerRow = {
+  location_id: string;
+  business_name: string | null;
+  logo_url: string | null;
+  /** null = no override row → inherits the global default. */
+  free_tickets: number | null;
+  free_seats: number | null;
+  has_override: boolean;
+  /** May this sub-account book offline classes? (explicit opt-out only) */
+  oe_enabled: boolean;
+  /** Playbook master switch — READ-ONLY here; edited on the Sub Account page. */
+  playbook_enabled: boolean;
+};
+
+export type OeSubaccountPage = {
+  rows: OeSubaccountManagerRow[];
+  total: number;
+  page: number;
+  pageSize: number;
+  defaults: { free_tickets: number; free_seats: number };
+  canary: boolean;
+};
+
+/** One page of ALL sub-accounts (not just those with an override row).
+ *  Search + paging are server-side, so a search spans all of them. */
+export async function listSubaccounts(
+  opts: { query?: string; page?: number; pageSize?: number } = {},
+): Promise<OeSubaccountPage> {
+  return await callOeAdmin("listSubaccounts", {
+    query: opts.query ?? "",
+    page: opts.page ?? 1,
+    pageSize: opts.pageSize ?? 50,
+  });
+}
+
+/** Turn offline-class booking on/off for ONE sub-account. Independent of the
+ *  Playbook master switch (both must be on to book). */
+export async function setOeAccess(locationId: string, enabled: boolean): Promise<{ ok: boolean; enabled: boolean }> {
+  return await callOeAdmin("setOeAccess", { locationId, enabled });
+}
+
 // ── P7d permanent delete ────────────────────────────────────────────────────
 
 /** Permanently delete a booking (frees its seats). Irreversible. */

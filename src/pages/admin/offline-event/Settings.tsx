@@ -1,19 +1,23 @@
-import { useEffect, useState } from "react";
-import { Loader2, AlertCircle, CreditCard, ShieldCheck, ShieldAlert, Save, Check, Search } from "lucide-react";
+import { useEffect, useRef, useState } from "react";
+import {
+  Loader2, AlertCircle, CreditCard, ShieldCheck, ShieldAlert, Save, Check, Search,
+  Trash2, RefreshCw, Building2, ChevronLeft, ChevronRight, Undo2,
+} from "lucide-react";
 import {
   getSettings,
   updateSettings,
   setStripeMode,
-  listSubaccountSettings,
   updateSubaccountSettings,
   deleteSubaccountSettings,
-  listLocations,
+  listSubaccounts,
+  setOeAccess,
   OE_STRIPE_MODE_EVENT,
   type OeSettingsResponse,
   type OeStripeMode,
-  type OeSubaccountRow,
+  type OeSubaccountManagerRow,
+  type OeSubaccountPage,
 } from "@/lib/offlineEventAdmin";
-import { Trash2 } from "lucide-react";
+import { syncLocations } from "@/lib/adminApi";
 import { toast } from "sonner";
 import ConfirmDialog from "@/components/ConfirmDialog";
 
@@ -30,9 +34,10 @@ const LIVE_CONFIRM = "正式";
 
 export default function OfflineEventSettings() {
   const [resp, setResp] = useState<OeSettingsResponse | null>(null);
-  const [subs, setSubs] = useState<OeSubaccountRow[]>([]);
-  const [locNames, setLocNames] = useState<Record<string, string>>({});
   const [err, setErr] = useState<string | null>(null);
+  // Bumped after the global defaults are saved, so the sub-account table
+  // re-reads (rows with no override display the default inline).
+  const [reloadToken, setReloadToken] = useState(0);
 
   // charge settings form
   const [sstPercent, setSstPercent] = useState("");
@@ -51,10 +56,9 @@ export default function OfflineEventSettings() {
 
   const load = () => {
     setErr(null);
-    Promise.all([getSettings(), listSubaccountSettings()])
-      .then(([r, s]) => {
+    getSettings()
+      .then((r) => {
         setResp(r);
-        setSubs(s);
         setSstPercent(String(Math.round(Number(r.settings.sst_rate) * 10000) / 100));
         setLunchPrice(r.settings.lunch_price);
         setMaxSeats(r.settings.max_seats_per_booking);
@@ -64,20 +68,6 @@ export default function OfflineEventSettings() {
       .catch((e) => setErr(e instanceof Error ? e.message : "加载失败"));
   };
   useEffect(load, []);
-
-  // Best-effort sub-account name map (so the location_id lookup can show which
-  // business it is). Loaded once; failure is non-fatal — the lookup still works.
-  useEffect(() => {
-    listLocations()
-      .then((locs) => {
-        const m: Record<string, string> = {};
-        for (const l of locs) if (l.business_name) m[l.location_id] = l.business_name;
-        setLocNames(m);
-      })
-      .catch(() => {
-        /* names are optional */
-      });
-  }, []);
 
   const saveCharges = async () => {
     setSaving(true);
@@ -93,6 +83,7 @@ export default function OfflineEventSettings() {
       setSavedFlag(true);
       setTimeout(() => setSavedFlag(false), 2500);
       load();
+      setReloadToken((n) => n + 1); // rows showing "全局默认" must pick up the new numbers
     } catch (e) {
       setErr(e instanceof Error ? e.message : "保存失败");
     } finally {
@@ -116,36 +107,6 @@ export default function OfflineEventSettings() {
       setSwitchErr(msg === "live_key_missing" ? "正式密钥未配置，无法切换。" : msg);
     } finally {
       setSwitching(false);
-    }
-  };
-
-  // Upsert one sub-account's free allowance (works for any location_id, even one
-  // without an existing override row — the backend action upserts). Shared by the
-  // overrides list and the location_id lookup.
-  const saveAllowance = async (locationId: string, ft: number, fs: number) => {
-    await updateSubaccountSettings(locationId, ft, fs);
-    load();
-  };
-
-  const saveSub = async (row: OeSubaccountRow, ft: number, fs: number) => {
-    try {
-      await saveAllowance(row.location_id, ft, fs);
-    } catch (e) {
-      setErr(e instanceof Error ? e.message : "保存失败");
-    }
-  };
-
-  const [confirmDelSub, setConfirmDelSub] = useState<OeSubaccountRow | null>(null);
-
-  const delSub = async (row: OeSubaccountRow) => {
-    try {
-      await deleteSubaccountSettings(row.location_id);
-      setConfirmDelSub(null);
-      toast.success(`已删除「${row.business_name || row.location_id}」的额度覆盖，回到全局默认`);
-      load();
-    } catch (e) {
-      setConfirmDelSub(null);
-      toast.error(e instanceof Error ? e.message : "删除失败");
     }
   };
 
@@ -236,22 +197,6 @@ export default function OfflineEventSettings() {
         {switchErr && <p className="text-sm text-destructive mt-2">{switchErr}</p>}
       </div>
 
-      <ConfirmDialog
-        open={!!confirmDelSub}
-        danger
-        title="删除这个额度覆盖？"
-        description={
-          <>
-            「<b className="text-[#141414]">{confirmDelSub?.business_name || confirmDelSub?.location_id}</b>」
-            将回到<b className="text-[#141414]">全局默认额度</b>。
-          </>
-        }
-        confirmLabel="删除覆盖"
-        cancelLabel="返回"
-        onConfirm={() => confirmDelSub && delSub(confirmDelSub)}
-        onCancel={() => setConfirmDelSub(null)}
-      />
-
       {confirmSandbox && (
         <div
           className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm p-4"
@@ -317,168 +262,322 @@ export default function OfflineEventSettings() {
         </button>
       </div>
 
-      {/* ── Look up / adjust ANY sub-account by location_id ── */}
-      <SubAccountLookup
-        defaults={{ tickets: resp.settings.default_free_tickets, seats: resp.settings.default_free_seats }}
-        overrides={subs}
-        nameFor={(id) => locNames[id] ?? null}
-        onSave={saveAllowance}
-      />
-
-      {/* ── Per-sub-account free allowance overrides ── */}
-      <div className="glass-card rounded-2xl p-5">
-        <p className="font-display font-bold mb-1">各子账号免费额度（覆盖全局默认）</p>
-        <p className="text-xs text-muted-foreground mb-3">只列出已使用过本工具的子账号；改这里会覆盖该客户的免费额度。</p>
-        {subs.length === 0 ? (
-          <p className="text-sm text-muted-foreground">还没有子账号使用过。</p>
-        ) : (
-          <div className="space-y-2 max-h-80 overflow-y-auto">
-            {subs.map((row) => <SubRow key={row.location_id} row={row} onSave={saveSub} onDelete={setConfirmDelSub} />)}
-          </div>
-        )}
-      </div>
+      {/* ── Sub-account manager: ALL sub-accounts, allowance + booking switch ── */}
+      <SubAccountManager reloadToken={reloadToken} />
     </div>
   );
 }
 
 /**
- * Look up any sub-account by location_id and adjust its free allowance. Works
- * even for a location_id with no override row yet (shows the global default;
- * saving upserts a per-account override). Reads the already-loaded overrides +
- * name map — no extra backend action.
+ * The sub-account manager — EVERY sub-account (not only the ones that already
+ * opened the tool), server-paged and server-searched, with per-row free
+ * allowance + the offline-class booking switch.
+ *
+ * Deliberately server-side: at 911 sub-accounts, loading them all to filter in
+ * the browser makes search lie (it would only match the loaded slice) and the
+ * old one-shot name lookup already broke silently at that size.
  */
-function SubAccountLookup({
-  defaults,
-  overrides,
-  nameFor,
-  onSave,
-}: {
-  defaults: { tickets: string; seats: string };
-  overrides: OeSubaccountRow[];
-  nameFor: (id: string) => string | null;
-  onSave: (locationId: string, ft: number, fs: number) => Promise<void>;
-}) {
-  const [q, setQ] = useState("");
-  const [found, setFound] = useState<
-    | null
-    | { locationId: string; name: string | null; hasOverride: boolean; ft: string; fs: string }
-  >(null);
-  const [saving, setSaving] = useState(false);
-  const [saved, setSaved] = useState(false);
-  const [error, setError] = useState<string | null>(null);
+const PAGE_SIZE = 50;
 
-  const doFind = () => {
-    const id = q.trim();
-    setSaved(false);
-    setError(null);
-    if (!id) {
-      setFound(null);
-      return;
+function SubAccountManager({ reloadToken }: { reloadToken: number }) {
+  const [query, setQuery] = useState("");
+  const [page, setPage] = useState(1);
+  const [data, setData] = useState<OeSubaccountPage | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [syncing, setSyncing] = useState(false);
+  const [confirmReset, setConfirmReset] = useState<OeSubaccountManagerRow | null>(null);
+  // Guards against a slow earlier request landing after a newer one.
+  const seq = useRef(0);
+
+  const load = async (q: string, p: number) => {
+    const mine = ++seq.current;
+    setLoading(true);
+    try {
+      const res = await listSubaccounts({ query: q, page: p, pageSize: PAGE_SIZE });
+      if (mine !== seq.current) return;
+      setData(res);
+    } catch (e) {
+      if (mine === seq.current) toast.error(e instanceof Error ? e.message : "加载失败");
+    } finally {
+      if (mine === seq.current) setLoading(false);
     }
-    const ov = overrides.find((r) => r.location_id === id);
-    setFound({
-      locationId: id,
-      name: ov?.business_name ?? nameFor(id),
-      hasOverride: !!ov,
-      ft: String(ov ? ov.free_tickets : defaults.tickets),
-      fs: String(ov ? ov.free_seats : defaults.seats),
-    });
   };
 
-  const doSave = async () => {
-    if (!found) return;
-    setSaving(true);
-    setSaved(false);
-    setError(null);
+  // Debounced search; any new search restarts at page 1.
+  useEffect(() => {
+    const t = setTimeout(() => load(query.trim(), page), 300);
+    return () => clearTimeout(t);
+  }, [query, page, reloadToken]);
+
+  const refresh = () => load(query.trim(), page);
+
+  const saveAllowance = async (row: OeSubaccountManagerRow, ft: number, fs: number) => {
     try {
-      const ft = Math.max(0, Math.floor(Number(found.ft) || 0));
-      const fs = Math.max(0, Math.floor(Number(found.fs) || 0));
-      await onSave(found.locationId, ft, fs);
-      setFound({ ...found, hasOverride: true, ft: String(ft), fs: String(fs) });
-      setSaved(true);
-      setTimeout(() => setSaved(false), 2500);
+      await updateSubaccountSettings(row.location_id, ft, fs);
+      toast.success(`已保存「${row.business_name || row.location_id}」：${ft} 票 / ${fs} 座`);
+      refresh();
     } catch (e) {
-      setError(e instanceof Error ? e.message : "保存失败");
+      toast.error(e instanceof Error ? e.message : "保存失败");
+    }
+  };
+
+  const resetAllowance = async (row: OeSubaccountManagerRow) => {
+    try {
+      await deleteSubaccountSettings(row.location_id);
+      setConfirmReset(null);
+      toast.success(`「${row.business_name || row.location_id}」已回到全局默认额度`);
+      refresh();
+    } catch (e) {
+      setConfirmReset(null);
+      toast.error(e instanceof Error ? e.message : "操作失败");
+    }
+  };
+
+  const toggleOe = async (row: OeSubaccountManagerRow, next: boolean) => {
+    // Optimistic: the switch must feel instant; a failure reverts + tells why.
+    setData((d) => d && { ...d, rows: d.rows.map((r) => (r.location_id === row.location_id ? { ...r, oe_enabled: next } : r)) });
+    try {
+      await setOeAccess(row.location_id, next);
+      toast.success(next ? `已允许「${row.business_name || row.location_id}」报名线下课` : `已停止「${row.business_name || row.location_id}」报名线下课`);
+    } catch (e) {
+      setData((d) => d && { ...d, rows: d.rows.map((r) => (r.location_id === row.location_id ? { ...r, oe_enabled: !next } : r)) });
+      toast.error(e instanceof Error ? e.message : "保存失败");
+    }
+  };
+
+  const sync = async () => {
+    setSyncing(true);
+    try {
+      const n = await syncLocations();
+      toast.success(`已从 GHL 同步 ${n} 个子账号`);
+      refresh();
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : "同步失败");
+    } finally {
+      setSyncing(false);
+    }
+  };
+
+  const total = data?.total ?? 0;
+  const totalPages = Math.max(1, Math.ceil(total / PAGE_SIZE));
+  const defaults = data?.defaults ?? { free_tickets: 0, free_seats: 0 };
+  // Label the page the ROWS came from, not the page we asked for — while a
+  // fetch is in flight those differ, and a label that reads "第 3 页" above
+  // page 2's rows makes paging look broken.
+  const shownPage = data?.page ?? page;
+
+  return (
+    <div className="glass-card rounded-2xl p-5">
+      <div className="flex items-start gap-3 flex-wrap">
+        <div className="min-w-0">
+          <p className="font-display font-bold">子账号管理{total ? ` · 共 ${total} 个` : ""}</p>
+          <p className="text-xs text-muted-foreground mt-0.5">
+            每个客户的免费额度 + 能否报名线下课。没设过额度的显示「全局默认（{defaults.free_tickets} 票 / {defaults.free_seats} 座）」，一保存就成为它的专属额度。
+          </p>
+        </div>
+        <button
+          onClick={sync}
+          disabled={syncing}
+          className="ml-auto inline-flex items-center gap-1.5 rounded-lg px-3 py-2 text-sm font-medium border border-border/60 hover:border-border disabled:opacity-60 shrink-0"
+        >
+          {syncing ? <Loader2 className="w-4 h-4 animate-spin" /> : <RefreshCw className="w-4 h-4" />}
+          从 GHL 同步
+        </button>
+      </div>
+
+      <p className="text-[11px] text-muted-foreground mt-2">
+        「线下课」开关独立于 Playbook 总开关 —— <b className="text-[#141414]">两个都开</b>才能报名。总开关要去「Sub Account & 权限」页改。
+      </p>
+
+      <div className="relative mt-3">
+        <Search className="w-4 h-4 text-muted-foreground absolute left-3 top-1/2 -translate-y-1/2 z-10" />
+        <input
+          value={query}
+          onChange={(e) => {
+            setQuery(e.target.value);
+            setPage(1);
+          }}
+          placeholder="搜索商家名或 location_id…（搜全部 911 个，不只当前页）"
+          className="glass-input w-full pl-9 pr-3 py-2.5 text-sm"
+        />
+      </div>
+
+      {loading && !data ? (
+        <div className="flex items-center justify-center gap-2 text-muted-foreground py-10">
+          <Loader2 className="w-5 h-5 animate-spin" /> 加载中…
+        </div>
+      ) : !data || data.rows.length === 0 ? (
+        <p className="text-sm text-muted-foreground py-10 text-center">没有匹配的子账号。</p>
+      ) : (
+        <>
+          <div className={`mt-3 ${loading ? "opacity-50" : ""}`}>
+            {data.rows.map((row) => (
+              <SubRow
+                key={row.location_id}
+                row={row}
+                defaults={defaults}
+                onSaveAllowance={saveAllowance}
+                onResetAllowance={setConfirmReset}
+                onToggleOe={toggleOe}
+              />
+            ))}
+          </div>
+
+          <div className="flex items-center justify-center gap-3 mt-4 text-sm">
+            <button
+              onClick={() => setPage((p) => Math.max(1, p - 1))}
+              disabled={page <= 1 || loading}
+              className="h-9 px-3 rounded-lg border border-border/60 inline-flex items-center gap-1 disabled:opacity-30"
+            >
+              <ChevronLeft className="w-4 h-4" /> 上一页
+            </button>
+            <span className="text-muted-foreground">
+              第 {shownPage} / {totalPages} 页
+              {loading && <Loader2 className="w-3 h-3 animate-spin inline ml-1.5 -mt-0.5" />}
+            </span>
+            <button
+              onClick={() => setPage((p) => Math.min(totalPages, p + 1))}
+              disabled={page >= totalPages || loading}
+              className="h-9 px-3 rounded-lg border border-border/60 inline-flex items-center gap-1 disabled:opacity-30"
+            >
+              下一页 <ChevronRight className="w-4 h-4" />
+            </button>
+          </div>
+        </>
+      )}
+
+      <ConfirmDialog
+        open={!!confirmReset}
+        title="回到全局默认额度？"
+        description={
+          <>
+            「<b className="text-[#141414]">{confirmReset?.business_name || confirmReset?.location_id}</b>」
+            的专属额度会被清除，改为跟随<b className="text-[#141414]">全局默认（{defaults.free_tickets} 票 / {defaults.free_seats} 座）</b>。
+          </>
+        }
+        confirmLabel="回到默认"
+        cancelLabel="返回"
+        onConfirm={() => confirmReset && resetAllowance(confirmReset)}
+        onCancel={() => setConfirmReset(null)}
+      />
+    </div>
+  );
+}
+
+/** One sub-account row: allowance inputs + the offline-class booking switch. */
+function SubRow({
+  row,
+  defaults,
+  onSaveAllowance,
+  onResetAllowance,
+  onToggleOe,
+}: {
+  row: OeSubaccountManagerRow;
+  defaults: { free_tickets: number; free_seats: number };
+  onSaveAllowance: (row: OeSubaccountManagerRow, ft: number, fs: number) => Promise<void>;
+  onResetAllowance: (row: OeSubaccountManagerRow) => void;
+  onToggleOe: (row: OeSubaccountManagerRow, next: boolean) => Promise<void>;
+}) {
+  // What the row currently GRANTS: its own override, or the inherited default.
+  const effFt = row.has_override ? row.free_tickets ?? 0 : defaults.free_tickets;
+  const effFs = row.has_override ? row.free_seats ?? 0 : defaults.free_seats;
+  const [ft, setFt] = useState(String(effFt));
+  const [fs, setFs] = useState(String(effFs));
+  const [saving, setSaving] = useState(false);
+  const [toggling, setToggling] = useState(false);
+
+  // A reload (search / page / refresh) hands back new numbers — re-sync the
+  // inputs, or the row would keep showing the previous account's edits.
+  useEffect(() => {
+    setFt(String(effFt));
+    setFs(String(effFs));
+  }, [effFt, effFs, row.location_id]);
+
+  const dirty = ft !== String(effFt) || fs !== String(effFs);
+
+  const save = async () => {
+    setSaving(true);
+    try {
+      await onSaveAllowance(row, Math.max(0, Math.floor(Number(ft) || 0)), Math.max(0, Math.floor(Number(fs) || 0)));
     } finally {
       setSaving(false);
     }
   };
 
   return (
-    <div className="glass-card rounded-2xl p-5">
-      <p className="font-display font-bold mb-1">按 location_id 查找 / 调整额度</p>
-      <p className="text-xs text-muted-foreground mb-3">输入某个子账号的 location_id，查看并调整它的免费额度（没设过覆盖的也能直接设）。</p>
-      <div className="flex gap-2">
-        <div className="relative flex-1">
-          <Search className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground" />
-          <input
-            value={q}
-            onChange={(e) => setQ(e.target.value)}
-            onKeyDown={(e) => e.key === "Enter" && doFind()}
-            placeholder="输入 location_id…"
-            className="w-full h-10 rounded-xl border border-border bg-background pl-9 pr-3 text-sm font-mono"
-          />
+    <div className="flex items-center gap-2 text-sm border-b border-border/30 py-2 flex-wrap sm:flex-nowrap">
+      <div className="w-8 h-8 rounded-lg bg-white border border-border/40 flex items-center justify-center overflow-hidden shrink-0">
+        {row.logo_url ? <img src={row.logo_url} alt="" className="w-full h-full object-contain" /> : <Building2 className="w-4 h-4 text-muted-foreground" />}
+      </div>
+      <div className="min-w-0 flex-1">
+        <p className="truncate font-medium">{row.business_name || "(未命名)"}</p>
+        <p className="text-[11px] text-muted-foreground truncate font-mono">{row.location_id}</p>
+        <div className="flex items-center gap-2 mt-0.5">
+          {!row.has_override && (
+            <span className="text-[10px] px-1.5 py-0.5 rounded bg-muted text-muted-foreground">全局默认</span>
+          )}
+          {/* Master switch is read-only here: when it's off the booking switch
+              below cannot help, so say so instead of letting it look broken. */}
+          {!row.playbook_enabled && (
+            <span className="text-[10px] px-1.5 py-0.5 rounded bg-[#141414] text-[#fed50a]">Playbook 已关</span>
+          )}
         </div>
-        <button onClick={doFind} className="h-10 px-4 rounded-xl bg-primary text-primary-foreground text-sm font-medium flex items-center gap-1.5">
-          <Search className="w-4 h-4" /> 查找
-        </button>
       </div>
 
-      {found && (
-        <div className="mt-4 rounded-xl border border-border/60 bg-muted/30 p-4 space-y-3">
-          <div>
-            <p className="font-medium text-sm">{found.name || "（未知名称）"}</p>
-            <p className="text-[11px] text-muted-foreground font-mono break-all">{found.locationId}</p>
-            <p className={`text-xs mt-1 ${found.hasOverride ? "text-foreground" : "text-muted-foreground"}`}>
-              {found.hasOverride
-                ? "已设覆盖额度"
-                : `当前使用全局默认（${defaults.tickets} 票 / ${defaults.seats} 座），保存后为它单独设定`}
-            </p>
-          </div>
-          <div className="flex items-end gap-3 flex-wrap">
-            <label className="text-[11px] text-muted-foreground">
-              免费票（张）
-              <input value={found.ft} onChange={(e) => setFound({ ...found, ft: e.target.value })} inputMode="numeric" className="mt-1 block w-20 h-9 rounded-lg border border-border bg-background px-2 text-sm" />
-            </label>
-            <label className="text-[11px] text-muted-foreground">
-              免费座位（个）
-              <input value={found.fs} onChange={(e) => setFound({ ...found, fs: e.target.value })} inputMode="numeric" className="mt-1 block w-20 h-9 rounded-lg border border-border bg-background px-2 text-sm" />
-            </label>
-            <button onClick={doSave} disabled={saving} className="h-9 px-4 rounded-lg bg-primary text-primary-foreground text-sm font-medium flex items-center gap-1.5 disabled:opacity-40">
-              {saving ? <Loader2 className="w-4 h-4 animate-spin" /> : saved ? <Check className="w-4 h-4" /> : <Save className="w-4 h-4" />}
-              {saved ? "已保存" : "保存"}
-            </button>
-          </div>
-          {error && <p className="text-sm text-destructive">{error}</p>}
-        </div>
-      )}
+      <label className="text-[11px] text-muted-foreground shrink-0">票
+        <input value={ft} onChange={(e) => setFt(e.target.value)} inputMode="numeric" className="ml-1 w-12 h-8 rounded-lg border border-border bg-background px-2 text-sm" />
+      </label>
+      <label className="text-[11px] text-muted-foreground shrink-0">座
+        <input value={fs} onChange={(e) => setFs(e.target.value)} inputMode="numeric" className="ml-1 w-12 h-8 rounded-lg border border-border bg-background px-2 text-sm" />
+      </label>
+      <button
+        onClick={save}
+        disabled={!dirty || saving}
+        className="h-8 px-3 rounded-lg bg-primary text-primary-foreground text-xs font-medium disabled:opacity-30 shrink-0 inline-flex items-center gap-1"
+      >
+        {saving ? <Loader2 className="w-3 h-3 animate-spin" /> : null} 保存
+      </button>
+      <button
+        onClick={() => onResetAllowance(row)}
+        disabled={!row.has_override}
+        title="清除覆盖，回到全局默认"
+        className="h-8 w-8 rounded-lg text-[#141414] hover:bg-[#141414]/[0.06] flex items-center justify-center disabled:opacity-25 shrink-0"
+      >
+        <Undo2 className="w-3.5 h-3.5" />
+      </button>
+
+      <label className="flex items-center gap-1.5 cursor-pointer select-none shrink-0 pl-2">
+        <span className="text-[11px] text-muted-foreground hidden lg:inline">线下课</span>
+        <Toggle
+          on={row.oe_enabled}
+          busy={toggling}
+          onChange={async (v) => {
+            setToggling(true);
+            try {
+              await onToggleOe(row, v);
+            } finally {
+              setToggling(false);
+            }
+          }}
+        />
+      </label>
     </div>
   );
 }
 
-function SubRow({ row, onSave, onDelete }: { row: OeSubaccountRow; onSave: (row: OeSubaccountRow, ft: number, fs: number) => void; onDelete: (row: OeSubaccountRow) => void }) {
-  const [ft, setFt] = useState(String(row.free_tickets));
-  const [fs, setFs] = useState(String(row.free_seats));
-  const dirty = ft !== String(row.free_tickets) || fs !== String(row.free_seats);
+function Toggle({ on, busy, onChange }: { on: boolean; busy: boolean; onChange: (v: boolean) => void }) {
   return (
-    <div className="flex items-center gap-2 text-sm border-b border-border/30 pb-2">
-      <div className="min-w-0 flex-1">
-        <p className="truncate font-medium">{row.business_name || row.location_id}</p>
-        <p className="text-[11px] text-muted-foreground truncate">{row.location_id}</p>
-      </div>
-      <label className="text-[11px] text-muted-foreground">票<input value={ft} onChange={(e) => setFt(e.target.value)} inputMode="numeric" className="ml-1 w-12 h-8 rounded-lg border border-border bg-background px-2 text-sm" /></label>
-      <label className="text-[11px] text-muted-foreground">座<input value={fs} onChange={(e) => setFs(e.target.value)} inputMode="numeric" className="ml-1 w-12 h-8 rounded-lg border border-border bg-background px-2 text-sm" /></label>
-      <button
-        onClick={() => onSave(row, Math.max(0, Math.floor(Number(ft) || 0)), Math.max(0, Math.floor(Number(fs) || 0)))}
-        disabled={!dirty}
-        className="h-8 px-3 rounded-lg bg-primary text-primary-foreground text-xs font-medium disabled:opacity-30"
-      >
-        保存
-      </button>
-      <button onClick={() => onDelete(row)} className="h-8 w-8 rounded-lg text-[#141414] hover:bg-[#141414]/[0.06] flex items-center justify-center" title="删除覆盖">
-        <Trash2 className="w-3.5 h-3.5" />
-      </button>
-    </div>
+    <button
+      type="button"
+      onClick={() => !busy && onChange(!on)}
+      disabled={busy}
+      className={`relative inline-flex h-5 w-9 items-center rounded-full transition-colors ${on ? "bg-primary" : "bg-muted"} disabled:opacity-60`}
+      aria-pressed={on}
+    >
+      <span className={`inline-block h-4 w-4 transform rounded-full bg-white shadow-sm transition-transform ${on ? "translate-x-4" : "translate-x-0.5"}`}>
+        {busy && <Loader2 className="w-3 h-3 animate-spin text-muted-foreground m-0.5" />}
+      </span>
+    </button>
   );
 }
 

@@ -16,6 +16,7 @@ import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { corsHeaders, json, serviceClient } from "../_shared/ghl.ts";
 import { requireAdmin } from "../_shared/admin.ts";
 import { platformLiveKeyConfigured, describeActiveStripe } from "../_shared/stripe.ts";
+import { isCanaryMode, OFFLINE_EVENT_KEY, PLAYBOOK_KEY } from "../_shared/access.ts";
 
 // Best-effort audit trail for admin write actions (who changed what, when).
 // Never blocks the action if logging fails.
@@ -848,6 +849,132 @@ serve(async (req) => {
         return json({ ok: true, mode });
       }
 
+      // ── The sub-account manager: ALL sub-accounts, paged ─────────────────
+      // Driven off `ghl_locations`, NOT off `oe_subaccount_settings`: every
+      // sub-account must be listed and adjustable, including the ~909 that have
+      // never opened the tool. (The old settings-table-driven list showed only
+      // the handful with a row, and its one-shot name lookup silently 414'd
+      // once that table grew past a few hundred ids — every name went null.)
+      // Search + paging are SERVER-side, so searching spans all 911, not the
+      // current page, and only this page's ids are ever joined.
+      case "listSubaccounts": {
+        // Strip the characters that would break PostgREST's or() syntax, but
+        // keep unicode — most business names are Chinese.
+        const query = String(body?.query || "").replace(/[,()%*]/g, " ").trim();
+        const pageSize = Math.min(200, Math.max(1, Math.floor(Number(body?.pageSize) || 50)));
+        const page = Math.max(1, Math.floor(Number(body?.page) || 1));
+        const from = (page - 1) * pageSize;
+
+        let q = sb
+          .from("ghl_locations")
+          .select("location_id, business_name, logo_url", { count: "exact" })
+          .order("business_name", { ascending: true })
+          .range(from, from + pageSize - 1);
+        if (query) q = q.or(`business_name.ilike.%${query}%,location_id.ilike.%${query}%`);
+        const { data, error, count } = await q;
+        if (error) throw error;
+        const locs = data ?? [];
+        const ids = locs.map((l) => l.location_id as string);
+
+        const allowance: Record<string, { free_tickets: number; free_seats: number }> = {};
+        const access: Record<string, Record<string, boolean>> = {};
+        if (ids.length) {
+          const { data: a, error: aErr } = await sb
+            .from("oe_subaccount_settings")
+            .select("location_id, free_tickets, free_seats")
+            .in("location_id", ids);
+          if (aErr) throw aErr;
+          for (const r of a ?? []) {
+            allowance[r.location_id as string] = {
+              free_tickets: r.free_tickets as number,
+              free_seats: r.free_seats as number,
+            };
+          }
+          const { data: t, error: tErr } = await sb
+            .from("location_tool_access")
+            .select("location_id, tool_key, enabled")
+            .in("location_id", ids)
+            .in("tool_key", [PLAYBOOK_KEY, OFFLINE_EVENT_KEY]);
+          if (tErr) throw tErr;
+          for (const r of t ?? []) {
+            (access[r.location_id as string] ||= {})[r.tool_key as string] = r.enabled as boolean;
+          }
+        }
+
+        // Global default, so a row with no override can show what it inherits.
+        const { data: st } = await sb
+          .from("oe_settings")
+          .select("key, value")
+          .in("key", ["default_free_tickets", "default_free_seats"]);
+        const sm: Record<string, string> = {};
+        for (const r of st ?? []) sm[r.key as string] = r.value as string;
+        const canary = await isCanaryMode(sb);
+
+        return json({
+          rows: locs.map((l) => {
+            const id = l.location_id as string;
+            const ov = allowance[id];
+            const acc = access[id] ?? {};
+            return {
+              location_id: id,
+              business_name: (l.business_name as string) || null,
+              logo_url: (l.logo_url as string) || null,
+              // null = no override row → the UI shows the global default
+              free_tickets: ov ? ov.free_tickets : null,
+              free_seats: ov ? ov.free_seats : null,
+              has_override: !!ov,
+              // Sub-switch: explicit opt-OUT only (mirrors hasOfflineEventAccess).
+              oe_enabled: acc[OFFLINE_EVENT_KEY] !== false,
+              // Master switch, read-only here (edited on the Sub Account page).
+              // No row means canary decides, exactly as the gate does.
+              playbook_enabled: acc[PLAYBOOK_KEY] !== undefined ? acc[PLAYBOOK_KEY] !== false : !canary,
+            };
+          }),
+          total: count ?? 0,
+          page,
+          pageSize,
+          defaults: {
+            free_tickets: Number(sm["default_free_tickets"] ?? 1),
+            free_seats: Number(sm["default_free_seats"] ?? 1),
+          },
+          canary,
+        });
+      }
+
+      // ── Sub-switch: may this sub-account book offline classes? ───────────
+      // Writes ONLY the offline_event key — the Playbook master switch stays
+      // owned by the platform Sub Account page, so one switch never has two
+      // places that write it.
+      case "setOeAccess": {
+        const locId = String(body?.locationId || "").trim();
+        if (!locId) return json({ error: "location_required" }, 400);
+        const enabled = body?.enabled === true;
+
+        const { data: cur, error: curErr } = await sb
+          .from("location_tool_access")
+          .select("enabled")
+          .eq("location_id", locId)
+          .eq("tool_key", OFFLINE_EVENT_KEY)
+          .maybeSingle();
+        if (curErr) throw curErr;
+        const before = cur ? (cur.enabled as boolean) : null; // null = never set
+
+        const { error } = await sb.from("location_tool_access").upsert(
+          {
+            location_id: locId,
+            tool_key: OFFLINE_EVENT_KEY,
+            enabled,
+            updated_at: new Date().toISOString(),
+            updated_by: admin.user_id,
+          },
+          { onConflict: "location_id,tool_key" },
+        );
+        if (error) throw error;
+
+        await logAudit(sb, admin, "oe_set_access", { from: before, to: enabled }, locId);
+        return json({ ok: true, enabled });
+      }
+
       // ── Every explicit row in location_tool_access (audit / pre-flight) ──
       // The per-tool keys were parked when access collapsed into ONE Playbook
       // switch, so rows written before that are DORMANT — they start biting
@@ -875,6 +1002,35 @@ serve(async (req) => {
         return json({
           rows: rows.map((r) => ({ ...r, business_name: nameMap[r.location_id as string] ?? null })),
         });
+      }
+
+      // ── Remove an explicit access row → back to the default ──────────────
+      // Deleting beats writing `true`: an absent row means "no opinion", so the
+      // location follows whatever the default is, instead of carrying another
+      // row that could surprise us later. Refuses the master `playbook` key —
+      // that one is owned by the Sub Account page (one switch, one owner).
+      case "deleteAccessOverride": {
+        const locId = String(body?.locationId || "").trim();
+        const toolKey = String(body?.toolKey || "").trim();
+        if (!locId || !toolKey) return json({ error: "location_and_tool_required" }, 400);
+        if (toolKey === "playbook") return json({ error: "playbook_key_not_editable_here" }, 400);
+
+        const { data: cur } = await sb
+          .from("location_tool_access")
+          .select("enabled")
+          .eq("location_id", locId)
+          .eq("tool_key", toolKey)
+          .maybeSingle();
+        if (!cur) return json({ ok: true, deleted: false }); // already absent
+
+        const { error } = await sb
+          .from("location_tool_access")
+          .delete()
+          .eq("location_id", locId)
+          .eq("tool_key", toolKey);
+        if (error) throw error;
+        await logAudit(sb, admin, "oe_delete_access_override", { tool_key: toolKey, was: cur.enabled }, locId);
+        return json({ ok: true, deleted: true });
       }
 
       // ── Per-sub-account free-allowance overrides ─────────────────────────
