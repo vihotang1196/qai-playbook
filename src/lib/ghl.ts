@@ -151,6 +151,23 @@ export function rememberEmbed(
   }
 }
 
+/**
+ * Are we actually running inside an iframe? Structural, unlike `isEmbed()`
+ * which needs `?embed=true` on the URL — GHL Custom Menu Links don't
+ * necessarily carry that flag, so anything that MUST be right about being
+ * framed (Stripe can't be iframed; `position: fixed` misbehaves) has to test
+ * the real thing. Cross-origin access to `window.top` throws, and that throw
+ * itself proves we're framed.
+ */
+export function inIframe(): boolean {
+  if (typeof window === "undefined") return false;
+  try {
+    return window.self !== window.top;
+  } catch {
+    return true; // cross-origin parent → definitely framed
+  }
+}
+
 /** Embedded inside the GHL iframe → hide the Playbook site chrome. */
 export function isEmbed(
   search: string = typeof window !== "undefined" ? window.location.search : "",

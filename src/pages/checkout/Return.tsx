@@ -25,7 +25,11 @@ export default function CheckoutReturn() {
   const [params] = useSearchParams();
   const bookingCode = params.get("booking") || "";
   const sessionId = params.get("session") || "";
-  const locationId = resolveLocationId();
+  // URL FIRST, sessionStorage second. Stripe can't be iframed, so inside GHL
+  // checkout opens in a new tab — where sessionStorage (per-tab) is empty. The
+  // location therefore has to arrive in the success_url, or a customer who has
+  // already paid can never be shown their ticket.
+  const locationId = params.get("location_id") || resolveLocationId();
   const [status, setStatus] = useState<OeBookingStatus | "loading">("loading");
   const [booking, setBooking] = useState<OeBooking | null>(null);
   const tries = useRef(0);

@@ -599,8 +599,18 @@ serve(async (req) => {
             line_items: lineItems,
             customer_email: email || undefined,
             metadata: { bookingId: inserted.id, bookingCode: bookingId, locationId },
-            success_url: `${origin}/checkout/return?booking=${encodeURIComponent(bookingId)}&session={CHECKOUT_SESSION_ID}`,
-            cancel_url: `${origin}/events`,
+            // location_id travels in the URL on purpose. When the Playbook runs
+            // inside the GHL iframe, Stripe (X-Frame-Options: DENY) can't be
+            // framed, so checkout opens in a NEW TAB — and sessionStorage, where
+            // the return page used to read the location from, is per-tab and
+            // therefore EMPTY there. Without this the customer pays and the
+            // return page can't confirm the booking, so no ticket ever appears.
+            success_url:
+              `${origin}/checkout/return?booking=${encodeURIComponent(bookingId)}` +
+              `&session={CHECKOUT_SESSION_ID}&location_id=${encodeURIComponent(locationId)}`,
+            // Same reason: a cancel must land on the customer's OWN events page,
+            // not a location-less one that shows the "open from QAI" gate.
+            cancel_url: `${origin}/events?location_id=${encodeURIComponent(locationId)}&checkout=cancelled`,
             expires_at: Math.floor(Date.now() / 1000) + HOLD_SECONDS + 120,
           });
 

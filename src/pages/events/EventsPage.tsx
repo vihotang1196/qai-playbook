@@ -17,7 +17,7 @@ import {
 } from "lucide-react";
 import { toast } from "sonner";
 import { useLang } from "@/i18n/LanguageContext";
-import { resolveLocationId } from "@/lib/ghl";
+import { resolveLocationId, inIframe } from "@/lib/ghl";
 import { SeatMap } from "@/components/offline-event/SeatMap";
 import { QrTicket } from "@/components/offline-event/QrTicket";
 import { MyBookings } from "@/components/offline-event/MyBookings";
@@ -27,6 +27,7 @@ import {
   getEvent,
   createBooking,
   createCheckout,
+  getBooking,
   layoutToSeatGroups,
   type OeContext,
   type OeEvent,
@@ -301,6 +302,10 @@ function EventBooking({
   const [qty, setQty] = useState(1); // for seat-selection-disabled events
   const [lunchQty, setLunchQty] = useState(0);
   const [email, setEmail] = useState("");
+  // Framed = inside the GHL iframe. Decided once: it changes BOTH how checkout
+  // opens (Stripe refuses to be iframed) and how the confirm bar is positioned
+  // (`fixed` pins to the iframe's own tall viewport, off-screen for the user).
+  const framed = inIframe();
   const [submitting, setSubmitting] = useState(false);
   const [done, setDone] = useState<OeBooking | null>(null);
 
@@ -386,7 +391,9 @@ function EventBooking({
   // up, reserve its height at the very bottom of the page so it never overlaps
   // the shared footer when the user scrolls all the way down. Reset when the bar
   // hides (seats cleared / step change / booked) or this card unmounts.
-  const barActive = phase === "selecting" && seatCount > 0 && !done;
+  // Inside an iframe the bar is INLINE (see the render below), so there is
+  // nothing overlapping the footer and no height to reserve.
+  const barActive = phase === "selecting" && seatCount > 0 && !done && !framed;
   useEffect(() => {
     if (!barActive) return;
     const prev = document.body.style.paddingBottom;
@@ -395,6 +402,51 @@ function EventBooking({
       document.body.style.paddingBottom = prev;
     };
   }, [barActive]);
+
+  // ── Paid-in-a-new-tab state (iframe only) ────────────────────────────────
+  // Checkout runs in another tab, so this one must not sit frozen on "正在打开
+  // 付款页". Poll the booking until the server (which verifies with Stripe)
+  // reports confirmed, then show success here too — a customer who switches
+  // back to GHL should see that the order went through.
+  const [payUrl, setPayUrl] = useState<string | null>(null);
+  const [payBlocked, setPayBlocked] = useState(false);
+  const [payCode, setPayCode] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (!payCode || !payUrl || done) return;
+    let active = true;
+    let timer: ReturnType<typeof setTimeout>;
+    const tick = async () => {
+      try {
+        const r = await getBooking(locationId, payCode);
+        if (!active) return;
+        if (r.status === "confirmed" && r.booking) {
+          setDone(r.booking);
+          setPayUrl(null);
+          setPayBlocked(false);
+          onBooked();
+          return; // stop polling
+        }
+        if (r.status === "cancelled") {
+          setPayUrl(null);
+          setPayBlocked(false);
+          toast.error(lang === "cn" ? "这笔付款已取消或超时，请重新选座" : "That payment was cancelled or expired — please pick seats again");
+          setPhase("selecting");
+          loadMap();
+          return;
+        }
+      } catch {
+        /* transient — keep polling */
+      }
+      if (active) timer = setTimeout(tick, 4000);
+    };
+    timer = setTimeout(tick, 4000);
+    return () => {
+      active = false;
+      clearTimeout(timer);
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [payCode, payUrl, done, locationId]);
 
   const emailValid = (v: string) => /^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(v.trim());
 
@@ -417,10 +469,40 @@ function EventBooking({
         setDone(res.booking);
         onBooked();
       } else if ("requiresPayment" in res) {
-        toast.message(lang === "cn" ? "正在跳转到付款页…" : "Redirecting to payment…");
-        const { checkoutUrl } = await createCheckout(locationId, { ...input, origin: window.location.origin });
-        window.location.href = checkoutUrl;
-        return; // page navigates away
+        // ── Paid path. Stripe Checkout sends X-Frame-Options: DENY, so inside
+        // the GHL iframe it CANNOT render — navigating the iframe to it just
+        // shows a blank frame. Framed → open a new tab; standalone → keep the
+        // full-page redirect, which is the nicer experience.
+        const framed = inIframe();
+
+        // The window MUST be opened synchronously in the click's gesture, before
+        // any await — otherwise the gesture is spent and the popup is blocked.
+        const win = framed ? window.open("", "_blank") : null;
+        if (framed && win) {
+          win.document.write(
+            `<!doctype html><meta charset="utf-8"><title>${lang === "cn" ? "正在前往付款…" : "Opening payment…"}</title>` +
+              `<body style="font:16px system-ui;padding:2rem">${lang === "cn" ? "正在前往 Stripe 付款页…" : "Opening the Stripe payment page…"}</body>`,
+          );
+        }
+
+        toast.message(lang === "cn" ? "正在打开付款页…" : "Opening payment…");
+        const { checkoutUrl, bookingCode } = await createCheckout(locationId, { ...input, origin: window.location.origin });
+        setPayCode(bookingCode);
+
+        if (!framed) {
+          window.location.href = checkoutUrl;
+          return; // page navigates away
+        }
+        if (win) {
+          win.location.replace(checkoutUrl);
+          setPayUrl(checkoutUrl); // → "waiting for payment" state + polling
+        } else {
+          // Popup blocked. Show a real link the customer clicks themselves — a
+          // direct click always opens, and never lose the URL either way.
+          setPayUrl(checkoutUrl);
+          setPayBlocked(true);
+        }
+        return;
       }
     } catch (e) {
       const msg = e instanceof Error ? e.message : "报名失败";
@@ -559,50 +641,104 @@ function EventBooking({
       ? `${lang === "cn" ? "免费" : "free"} ${freeUsed}${paidSeats > 0 ? ` · ${lang === "cn" ? "付费" : "paid"} ${paidSeats}` : ""}`
       : "";
 
+  // The confirm bar's contents, shared by both placements (fixed / inline) so
+  // the two can never drift apart.
+  const barInner = (
+    <>
+      {freeRemaining > 0 && (
+        <div className="mb-2 flex justify-center">
+          <span className="inline-flex items-center gap-1 rounded-full bg-[#fed50a] text-[#141414] text-xs font-bold px-3 py-1 shadow border-2 border-[#141414]">
+            <Ticket className="w-3.5 h-3.5" />
+            {lang === "cn" ? `剩余 ${freeRemaining} 张免费门票` : `${freeRemaining} free ticket${freeRemaining === 1 ? "" : "s"} left`}
+          </span>
+        </div>
+      )}
+      <div className="rounded-2xl shadow-xl border-2 border-[#141414] bg-white px-4 py-3 flex items-center gap-3">
+        <div className="min-w-0 flex-1">
+          <p className="text-sm font-bold">
+            {seatSelection
+              ? lang === "cn" ? `已选 ${seatCount} 个座位` : `${seatCount} seat${seatCount === 1 ? "" : "s"} selected`
+              : lang === "cn" ? `${seatCount} 位出席` : `${seatCount} attendee${seatCount === 1 ? "" : "s"}`}
+          </p>
+          <p className="text-[11px] text-muted-foreground truncate">
+            {seatSelection && selected.length > 0 ? `${selected.map((s) => s.label).join("、")}${splitText ? " · " : ""}` : ""}
+            {splitText}
+          </p>
+        </div>
+        <p className="text-sm font-bold tabular-nums shrink-0">{total > 0 ? `RM ${total.toFixed(2)}` : lang === "cn" ? "免费" : "Free"}</p>
+        <button
+          type="button"
+          onClick={goToAddons}
+          disabled={seatCount < 1}
+          className="shrink-0 h-10 px-4 rounded-full bg-primary text-primary-foreground border-2 border-[#141414] text-sm font-bold disabled:opacity-40"
+        >
+          {lang === "cn" ? `确认 — ${seatCount} 张票` : `Confirm — ${seatCount}`}
+        </button>
+      </div>
+    </>
+  );
+
+  // Paying in another tab (framed only). Never a dead end: the URL is always
+  // offered as a real link, which is also the recovery path when the popup was
+  // blocked outright.
+  if (payUrl && !done) {
+    return (
+      <div ref={rootRef} className="glass-card rounded-2xl p-5 space-y-3 text-center">
+        {!payBlocked && <Loader2 className="w-6 h-6 animate-spin mx-auto text-[#141414]" />}
+        <p className="font-bold">
+          {payBlocked
+            ? lang === "cn" ? "浏览器拦住了付款窗口" : "Your browser blocked the payment window"
+            : lang === "cn" ? "付款页已在新窗口打开" : "Payment opened in a new window"}
+        </p>
+        <p className="text-sm text-muted-foreground">
+          {payBlocked
+            ? lang === "cn" ? "请点下面的按钮打开付款页。座位已为你保留约 30 分钟。" : "Tap the button below to open it. Your seats are held for ~30 minutes."
+            : lang === "cn" ? "请在新窗口完成付款。付好之后这里会自动显示成功，电子票会在那个窗口打开。" : "Finish paying in that window. This page updates automatically, and the ticket opens there."}
+        </p>
+        <a
+          href={payUrl}
+          target="_blank"
+          rel="noreferrer"
+          className="inline-flex items-center justify-center h-11 px-5 rounded-full bg-primary text-primary-foreground border-2 border-[#141414] text-sm font-bold"
+        >
+          {payBlocked ? (lang === "cn" ? "打开付款页" : "Open payment page") : (lang === "cn" ? "重新打开付款页" : "Reopen payment page")}
+        </a>
+        <button
+          type="button"
+          onClick={() => { setPayUrl(null); setPayBlocked(false); setPayCode(null); setPhase("selecting"); loadMap(); onBooked(); }}
+          className="block mx-auto text-xs text-muted-foreground hover:text-foreground underline"
+        >
+          {lang === "cn" ? "放弃这次付款，重新选座" : "Give up and pick seats again"}
+        </button>
+      </div>
+    );
+  }
+
   return (
     <div ref={rootRef} className="space-y-4">
       {/* ── Step 1: select seats (+ fixed bottom confirm bar) ── */}
       {phase === "selecting" && (
         <>
-          <div className="pb-32">{seatArea(true)}</div>
+          {/* No bottom padding when the bar is inline — it takes its own space. */}
+          <div className={framed ? "" : "pb-32"}>{seatArea(true)}</div>
 
-          {seatCount > 0 && createPortal(
+          {/* THE SAME bar, positioned two ways:
+              standalone → portalled + `fixed` (floats above the page, nicest);
+              framed     → INLINE right under the seat map. Inside GHL the iframe
+              is given a tall height and the PARENT scrolls, so the iframe's own
+              viewport is the whole tall frame — `fixed bottom-0` then sits at the
+              very bottom of that frame, off-screen and clipped, which is why the
+              confirm button was unreachable. Inline can't be clipped. */}
+          {seatCount > 0 && (framed
+            ? <div className="max-w-4xl mx-auto">{barInner}</div>
+            : createPortal(
             <div className="fixed bottom-0 left-0 right-0 z-40 px-3 sm:px-4 pb-4 pointer-events-none">
             <div className="max-w-4xl mx-auto pointer-events-auto">
-              {freeRemaining > 0 && (
-                <div className="mb-2 flex justify-center">
-                  <span className="inline-flex items-center gap-1 rounded-full bg-[#fed50a] text-[#141414] text-xs font-bold px-3 py-1 shadow border-2 border-[#141414]">
-                    <Ticket className="w-3.5 h-3.5" />
-                    {lang === "cn" ? `剩余 ${freeRemaining} 张免费门票` : `${freeRemaining} free ticket${freeRemaining === 1 ? "" : "s"} left`}
-                  </span>
-                </div>
-              )}
-              <div className="rounded-2xl shadow-xl border-2 border-[#141414] bg-white px-4 py-3 flex items-center gap-3">
-                <div className="min-w-0 flex-1">
-                  <p className="text-sm font-bold">
-                    {seatSelection
-                      ? lang === "cn" ? `已选 ${seatCount} 个座位` : `${seatCount} seat${seatCount === 1 ? "" : "s"} selected`
-                      : lang === "cn" ? `${seatCount} 位出席` : `${seatCount} attendee${seatCount === 1 ? "" : "s"}`}
-                  </p>
-                  <p className="text-[11px] text-muted-foreground truncate">
-                    {seatSelection && selected.length > 0 ? `${selected.map((s) => s.label).join("、")}${splitText ? " · " : ""}` : ""}
-                    {splitText}
-                  </p>
-                </div>
-                <p className="text-sm font-bold tabular-nums shrink-0">{total > 0 ? `RM ${total.toFixed(2)}` : lang === "cn" ? "免费" : "Free"}</p>
-                <button
-                  type="button"
-                  onClick={goToAddons}
-                  disabled={seatCount < 1}
-                  className="shrink-0 h-10 px-4 rounded-full bg-primary text-primary-foreground border-2 border-[#141414] text-sm font-bold disabled:opacity-40"
-                >
-                  {lang === "cn" ? `确认 — ${seatCount} 张票` : `Confirm — ${seatCount}`}
-                </button>
-              </div>
+              {barInner}
             </div>
             </div>,
             document.body,
-          )}
+          ))}
         </>
       )}
 
