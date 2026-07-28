@@ -42,6 +42,18 @@ async function logAudit(
   }
 }
 
+/**
+ * SNAPSHOT FIELD — the event name as of booking time. Changing this logic makes
+ * new tickets inconsistent with historical ones. The display_label fallback
+ * exists because that column is NOT NULL, guaranteeing a ticket is never printed
+ * with a blank name. (Both hold the same text today: display_label is written
+ * only as a shadow of title_zh.) Nothing keys off it — check-in resolves by
+ * booking_id and compares event_id UUIDs, never this string.
+ */
+function snapshotEventName(ev: { title_zh?: string | null; display_label?: string | null }): string {
+  return (ev?.title_zh ?? "").trim() || String(ev?.display_label ?? "");
+}
+
 /** Short, human-scannable booking code (mirrors the `oe` fn's generator). */
 function genBookingId(): string {
   const ts = Date.now().toString(36).slice(-4).toUpperCase();
@@ -313,7 +325,7 @@ serve(async (req) => {
       case "checkinEvents": {
         const { data, error } = await sb
           .from("oe_events")
-          .select("id, display_label, start_date, end_date, time_slot, theme_zh, theme_en, status")
+          .select("id, display_label, title_zh, start_date, end_date, time_slot, theme_zh, theme_en, status")
           .order("start_date", { ascending: true });
         if (error) throw error;
         return json({ events: data ?? [] });
@@ -614,17 +626,17 @@ serve(async (req) => {
         if (!email || !/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(email)) return json({ error: "email_required" }, 400);
         if (uniqSeats.length < 1) return json({ error: "no_seats" }, 400);
 
-        const { data: ev } = await sb.from("oe_events").select("id, display_label").eq("id", eventId).maybeSingle();
+        const { data: ev } = await sb.from("oe_events").select("id, display_label, title_zh").eq("id", eventId).maybeSingle();
         if (!ev) return json({ error: "event_not_found" }, 404);
 
         const bookingId = genBookingId();
-        const qr = buildQrPayload({ bookingId, email, phone, eventId, eventLabel: ev.display_label, totalSeats: uniqSeats.length });
+        const qr = buildQrPayload({ bookingId, email, phone, eventId, eventLabel: snapshotEventName(ev), totalSeats: uniqSeats.length });
         const { data: inserted, error: insErr } = await sb
           .from("oe_bookings")
           .insert({
             booking_id: bookingId,
             event_id: eventId,
-            event_label: ev.display_label,
+            event_label: snapshotEventName(ev),
             email,
             phone,
             free_seats: [],
@@ -660,7 +672,7 @@ serve(async (req) => {
         await logAudit(sb, admin, "oe_add_booking", { booking_id: bookingId, event_id: eventId, seats: uniqSeats, amount }, locId);
         return json({
           ok: true,
-          booking: { booking_id: bookingId, qr_payload: qr, seats: uniqSeats, event_label: ev.display_label, total: amount || 0 },
+          booking: { booking_id: bookingId, qr_payload: qr, seats: uniqSeats, event_label: snapshotEventName(ev), total: amount || 0 },
         });
       }
 
@@ -717,7 +729,7 @@ serve(async (req) => {
         const curCount = (b.free_seats?.length ?? 0) + (b.addon_seats?.length ?? 0);
         if (uniqSeats.length !== curCount) return json({ error: "seat_count_mismatch", required: curCount }, 400);
 
-        const { data: ev } = await sb.from("oe_events").select("id, display_label").eq("id", newEventId).maybeSingle();
+        const { data: ev } = await sb.from("oe_events").select("id, display_label, title_zh").eq("id", newEventId).maybeSingle();
         if (!ev) return json({ error: "event_not_found" }, 404);
 
         // Same event chosen → this is really a seat change.
@@ -733,13 +745,13 @@ serve(async (req) => {
         const freeCount = b.free_seats?.length ?? 0;
         const qr = buildQrPayload({
           bookingId: code, email: b.email ?? "", phone: b.phone ?? "",
-          eventId: newEventId, eventLabel: ev.display_label, totalSeats: uniqSeats.length,
+          eventId: newEventId, eventLabel: snapshotEventName(ev), totalSeats: uniqSeats.length,
         });
         await sb
           .from("oe_bookings")
           .update({
             event_id: newEventId,
-            event_label: ev.display_label,
+            event_label: snapshotEventName(ev),
             free_seats: uniqSeats.slice(0, freeCount),
             addon_seats: uniqSeats.slice(freeCount),
             qr_payload: qr,
@@ -1215,7 +1227,7 @@ serve(async (req) => {
         // Booked-seat protection: on UPDATE, every seat currently booked on any
         // event using this plan MUST still be enabled in the new layout.
         if (id) {
-          const { data: evs } = await sb.from("oe_events").select("id, display_label").eq("floor_plan_id", id);
+          const { data: evs } = await sb.from("oe_events").select("id, display_label, title_zh").eq("floor_plan_id", id);
           const eventIds = (evs ?? []).map((e) => e.id as string);
           if (eventIds.length) {
             const { data: seats } = await sb.from("oe_booked_seats").select("seat_label, event_id").in("event_id", eventIds);

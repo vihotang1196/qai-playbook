@@ -202,7 +202,7 @@ export default function OfflineEventCheckIn() {
           >
             {events.map((e) => (
               <option key={e.id} value={e.id}>
-                {e.display_label}（{e.start_date} → {e.end_date}）
+                {e.title_zh || e.display_label}（{e.start_date} → {e.end_date}）
                 {e.status !== "live" ? ` · ${e.status}` : ""}
               </option>
             ))}
@@ -302,7 +302,9 @@ export default function OfflineEventCheckIn() {
         onClose={() => setScannerOpen(false)}
         onScan={handleScan}
         feedback={feedback}
-        eventLabel={selectedEvent?.display_label}
+        // title_zh with the NOT NULL display_label as a guaranteed non-blank fallback
+        // (same rule as the ticket snapshot) — display_label is retired from display.
+        eventLabel={selectedEvent?.title_zh || selectedEvent?.display_label}
         day={day}
       />
     </div>

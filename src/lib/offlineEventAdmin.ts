@@ -60,6 +60,7 @@ export async function getOverview(): Promise<OfflineEventOverview> {
 export type OeCheckinEvent = {
   id: string;
   display_label: string;
+  title_zh: string | null;
   start_date: string;
   end_date: string;
   time_slot: string;

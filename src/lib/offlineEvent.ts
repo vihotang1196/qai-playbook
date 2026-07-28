@@ -214,8 +214,12 @@ export type OeMyBooking = {
   booking_id: string;
   email: string;
   event_label: string;
+  title_zh: string | null;
+  title_en: string | null;
   start_date: string | null;
   end_date: string | null;
+  start_time: string | null;
+  end_time: string | null;
   time_slot: string | null;
   theme_zh: string | null;
   theme_en: string | null;

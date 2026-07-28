@@ -74,6 +74,20 @@ async function bookingThrottled(sb: SB, locationId: string, email: string, kind:
 
 const round2 = (n: number) => Math.round(n * 100) / 100;
 
+/**
+ * SNAPSHOT FIELD — the event's name at the moment of booking. Changing this
+ * logic makes new tickets inconsistent with historical ones. The display_label
+ * fallback exists because that column is NOT NULL, which guarantees a ticket can
+ * never be printed with a blank name. (Today the two hold the same text:
+ * display_label is written only as a shadow of title_zh.)
+ *
+ * Safe to change because nothing keys off it: check-in resolves a ticket by
+ * booking_id and compares event_id UUIDs, never this string.
+ */
+function snapshotEventName(ev: { title_zh?: string | null; display_label?: string | null }): string {
+  return (ev?.title_zh ?? "").trim() || String(ev?.display_label ?? "");
+}
+
 /** Short, human-scannable booking code. */
 function genBookingId(): string {
   const ts = Date.now().toString(36).slice(-4).toUpperCase();
@@ -175,7 +189,7 @@ async function sweepStalePending(sb: SB, filter: { eventId?: string; locationId?
 // writes and does NOT gate tool access (the caller does that first).
 type BookingPlan = {
   ok: true;
-  event: { id: string; display_label: string; price_per_seat: number };
+  event: { id: string; display_label: string; title_zh: string | null; price_per_seat: number };
   seatSelection: boolean;
   seatLabels: string[]; // real labels when seat-selection is on; [] for quantity-only (synthesized at insert)
   seatCount: number;
@@ -206,7 +220,7 @@ async function computeBookingPlan(sb: SB, locationId: string, body: any): Promis
 
   const { data: event, error: evErr } = await sb
     .from("oe_events")
-    .select("id, display_label, status, price_per_seat, seat_selection_enabled")
+    .select("id, display_label, title_zh, status, price_per_seat, seat_selection_enabled")
     .eq("id", eventId)
     .maybeSingle();
   if (evErr) throw evErr;
@@ -440,7 +454,7 @@ serve(async (req) => {
           ? plan.seatLabels
           : Array.from({ length: plan.seatCount }, (_, i) => `#${bookingId}-${i + 1}`);
         const qrPayload = JSON.stringify({
-          v: 1, bookingId, email, phone, eventId: plan.event.id, eventLabel: plan.event.display_label, totalSeats: plan.seatCount,
+          v: 1, bookingId, email, phone, eventId: plan.event.id, eventLabel: snapshotEventName(plan.event), totalSeats: plan.seatCount,
         });
 
         const { data: inserted, error: insErr } = await sb
@@ -448,7 +462,7 @@ serve(async (req) => {
           .insert({
             booking_id: bookingId,
             event_id: plan.event.id,
-            event_label: plan.event.display_label,
+            event_label: snapshotEventName(plan.event),
             email,
             phone,
             free_seats: seatLabels, // fully-free booking → all seats are free
@@ -487,7 +501,7 @@ serve(async (req) => {
             booking_id: bookingId,
             qr_payload: qrPayload,
             seats: seatLabels,
-            event_label: plan.event.display_label,
+            event_label: snapshotEventName(plan.event),
             email,
             total: 0,
             free_used: plan.freeUsedNow,
@@ -536,7 +550,7 @@ serve(async (req) => {
         const freeLabels = allLabels.slice(0, plan.freeUsedNow);
         const paidLabels = allLabels.slice(plan.freeUsedNow);
         const qrPayload = JSON.stringify({
-          v: 1, bookingId, email, phone, eventId: plan.event.id, eventLabel: plan.event.display_label, totalSeats: plan.seatCount,
+          v: 1, bookingId, email, phone, eventId: plan.event.id, eventLabel: snapshotEventName(plan.event), totalSeats: plan.seatCount,
         });
 
         const { data: inserted, error: insErr } = await sb
@@ -544,7 +558,7 @@ serve(async (req) => {
           .insert({
             booking_id: bookingId,
             event_id: plan.event.id,
-            event_label: plan.event.display_label,
+            event_label: snapshotEventName(plan.event),
             email,
             phone,
             free_seats: freeLabels,
@@ -589,7 +603,7 @@ serve(async (req) => {
             {
               price_data: {
                 currency: "myr",
-                product_data: { name: `${plan.event.display_label} — ${plan.seatCount} seat(s)` },
+                product_data: { name: `${snapshotEventName(plan.event)} — ${plan.seatCount} seat(s)` },
                 unit_amount: subtotalCents,
               },
               quantity: 1,
@@ -775,9 +789,18 @@ serve(async (req) => {
           return {
             booking_id: b.booking_id,
             email: b.email ?? "",
+            // SNAPSHOT — the name printed on this ticket when it was issued.
+            // Deliberately NOT re-read from the event, so a renamed event doesn't
+            // retroactively rewrite tickets already in customers' hands.
             event_label: b.event_label,
+            // Live event fields, for rendering the date/time the same way the
+            // event card does (the card and the ticket share one formatter).
+            title_zh: ev?.title_zh ?? null,
+            title_en: ev?.title_en ?? null,
             start_date: ev?.start_date ?? null,
             end_date: ev?.end_date ?? null,
+            start_time: ev?.start_time ?? null,
+            end_time: ev?.end_time ?? null,
             time_slot: ev?.time_slot ?? null,
             theme_zh: ev?.theme_zh ?? null,
             theme_en: ev?.theme_en ?? null,

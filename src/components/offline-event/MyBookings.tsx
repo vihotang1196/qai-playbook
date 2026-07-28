@@ -2,7 +2,7 @@ import { useEffect, useState } from "react";
 import { X, Loader2, AlertCircle, CalendarDays, Clock, Ticket, ChevronLeft, QrCode, Mail } from "lucide-react";
 import { listMyBookings, type OeMyBooking } from "@/lib/offlineEvent";
 import { QrTicket } from "@/components/offline-event/QrTicket";
-import { eventTheme } from "@/lib/offlineEventFormat";
+import { eventTheme, formatEventDate, formatEventTime } from "@/lib/offlineEventFormat";
 
 /**
  * "My bookings" — the team's tickets for this location. A location is one
@@ -107,16 +107,28 @@ export function MyBookings({
                     const theme = eventTheme(b.theme_zh, b.theme_en, lang);
                     return (
                       <div key={b.booking_id} className="rounded-2xl border border-border/60 p-4">
-                        <p className="font-display font-semibold text-sm">{theme}</p>
-                        <div className="flex flex-wrap items-center gap-x-4 gap-y-1 mt-1 text-xs text-muted-foreground">
-                          <span className="inline-flex items-center gap-1">
-                            <CalendarDays className="w-3.5 h-3.5" />
-                            {b.event_label}
-                          </span>
-                          {b.time_slot && (
+                        {/* Same hierarchy as the event card: name, then the real
+                            date, then time + theme tag. The name is the SNAPSHOT
+                            (event_label) — what this ticket was issued with — so a
+                            renamed event never rewrites a ticket already held.
+                            The date/time come from the live event through the
+                            shared formatter, which is why event_label no longer
+                            sits beside a calendar icon pretending to be a date. */}
+                        <p className="font-display font-bold text-base leading-snug">{b.event_label}</p>
+                        <p className="mt-1 inline-flex items-center gap-1.5 text-sm font-semibold text-[#141414]">
+                          <CalendarDays className="w-4 h-4 shrink-0" />
+                          {formatEventDate(b.start_date ?? "", b.end_date ?? "", lang)}
+                        </p>
+                        <div className="flex flex-wrap items-center gap-x-3 gap-y-1.5 mt-1.5 text-xs text-muted-foreground">
+                          {formatEventTime(b.start_time, b.end_time, b.time_slot) && (
                             <span className="inline-flex items-center gap-1">
                               <Clock className="w-3.5 h-3.5" />
-                              {b.time_slot}
+                              {formatEventTime(b.start_time, b.end_time, b.time_slot)}
+                            </span>
+                          )}
+                          {theme && (
+                            <span className="inline-flex items-center rounded-full bg-[#fed50a] text-[#141414] border-2 border-[#141414] px-2 py-0.5 text-[11px] font-bold">
+                              {theme}
                             </span>
                           )}
                         </div>
