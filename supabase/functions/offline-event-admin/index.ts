@@ -405,7 +405,19 @@ serve(async (req) => {
           ...b,
           seats: [...((b.free_seats as string[]) ?? []), ...((b.addon_seats as string[]) ?? [])],
         }));
-        return json({ bookings, total: count ?? bookings.length });
+
+        // How many bookings the ARCHIVE is currently hiding, under the same
+        // filters. Without this the list can only say "no results" when
+        // everything matching happens to be archived — which reads as broken
+        // (the owner archived a booking, couldn't find it, assumed a bug).
+        let aq = sb.from("oe_bookings").select("id", { count: "exact", head: true }).eq("is_archived", true);
+        if (eventId) aq = aq.eq("event_id", eventId);
+        if (status) aq = aq.eq("status", status);
+        if (locId) aq = aq.eq("ghl_location_id", locId);
+        if (search) aq = aq.or(`booking_id.ilike.%${search}%,email.ilike.%${search}%`);
+        const { count: archivedCount } = await aq;
+
+        return json({ bookings, total: count ?? bookings.length, archivedCount: archivedCount ?? 0 });
       }
 
       // ── One booking's full detail + its event ────────────────────────────

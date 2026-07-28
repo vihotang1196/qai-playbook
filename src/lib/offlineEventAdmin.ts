@@ -155,8 +155,12 @@ export type ListBookingsParams = {
 };
 
 /** List bookings with filters + free-text search (by BK code / email) + total. */
-export async function listBookings(params: ListBookingsParams = {}): Promise<{ bookings: OeBookingRow[]; total: number }> {
-  return await callOeAdmin<{ bookings: OeBookingRow[]; total: number }>("listBookings", params);
+/** `archivedCount` = how many bookings the archive is hiding under the SAME
+ *  filters, so the list can say so instead of just looking empty. */
+export async function listBookings(
+  params: ListBookingsParams = {},
+): Promise<{ bookings: OeBookingRow[]; total: number; archivedCount: number }> {
+  return await callOeAdmin<{ bookings: OeBookingRow[]; total: number; archivedCount: number }>("listBookings", params);
 }
 
 export type OeBookingDetail = OeBookingRow & { qr_payload: string; archived_at: string | null; created_by: string | null };

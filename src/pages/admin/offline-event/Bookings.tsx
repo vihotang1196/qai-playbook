@@ -51,6 +51,9 @@ export default function OfflineEventBookings() {
   const [eventId, setEventId] = useState("");
   const [status, setStatus] = useState<OeBookingStatus | "">("");
   const [includeArchived, setIncludeArchived] = useState(false);
+  // How many rows the archive is hiding right now (same filters) — surfaced so
+  // an archived booking never just looks lost.
+  const [archivedCount, setArchivedCount] = useState(0);
   const [search, setSearch] = useState("");
 
   const [detail, setDetail] = useState<{ booking: OeBookingDetail; event: OeBookingEvent } | null>(null);
@@ -70,6 +73,7 @@ export default function OfflineEventBookings() {
       .then((r) => {
         setRows(r.bookings);
         setTotal(r.total);
+        setArchivedCount(r.archivedCount ?? 0);
       })
       .catch((e) => setErr(e instanceof Error ? e.message : "加载失败"));
   }, [eventId, status, includeArchived, search]);
@@ -170,10 +174,28 @@ export default function OfflineEventBookings() {
             <option value="pending">待付款</option>
             <option value="cancelled">已取消</option>
           </select>
-          <label className="flex items-center gap-2 text-sm text-muted-foreground px-1">
-            <input type="checkbox" checked={includeArchived} onChange={(e) => setIncludeArchived(e.target.checked)} />
-            含已归档
-          </label>
+          {/* Archive visibility as a real, self-explaining control instead of a
+              faint checkbox: it names the count it is hiding, so "I archived a
+              booking and now I can't find it" can't happen silently. */}
+          <button
+            type="button"
+            onClick={() => setIncludeArchived((v) => !v)}
+            className={`inline-flex items-center gap-1.5 h-10 rounded-xl px-3 text-sm font-medium border-2 transition-colors ${
+              includeArchived
+                ? "border-[#141414] bg-[#141414] text-[#fed50a]"
+                : archivedCount > 0
+                  ? "border-[#141414] bg-[#fed50a] text-[#141414]"
+                  : "border-border text-muted-foreground"
+            }`}
+            title={includeArchived ? "点一下隐藏已归档" : "点一下把已归档的也显示出来"}
+          >
+            <Archive className="w-4 h-4" />
+            {includeArchived
+              ? "已归档：正在显示"
+              : archivedCount > 0
+                ? `另有 ${archivedCount} 单已归档 · 点击显示`
+                : "无已归档"}
+          </button>
         </div>
         <div className="flex gap-2">
           <div className="relative flex-1">

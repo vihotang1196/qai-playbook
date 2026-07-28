@@ -1,11 +1,11 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useLocation, useNavigate } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import { Menu, X, ChevronDown, ChevronRight, Pin } from "lucide-react";
 import { toast } from "sonner";
 import { useLang } from "@/i18n/LanguageContext";
 import { t } from "@/i18n/translations";
-import { resolveLocationId, setDefaultPage } from "@/lib/ghl";
+import { resolveLocationId, setDefaultPage, getDefaultPage } from "@/lib/ghl";
 import logo from "@/assets/logo.png";
 import { GUIDES } from "@/pages/guides/guides";
 import {
@@ -96,17 +96,49 @@ const Navbar = () => {
     }
   };
 
-  // Need 1 — set the CURRENT page as this sub-account's default landing page
-  // (stored per location_id server-side). Shown only in a sub-account context.
+  // Need 1 — the sub-account's default landing page (stored per location_id
+  // server-side). `null` = none set, so the Playbook opens its own fallback.
+  // Loaded so the control can SHOW the current choice: setting a default you
+  // can neither see nor undo is what made this feel broken.
+  const [defaultPath, setDefaultPathState] = useState<string | null>(null);
+  useEffect(() => {
+    if (!locId) return;
+    getDefaultPage(locId).then(setDefaultPathState).catch(() => {
+      /* control still works; it just can't show the current value */
+    });
+  }, [locId]);
+
+  /** Friendly name for a stored path, falling back to the path itself. */
+  const pageLabel = (path: string) => {
+    const hit = navLinks.find((l) => l.isRoute && l.href === path);
+    if (hit) return hit.label[lang];
+    if (path === "/") return lang === "cn" ? "首页" : "Home";
+    return path;
+  };
+
   const setAsDefault = async () => {
     if (!locId) return;
     try {
       await setDefaultPage(locId, location.pathname);
+      setDefaultPathState(location.pathname);
       toast.success(lang === "cn" ? "已设为默认打开页" : "Set as your default page");
     } catch {
       toast.error(lang === "cn" ? "设置失败，请重试" : "Couldn't save, try again");
     }
   };
+
+  const clearDefault = async () => {
+    if (!locId) return;
+    try {
+      await setDefaultPage(locId, ""); // "" → the server deletes the override
+      setDefaultPathState(null);
+      toast.success(lang === "cn" ? "已清除默认页" : "Default page cleared");
+    } catch {
+      toast.error(lang === "cn" ? "清除失败，请重试" : "Couldn't clear, try again");
+    }
+  };
+
+  const isCurrentDefault = !!defaultPath && defaultPath === location.pathname;
 
   return (
     <header className="fixed top-0 left-0 right-0 z-50 glass-nav">
@@ -209,15 +241,52 @@ const Navbar = () => {
 
         <div className="hidden lg:flex items-center gap-2">
           {locId && (
-            <button
-              type="button"
-              onClick={setAsDefault}
-              title={lang === "cn" ? "把当前页设为打开 Playbook 的默认页" : "Set this page as your default landing page"}
-              className="flex items-center gap-1 text-sm text-muted-foreground hover:text-foreground transition-colors duration-300 px-1"
-            >
-              <Pin size={14} />
-              {lang === "cn" ? "设为默认" : "Set default"}
-            </button>
+            <HoverCard openDelay={80} closeDelay={120}>
+              <HoverCardTrigger asChild>
+                <button
+                  type="button"
+                  className={`flex items-center gap-1 text-sm transition-colors duration-300 px-1 ${
+                    defaultPath ? "text-foreground" : "text-muted-foreground hover:text-foreground"
+                  }`}
+                >
+                  <Pin size={14} className={defaultPath ? "fill-current" : ""} />
+                  {lang === "cn" ? "默认页" : "Default"}
+                </button>
+              </HoverCardTrigger>
+              <HoverCardContent align="end" className="w-64 p-3">
+                <p className="text-xs text-muted-foreground">
+                  {lang === "cn" ? "现在的默认打开页" : "Current default page"}
+                </p>
+                <p className="text-sm font-medium mt-0.5">
+                  {defaultPath
+                    ? pageLabel(defaultPath)
+                    : lang === "cn"
+                      ? "未设置（打开帮助中心）"
+                      : "Not set (opens Help Center)"}
+                </p>
+                <div className="mt-2.5 space-y-1.5">
+                  <button
+                    type="button"
+                    onClick={setAsDefault}
+                    disabled={isCurrentDefault}
+                    className="w-full text-left text-sm rounded-lg px-2 py-1.5 hover:bg-accent/10 disabled:opacity-40 disabled:hover:bg-transparent"
+                  >
+                    {isCurrentDefault
+                      ? lang === "cn" ? "当前页已是默认" : "This page is already the default"
+                      : lang === "cn" ? "把当前页设为默认" : "Make this page the default"}
+                  </button>
+                  {defaultPath && (
+                    <button
+                      type="button"
+                      onClick={clearDefault}
+                      className="w-full text-left text-sm rounded-lg px-2 py-1.5 hover:bg-accent/10"
+                    >
+                      {lang === "cn" ? "清除默认页" : "Clear default"}
+                    </button>
+                  )}
+                </div>
+              </HoverCardContent>
+            </HoverCard>
           )}
           <Button
             variant="outline"
@@ -307,14 +376,35 @@ const Navbar = () => {
 
           {locId && (
             <div className="pt-3 border-t border-border">
+              <p className="text-xs text-muted-foreground">
+                {lang === "cn" ? "现在的默认打开页：" : "Current default page: "}
+                <span className="text-foreground font-medium">
+                  {defaultPath
+                    ? pageLabel(defaultPath)
+                    : lang === "cn" ? "未设置（打开帮助中心）" : "Not set (Help Center)"}
+                </span>
+              </p>
               <button
                 type="button"
                 onClick={() => { setAsDefault(); setMobileOpen(false); }}
-                className="flex items-center gap-1.5 text-sm text-foreground hover:text-accent-foreground py-1.5 transition-colors"
+                disabled={isCurrentDefault}
+                className="flex items-center gap-1.5 text-sm text-foreground hover:text-accent-foreground py-1.5 transition-colors disabled:opacity-40"
               >
                 <Pin size={14} />
-                {lang === "cn" ? "把当前页设为默认打开页" : "Set this page as default"}
+                {isCurrentDefault
+                  ? lang === "cn" ? "当前页已是默认" : "This page is already the default"
+                  : lang === "cn" ? "把当前页设为默认打开页" : "Set this page as default"}
               </button>
+              {defaultPath && (
+                <button
+                  type="button"
+                  onClick={() => { clearDefault(); setMobileOpen(false); }}
+                  className="flex items-center gap-1.5 text-sm text-muted-foreground hover:text-foreground py-1.5 transition-colors"
+                >
+                  <X size={14} />
+                  {lang === "cn" ? "清除默认页" : "Clear default"}
+                </button>
+              )}
             </div>
           )}
 

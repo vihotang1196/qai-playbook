@@ -181,7 +181,11 @@ serve(async (req) => {
           .select("api_key, database_ids")
           .limit(1)
           .maybeSingle();
-        const notionConnected = !!(notion?.api_key && String(notion.api_key).trim());
+        // The key that ACTUALLY drives every sync is the Supabase secret; the
+        // hd_settings column is legacy and normally empty. Reading only the
+        // column made this badge report "未连接" while syncing worked fine.
+        const notionConnected =
+          !!Deno.env.get("NOTION_API_KEY") || !!(notion?.api_key && String(notion.api_key).trim());
         const notionDatabases = Array.isArray(notion?.database_ids) ? notion!.database_ids.length : 0;
 
         return json({
