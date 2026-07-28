@@ -14,6 +14,8 @@ import {
   type OeSubaccountRow,
 } from "@/lib/offlineEventAdmin";
 import { Trash2 } from "lucide-react";
+import { toast } from "sonner";
+import ConfirmDialog from "@/components/ConfirmDialog";
 
 /**
  * Offline Event admin — P7c settings (`/admin/offline-event/settings`).
@@ -133,13 +135,17 @@ export default function OfflineEventSettings() {
     }
   };
 
+  const [confirmDelSub, setConfirmDelSub] = useState<OeSubaccountRow | null>(null);
+
   const delSub = async (row: OeSubaccountRow) => {
-    if (!window.confirm(`删除「${row.business_name || row.location_id}」的免费额度覆盖？该子账号将回到全局默认。`)) return;
     try {
       await deleteSubaccountSettings(row.location_id);
+      setConfirmDelSub(null);
+      toast.success(`已删除「${row.business_name || row.location_id}」的额度覆盖，回到全局默认`);
       load();
     } catch (e) {
-      setErr(e instanceof Error ? e.message : "删除失败");
+      setConfirmDelSub(null);
+      toast.error(e instanceof Error ? e.message : "删除失败");
     }
   };
 
@@ -230,6 +236,22 @@ export default function OfflineEventSettings() {
         {switchErr && <p className="text-sm text-destructive mt-2">{switchErr}</p>}
       </div>
 
+      <ConfirmDialog
+        open={!!confirmDelSub}
+        danger
+        title="删除这个额度覆盖？"
+        description={
+          <>
+            「<b className="text-[#141414]">{confirmDelSub?.business_name || confirmDelSub?.location_id}</b>」
+            将回到<b className="text-[#141414]">全局默认额度</b>。
+          </>
+        }
+        confirmLabel="删除覆盖"
+        cancelLabel="返回"
+        onConfirm={() => confirmDelSub && delSub(confirmDelSub)}
+        onCancel={() => setConfirmDelSub(null)}
+      />
+
       {confirmSandbox && (
         <div
           className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm p-4"
@@ -311,7 +333,7 @@ export default function OfflineEventSettings() {
           <p className="text-sm text-muted-foreground">还没有子账号使用过。</p>
         ) : (
           <div className="space-y-2 max-h-80 overflow-y-auto">
-            {subs.map((row) => <SubRow key={row.location_id} row={row} onSave={saveSub} onDelete={delSub} />)}
+            {subs.map((row) => <SubRow key={row.location_id} row={row} onSave={saveSub} onDelete={setConfirmDelSub} />)}
           </div>
         )}
       </div>

@@ -102,20 +102,30 @@ export default function LocationPlatforms() {
     }
   };
 
-  const remove = async (pid: string, row: LinkRow) => {
+  // Unsaved draft rows vanish immediately; a SAVED link needs confirmation, and
+  // that confirmation is in-app (a suppressed window.confirm would have made the
+  // delete button look broken).
+  const [confirmDel, setConfirmDel] = useState<{ pid: string; row: LinkRow } | null>(null);
+
+  const requestRemove = (pid: string, row: LinkRow) => {
     if (!row.id) {
       setRows((s) => ({ ...s, [pid]: (s[pid] || []).filter((r) => r.key !== row.key) }));
       return;
     }
-    if (!locationId) return;
-    if (!window.confirm(label("删除这条链接？指向它的活动会变成未指定链接。", "Delete this link? Campaigns pointing at it will lose the link."))) return;
+    setConfirmDel({ pid, row });
+  };
+
+  const remove = async (pid: string, row: LinkRow) => {
+    if (!locationId || !row.id) return;
     setBusyKey(row.key);
     try {
       await deletePlatformLink(locationId, row.id);
       setRows((s) => ({ ...s, [pid]: (s[pid] || []).filter((r) => r.key !== row.key) }));
-      toast.success(label("已删除", "Deleted"));
+      setConfirmDel(null);
+      toast.success(label("链接已删除", "Link deleted"));
     } catch (e) {
-      toast.error(e instanceof Error ? e.message : "Delete failed");
+      setConfirmDel(null);
+      toast.error(e instanceof Error ? e.message : label("删除失败", "Delete failed"), { duration: 8000 });
     } finally {
       setBusyKey(null);
     }
@@ -204,7 +214,7 @@ export default function LocationPlatforms() {
                           <Pencil className="w-3.5 h-3.5" /> {label("编辑", "Edit")}
                         </button>
                         <button
-                          onClick={() => remove(p.id, row)}
+                          onClick={() => requestRemove(p.id, row)}
                           disabled={busyKey === row.key}
                           className="inline-flex items-center justify-center w-7 h-7 rounded-lg text-muted-foreground hover:text-[#141414] shrink-0 disabled:opacity-60"
                           aria-label={label("删除", "Delete")}

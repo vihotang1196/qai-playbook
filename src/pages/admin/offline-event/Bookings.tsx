@@ -13,6 +13,8 @@ import {
   type OeBookingStatus,
   type OeCheckinEvent,
 } from "@/lib/offlineEventAdmin";
+import { toast } from "sonner";
+import ConfirmDialog from "@/components/ConfirmDialog";
 import { QrTicket } from "@/components/offline-event/QrTicket";
 import ManualAddModal from "@/components/offline-event/ManualAddModal";
 import SeatOpModal from "@/components/offline-event/SeatOpModal";
@@ -91,15 +93,22 @@ export default function OfflineEventBookings() {
     }
   };
 
+  // Confirmations use the in-app dialog, never window.confirm — a suppressed
+  // native dialog returns false and the action would abort SILENTLY.
+  const [confirmCancel, setConfirmCancel] = useState<string | null>(null);
+  const [confirmHardDelete, setConfirmHardDelete] = useState<string | null>(null);
+
   const doCancel = async (code: string) => {
-    if (!window.confirm(`确定取消订单 ${code}？会作废这张票并放开它占的座位（记录会保留、显示为已取消）。`)) return;
     setBusy(true);
     try {
       await cancelBooking(code);
+      setConfirmCancel(null);
+      toast.success(`订单 ${code} 已取消，座位已释放`);
       await openDetail(code);
       load();
     } catch (e) {
-      setErr(e instanceof Error ? e.message : "取消失败");
+      setConfirmCancel(null);
+      toast.error(e instanceof Error ? e.message : "取消失败");
     } finally {
       setBusy(false);
     }
@@ -119,14 +128,18 @@ export default function OfflineEventBookings() {
   };
 
   const doHardDelete = async (code: string) => {
-    if (!window.confirm(`永久删除订单 ${code}？此操作不可撤销，将彻底删除并释放座位。`)) return;
     setBusy(true);
     try {
       await deleteBookingHard(code);
+      setConfirmHardDelete(null);
       setDetail(null);
+      toast.success(`订单 ${code} 已永久删除，座位已释放`);
       load();
     } catch (e) {
-      setErr(e instanceof Error ? e.message : "删除失败");
+      setConfirmHardDelete(null);
+      // Includes any server-side guard refusing the delete — the user must be
+      // told WHY, never left with a button that appears to do nothing.
+      toast.error(e instanceof Error ? e.message : "删除失败", { duration: 8000 });
     } finally {
       setBusy(false);
     }
@@ -370,7 +383,7 @@ export default function OfflineEventBookings() {
                     {detail.booking.status !== "cancelled" && (
                       <button
                         disabled={busy}
-                        onClick={() => doCancel(detail.booking.booking_id)}
+                        onClick={() => setConfirmCancel(detail.booking.booking_id)}
                         className="flex-1 h-10 rounded-xl bg-[#141414]/[0.06] text-[#141414] text-sm font-medium flex items-center justify-center gap-1.5 disabled:opacity-50"
                       >
                         <Ban className="w-4 h-4" /> 取消订单
@@ -386,7 +399,7 @@ export default function OfflineEventBookings() {
                   </div>
                   <button
                     disabled={busy}
-                    onClick={() => doHardDelete(detail.booking.booking_id)}
+                    onClick={() => setConfirmHardDelete(detail.booking.booking_id)}
                     className="w-full h-9 rounded-xl text-xs font-medium text-[#141414] hover:bg-[#141414]/[0.06] flex items-center justify-center gap-1.5 disabled:opacity-50"
                   >
                     <Trash2 className="w-3.5 h-3.5" /> 永久删除（不可撤销）
@@ -412,6 +425,41 @@ export default function OfflineEventBookings() {
           }}
         />
       )}
+
+      <ConfirmDialog
+        open={!!confirmCancel}
+        danger
+        busy={busy}
+        title="取消这张订单？"
+        description={
+          <>
+            订单 <b className="text-[#141414]">{confirmCancel}</b> 会作废，它占的座位立即释放。
+            记录会保留并显示为「已取消」。
+          </>
+        }
+        confirmLabel="确认取消订单"
+        cancelLabel="返回"
+        onConfirm={() => confirmCancel && doCancel(confirmCancel)}
+        onCancel={() => setConfirmCancel(null)}
+      />
+
+      <ConfirmDialog
+        open={!!confirmHardDelete}
+        danger
+        busy={busy}
+        title="永久删除这张订单？"
+        description={
+          <>
+            订单 <b className="text-[#141414]">{confirmHardDelete}</b> 会被
+            <b className="text-[#141414]">彻底删除、无法恢复</b>，座位同时释放。
+            只想作废但保留记录的话，请改用「取消订单」。
+          </>
+        }
+        confirmLabel="永久删除"
+        cancelLabel="返回"
+        onConfirm={() => confirmHardDelete && doHardDelete(confirmHardDelete)}
+        onCancel={() => setConfirmHardDelete(null)}
+      />
     </div>
   );
 }

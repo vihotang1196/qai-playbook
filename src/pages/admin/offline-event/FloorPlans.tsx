@@ -1,4 +1,6 @@
 import { useEffect, useState } from "react";
+import { toast } from "sonner";
+import ConfirmDialog from "@/components/ConfirmDialog";
 import { Loader2, AlertCircle, Plus, Pencil, Trash2, Copy, Star, LayoutGrid } from "lucide-react";
 import {
   listFloorPlans,
@@ -34,29 +36,46 @@ export default function OfflineEventFloorPlans() {
   };
   useEffect(load, []);
 
+  // In-app dialogs, never window.confirm/prompt/alert — a suppressed native
+  // dialog returns false/null and the action would abort SILENTLY.
+  const [confirmDel, setConfirmDel] = useState<OeAdminFloorPlan | null>(null);
+  const [dupTarget, setDupTarget] = useState<OeAdminFloorPlan | null>(null);
+
   const del = async (p: OeAdminFloorPlan) => {
-    if (!window.confirm(`删除平面图「${p.name}」？`)) return;
     setBusy(true);
     try {
       await deleteFloorPlan(p.id);
+      setConfirmDel(null);
+      toast.success(`已删除平面图「${p.name}」`);
       load();
     } catch (e) {
       const msg = e instanceof Error ? e.message : "删除失败";
-      alert(msg === "is_default" ? "默认平面图不能删,请先把别的设为默认。" : msg === "in_use" ? "该平面图被活动使用中,不能删。请先在活动里改用别的平面图。" : msg);
+      setConfirmDel(null);
+      // Server-side guards must be SHOWN, not swallowed by a blocked alert().
+      toast.error(
+        msg === "is_default"
+          ? "默认平面图不能删，请先把别的设为默认。"
+          : msg === "in_use"
+            ? "该平面图正被活动使用，不能删。请先在活动里改用别的平面图。"
+            : msg,
+        { duration: 8000 },
+      );
     } finally {
       setBusy(false);
     }
   };
 
-  const dup = async (p: OeAdminFloorPlan) => {
-    const name = window.prompt("复制为:", `${p.name} (副本)`);
-    if (!name?.trim()) return;
+  const dup = async (p: OeAdminFloorPlan, name: string) => {
+    if (!name.trim()) return;
     setBusy(true);
     try {
       await duplicateFloorPlan(p.id, name.trim());
+      setDupTarget(null);
+      toast.success(`已复制为「${name.trim()}」`);
       load();
     } catch (e) {
-      setErr(e instanceof Error ? e.message : "复制失败");
+      setDupTarget(null);
+      toast.error(e instanceof Error ? e.message : "复制失败");
     } finally {
       setBusy(false);
     }
@@ -118,9 +137,9 @@ export default function OfflineEventFloorPlans() {
               </div>
               <div className="flex gap-1 shrink-0 flex-wrap justify-end">
                 <button onClick={() => setEditing({ id: p.id, name: p.name, layout: p.layout_data })} className="h-9 px-3 rounded-lg bg-muted text-xs font-medium flex items-center gap-1 text-muted-foreground hover:text-foreground"><Pencil className="w-3.5 h-3.5" /> 编辑</button>
-                <button onClick={() => dup(p)} disabled={busy} className="h-9 px-3 rounded-lg bg-muted text-xs font-medium flex items-center gap-1 text-muted-foreground hover:text-foreground disabled:opacity-50"><Copy className="w-3.5 h-3.5" /> 复制</button>
+                <button onClick={() => setDupTarget(p)} disabled={busy} className="h-9 px-3 rounded-lg bg-muted text-xs font-medium flex items-center gap-1 text-muted-foreground hover:text-foreground disabled:opacity-50"><Copy className="w-3.5 h-3.5" /> 复制</button>
                 {!p.is_default && <button onClick={() => makeDefault(p)} disabled={busy} className="h-9 px-3 rounded-lg bg-muted text-xs font-medium flex items-center gap-1 text-muted-foreground hover:text-foreground disabled:opacity-50"><Star className="w-3.5 h-3.5" /> 设默认</button>}
-                <button onClick={() => del(p)} disabled={busy || p.is_default || p.used_by_count > 0} className="h-9 w-9 rounded-lg bg-[#141414]/[0.06] text-[#141414] flex items-center justify-center hover:bg-[#141414]/[0.12] disabled:opacity-30" title={p.is_default ? "默认不能删" : p.used_by_count > 0 ? "被活动使用中" : "删除"}><Trash2 className="w-4 h-4" /></button>
+                <button onClick={() => setConfirmDel(p)} disabled={busy || p.is_default || p.used_by_count > 0} className="h-9 w-9 rounded-lg bg-[#141414]/[0.06] text-[#141414] flex items-center justify-center hover:bg-[#141414]/[0.12] disabled:opacity-30" title={p.is_default ? "默认不能删" : p.used_by_count > 0 ? "被活动使用中" : "删除"}><Trash2 className="w-4 h-4" /></button>
               </div>
             </div>
           </div>
@@ -135,6 +154,34 @@ export default function OfflineEventFloorPlans() {
           onSaved={load}
         />
       )}
+
+      <ConfirmDialog
+        open={!!confirmDel}
+        danger
+        busy={busy}
+        title="删除这个平面图？"
+        description={
+          <>
+            「<b className="text-[#141414]">{confirmDel?.name}</b>」将被永久删除，无法撤销。
+          </>
+        }
+        confirmLabel="永久删除"
+        cancelLabel="返回"
+        onConfirm={() => confirmDel && del(confirmDel)}
+        onCancel={() => setConfirmDel(null)}
+      />
+
+      <ConfirmDialog
+        open={!!dupTarget}
+        busy={busy}
+        title="复制平面图"
+        description="新平面图会复制原来的所有桌位布局，之后可以单独编辑。"
+        inputLabel="新平面图名称"
+        inputDefaultValue={dupTarget ? `${dupTarget.name} (副本)` : ""}
+        confirmLabel="复制"
+        onConfirm={(name) => dupTarget && dup(dupTarget, name)}
+        onCancel={() => setDupTarget(null)}
+      />
     </div>
   );
 }

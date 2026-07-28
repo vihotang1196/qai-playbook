@@ -22,6 +22,7 @@ import {
   DialogTitle,
   DialogDescription,
 } from "@/components/ui/dialog";
+import ConfirmDialog from "@/components/ConfirmDialog";
 import PosterDialog from "@/components/review-boost/PosterDialog";
 import { RB_PLATFORMS } from "@/lib/review-boost/platforms";
 import {
@@ -55,6 +56,7 @@ export default function CampaignDetail() {
   const [loading, setLoading] = useState(true);
   const [copied, setCopied] = useState(false);
   const [deleting, setDeleting] = useState(false);
+  const [confirmRemove, setConfirmRemove] = useState(false);
 
   const [posterOpen, setPosterOpen] = useState(false);
   // AI review preview (admin test — nothing is saved to the DB).
@@ -121,16 +123,15 @@ export default function CampaignDetail() {
 
   const remove = async () => {
     if (!locationId || !id) return;
-    if (!window.confirm(label("确定删除这个活动？二维码和历史会一起删掉，无法恢复。", "Delete this campaign? Its QR code and history are removed permanently."))) {
-      return;
-    }
     setDeleting(true);
     try {
       await deleteCampaign(locationId, id);
-      toast.success(label("已删除", "Deleted"));
+      setConfirmRemove(false);
+      toast.success(label("活动已删除", "Campaign deleted"));
       navigate(listUrl);
     } catch (e) {
-      toast.error(e instanceof Error ? e.message : "Delete failed");
+      setConfirmRemove(false);
+      toast.error(e instanceof Error ? e.message : label("删除失败", "Delete failed"), { duration: 8000 });
       setDeleting(false);
     }
   };
@@ -228,7 +229,7 @@ export default function CampaignDetail() {
             <Pencil className="w-4 h-4" /> {label("编辑", "Edit")}
           </Link>
           <button
-            onClick={remove}
+            onClick={() => setConfirmRemove(true)}
             disabled={deleting}
             className="inline-flex items-center justify-center rounded-xl w-9 h-9 border border-border/60 text-muted-foreground hover:text-[#141414] hover:border-[#141414]/40 disabled:opacity-60"
             aria-label={label("删除", "Delete")}
@@ -453,6 +454,21 @@ export default function CampaignDetail() {
           platform={campaign.platform}
         />
       )}
+
+      <ConfirmDialog
+        open={confirmRemove}
+        danger
+        busy={deleting}
+        title={label("删除这个活动？", "Delete this campaign?")}
+        description={label(
+          "它的二维码和全部生成历史会一起删除，无法恢复。已经印出去的二维码将失效。",
+          "Its QR code and all generation history are deleted permanently. Any printed QR codes will stop working.",
+        )}
+        confirmLabel={label("永久删除", "Delete forever")}
+        cancelLabel={label("返回", "Back")}
+        onConfirm={remove}
+        onCancel={() => setConfirmRemove(false)}
+      />
     </div>
   );
 }
