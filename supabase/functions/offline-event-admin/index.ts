@@ -848,6 +848,35 @@ serve(async (req) => {
         return json({ ok: true, mode });
       }
 
+      // ── Every explicit row in location_tool_access (audit / pre-flight) ──
+      // The per-tool keys were parked when access collapsed into ONE Playbook
+      // switch, so rows written before that are DORMANT — they start biting
+      // again the moment a key is re-activated. This action makes them visible
+      // ("who did I actually switch off?") instead of silently surprising us.
+      case "listAccessOverrides": {
+        const { data, error } = await sb
+          .from("location_tool_access")
+          .select("location_id, tool_key, enabled, updated_at")
+          .order("location_id", { ascending: true })
+          .limit(2000);
+        if (error) throw error;
+        const rows = data ?? [];
+        const ids = [...new Set(rows.map((r) => r.location_id as string))];
+        const nameMap: Record<string, string> = {};
+        // Chunked: a single .in() with hundreds of ids builds a URL long enough
+        // for PostgREST to reject, which used to fail SILENTLY (all names null).
+        for (let i = 0; i < ids.length; i += 100) {
+          const { data: locs } = await sb
+            .from("ghl_locations")
+            .select("location_id, business_name")
+            .in("location_id", ids.slice(i, i + 100));
+          for (const l of locs ?? []) nameMap[l.location_id as string] = (l.business_name as string) ?? "";
+        }
+        return json({
+          rows: rows.map((r) => ({ ...r, business_name: nameMap[r.location_id as string] ?? null })),
+        });
+      }
+
       // ── Per-sub-account free-allowance overrides ─────────────────────────
       case "listSubaccountSettings": {
         const { data, error } = await sb
