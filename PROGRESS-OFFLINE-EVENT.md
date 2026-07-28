@@ -628,6 +628,83 @@ var the build needs.** Security scan run at the same time: no `sk_live_`,
 `index.html`, the shipped bundle, or the full git history; `.env` is gitignored
 and has never been committed (only the placeholder `.env.example`).
 
+## Pre-launch rebuild rounds (2026-07-28) — batches 0–8
+
+State that lived only in the working conversation is recorded here so a new
+session can resume without re-deriving it.
+
+### Test-data baseline
+
+| Thing | Value | Note |
+|---|---|---|
+| Test sub-account `gsRRLb2A8IoATd9qWNmh` | `free_tickets=2`, `free_seats=4` | Read 2026-07-28T09:17:53Z. **The restore target for batch 7.** The owner changed this during GHL testing — do not assume 1/2. |
+| Global defaults | `default_free_tickets=1`, `default_free_seats=1` | Set by the allowance reset. **Leave alone.** |
+| `oe_settings.sst_rate` | `0.08` | Stored as a STRING decimal → `Number(x)*100` for display, and skip the label when 0. |
+| `oe_settings.lunch_price` | `39.99` | |
+
+**11 test bookings awaiting cleanup** (all on event `74753c55`, 8 confirmed /
+1 pending / 2 cancelled):
+`BK-AYZT-Z6Q44Y` · `BK-A64O-PZM4MN` · `BK-8YC1-KNVYK8` · `BK-NOC3-W5VZTN` ·
+`BK-P34G-G266QR` · `BK-M9LE-S4IXQF` · `BK-BNVU-BYX1V5` · `BK-12B0-3WTICC` ·
+`BK-RNZF-05DQ7M` · `BK-MHZO-IQQK9J` (manual add, G1 Seat 1) ·
+**`BK-O7PA-GESM02` — pending, unpaid, still holding G1 Seat 3.**
+
+### ⚠️ Ordering trap for batch 5.5's allowance change
+
+`freeSeatsUsed` is DERIVED (allowance − consumed), and both the customer figure
+and the pricing figure are clamped with `Math.max(0, …)` (`oe/index.ts` :335 and
+:254). So an over-spent account can never show a negative number or hand out
+extra free seats — **but the clamp hides the overspend instead of fixing it**: a
+2-seats-overspent account renders "0 left", identical to "exactly used up". You
+cannot see it. Batch 7's ledger starts from this account, so a wrong starting
+point would be invisible.
+
+Correct order — do NOT restore the allowance first:
+1. raise `free_seats` 4 → 8 (temporarily)
+2. run the mixed-scenario checkout tests
+3. **clear/cancel those test bookings first**, so consumption drops back
+4. only then restore `free_seats` to 4
+5. immediately re-check that `freeSeatsRemaining` is back to 0
+
+### Design decisions already settled (don't relitigate)
+
+- **`display_label` is DEPRECATED** — a shadow of `title_zh` written ONLY by
+  `buildEventRow`. Never edit it directly, never expose it in a form.
+- **Ticket name is frozen, date/time are live.** The name is the snapshot
+  (`title_zh || display_label`, the fallback because display_label is NOT NULL,
+  so a ticket can't print blank); the date/time render from the live event,
+  because the customer must be told the day they should actually turn up.
+- **Receipt language:** Stripe's UI follows the customer (`locale`), but line-item
+  names are FIXED bilingual single strings ("付费座位 Paid seats" etc.) with the
+  event name from `title_zh`. A receipt is a financial record and must not change
+  shape because someone toggled the language.
+- **Permanent-delete tier A/B uses an inverted test** — tier B (weak confirm) only
+  when we can PROVE the booking never touched money; anything else gets tier A.
+  `status === 'confirmed'` alone is wrong: a paid-then-cancelled booking reads
+  `cancelled` yet did take money.
+- **No Stripe `tax_rates`.** SST stays a manual line item using our own
+  `sstCents`, because two rounding regimes would eventually differ by a cent and
+  `oe_bookings.total` is what `confirmBooking` reconciles against.
+- **`fmt12h` exists twice** (client `offlineEventFormat.ts`, server
+  `offline-event-admin`). Changing the format means changing BOTH; each has a
+  comment pointing at the other.
+
+### Batch progress
+
+**Done + accepted:** 0 (check-in refuses archived) · 1 (structured
+start/end_time) · 1.5 (title_zh/title_en) · 2 (structured event form) · 3a
+(customer card: real title, generated date, theme tag) · 3b (snapshot fields take
+title_zh) · 4 (roomier rows, per-row archive, date filter, orphan sentinel).
+
+**To do:** 5 (archive modal, permanent delete moves inside it) · 5.5 (Stripe
+order summary + the card's "另加 8% SST" label) · 6 (10-min release + Stripe
+session expire + cron) · 7 (credit ledger — the big one) · 8 (polish).
+
+**Batch 8 backlog:** the change-date warning; and `deleteEvent` still permits
+deleting an event whose bookings are all cancelled, which orphans them via
+`ON DELETE SET NULL` — the sturdier fix is to forbid deleting any event with
+bookings at all and archive events instead.
+
 ### Remaining before launch (owner's list)
 
 - [ ] **C** — make the Admin Portal 归档 entry obvious (owner archived one item and
