@@ -254,6 +254,38 @@ serve(async (req) => {
         return json({ ok: true, id: data.id });
       }
 
+      // ── Permanently delete conversations (pre-launch test-data cleanup) ──
+      // Bulk by design: cleanup happens in batches, and one round trip keeps it
+      // atomic-ish from the operator's point of view. hd_messages and
+      // hd_message_feedback both cascade on the FK, so their rows go with it.
+      // Audited — deleting customer conversations should leave a trace.
+      case "deleteConversations": {
+        const ids = Array.isArray(body?.ids) ? body.ids.map((x: unknown) => String(x).trim()).filter(Boolean) : [];
+        if (!ids.length) return json({ error: "ids required" }, 400);
+        if (ids.length > 200) return json({ error: "too_many" }, 400);
+
+        // Report what actually existed, so the caller can't be told "deleted 15"
+        // when only 12 were there.
+        const { data: found } = await sb.from("hd_conversations").select("id, channel, location_id").in("id", ids);
+        const existing = found ?? [];
+
+        const { error } = await sb.from("hd_conversations").delete().in("id", ids);
+        if (error) throw error;
+
+        try {
+          await sb.from("admin_audit_log").insert({
+            admin_user_id: admin?.user_id ?? null,
+            admin_email: admin?.email ?? null,
+            action: "hd_delete_conversations",
+            tool_key: "helpdesk",
+            detail: { requested: ids.length, deleted: existing.length, ids: existing.map((c) => c.id) },
+          });
+        } catch (e) {
+          console.error("audit log failed:", e);
+        }
+        return json({ ok: true, requested: ids.length, deleted: existing.length });
+      }
+
       case "deleteArticle": {
         const id = String(body?.id || "").trim();
         if (!id) return json({ error: "id required" }, 400);
