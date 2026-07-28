@@ -258,9 +258,16 @@ export type OeEventStatus = "live" | "display" | "off";
 
 export type OeAdminEvent = {
   id: string;
+  /** DEPRECATED — a shadow of title_zh, written only by the server. Never edit. */
   display_label: string;
+  title_zh: string | null;
+  title_en: string | null;
   start_date: string;
   end_date: string;
+  /** "HH:MM:SS" (Malaysia local, no timezone) or null on pre-batch-1 rows. */
+  start_time: string | null;
+  end_time: string | null;
+  /** Generated from start_time/end_time when both exist; otherwise legacy text. */
   time_slot: string;
   theme_zh: string | null;
   theme_en: string | null;
@@ -282,10 +289,17 @@ export type OeFloorPlanOption = { id: string; name: string; physical_seats: numb
 
 /** Event form payload (create/update). capacity: "" or null → derive from plan. */
 export type OeEventInput = {
-  display_label: string;
+  /** The authoritative name. The server shadows it into display_label. */
+  title_zh: string;
+  title_en: string;
   start_date: string;
   end_date: string;
-  time_slot: string;
+  /** "HH:MM" — the server generates time_slot from these. */
+  start_time: string;
+  end_time: string;
+  /** Only sent for legacy rows that have no structured times, so their existing
+   *  free text survives an edit. Never shown as an input. */
+  time_slot?: string;
   theme_zh: string;
   theme_en: string;
   notice_zh: string;

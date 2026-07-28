@@ -60,6 +60,32 @@ function buildQrPayload(o: {
   });
 }
 
+/** "10:00" → "10:00 AM", "18:00" → "6:00 PM".
+ *  The shape is load-bearing, not cosmetic: the customer card still renders
+ *  `time_slot`, and the one existing event reads exactly "10:00 AM - 6:00 PM".
+ *  Hour NOT zero-padded, minutes always two digits, AM/PM uppercase — so a
+ *  re-save of that event reproduces its stored text byte for byte. */
+function fmt12h(t: string): string {
+  const m = /^(\d{1,2}):(\d{2})/.exec(String(t || "").trim());
+  if (!m) return "";
+  let h = Number(m[1]);
+  const min = m[2];
+  if (!Number.isFinite(h) || h < 0 || h > 23) return "";
+  const ap = h >= 12 ? "PM" : "AM";
+  h = h % 12;
+  if (h === 0) h = 12;
+  return `${h}:${min} ${ap}`;
+}
+
+/** Display text for the pair. Separator is space-hyphen-space, matching the
+ *  stored value. Empty when either end is missing, which tells the caller to
+ *  keep whatever free text was already there (old rows stay untouched). */
+function buildTimeSlot(start: string, end: string): string {
+  const a = fmt12h(start);
+  const b = fmt12h(end);
+  return a && b ? `${a} - ${b}` : "";
+}
+
 /** Sanitize an event payload from the admin form into an oe_events row.
  *  capacity: blank/null → NULL (derive from floor plan). */
 // deno-lint-ignore no-explicit-any
@@ -74,11 +100,27 @@ function buildEventRow(p: any): Record<string, unknown> {
       ? null
       : Math.max(0, Math.floor(Number(capRaw)) || 0);
   const status = ["live", "display", "off"].includes(p?.status) ? p.status : "live";
+
+  const titleZh = String(p?.title_zh || "").trim();
+  const startTime = String(p?.start_time || "").trim();
+  const endTime = String(p?.end_time || "").trim();
+  // Generated when both ends are present; otherwise keep the incoming free text
+  // so rows that predate structured times keep rendering as they always did.
+  const generatedSlot = buildTimeSlot(startTime, endTime);
+
   return {
-    display_label: String(p?.display_label || "").trim(),
+    // display_label is DEPRECATED and written ONLY here, as a shadow of
+    // title_zh. This is the single writer on purpose: event_label and the QR
+    // payload snapshot it at booking time, so a value that drifted from the
+    // title would make printed tickets unpredictable. Never expose it in a form.
+    display_label: titleZh,
+    title_zh: titleZh || null,
+    title_en: p?.title_en ? String(p.title_en).trim() || null : null,
     start_date: String(p?.start_date || "").trim(),
     end_date: String(p?.end_date || "").trim(),
-    time_slot: String(p?.time_slot || "").trim(),
+    start_time: startTime || null,
+    end_time: endTime || null,
+    time_slot: generatedSlot || String(p?.time_slot || "").trim(),
     theme_zh: p?.theme_zh ? String(p.theme_zh) : null,
     theme_en: p?.theme_en ? String(p.theme_en) : null,
     notice_zh: p?.notice_zh ? String(p.notice_zh) : null,
@@ -95,11 +137,17 @@ function buildEventRow(p: any): Record<string, unknown> {
 /** Shared validation for create/update event. Returns an error key or null. */
 // deno-lint-ignore no-explicit-any
 function validateEvent(p: any): string | null {
-  if (!String(p?.display_label || "").trim()) return "label_required";
+  // title_zh is now the authoritative name; display_label is only its shadow.
+  if (!String(p?.title_zh || "").trim()) return "title_required";
   const s = String(p?.start_date || "").trim();
   const e = String(p?.end_date || "").trim();
   if (!s || !e) return "dates_required";
   if (e < s) return "end_before_start";
+  // Times are optional (old rows have none), but an inverted pair is always a
+  // mistake — string compare is safe on zero-padded HH:MM.
+  const st = String(p?.start_time || "").trim();
+  const et = String(p?.end_time || "").trim();
+  if (st && et && et <= st) return "end_time_before_start";
   return null;
 }
 
