@@ -19,6 +19,38 @@ import { QrTicket } from "@/components/offline-event/QrTicket";
  */
 const MAX_TRIES = 15; // ~30s at 2s intervals
 
+/** Shared with the booking page. Broadcast only — never a source of truth. */
+const CHECKOUT_CHANNEL = "qai-checkout";
+
+/**
+ * Tell the (possibly still open) booking tab that this payment landed. Purely an
+ * accelerator: the booking page already discovers this by polling the server, so
+ * every channel here is best-effort and any failure is silent.
+ *
+ * BroadcastChannel is the primary path. `window.opener` is a bonus that will
+ * usually be gone — Stripe serves COOP headers, which severs the opener
+ * relationship for good, so by the time we are back on our own origin the
+ * reference is typically null. Nothing may depend on it.
+ */
+function announcePaid(bookingCode: string, sessionId: string): void {
+  const msg = { type: "checkout_success" as const, bookingCode, sessionId };
+  try {
+    if (typeof BroadcastChannel !== "undefined") {
+      const ch = new BroadcastChannel(CHECKOUT_CHANNEL);
+      ch.postMessage(msg);
+      ch.close();
+    }
+  } catch {
+    /* unsupported / blocked — polling still covers it */
+  }
+  try {
+    // Locked to our own origin, never "*": this payload names a booking.
+    window.opener?.postMessage(msg, window.location.origin);
+  } catch {
+    /* COOP severed the opener, or it is cross-origin — expected, ignore */
+  }
+}
+
 export default function CheckoutReturn() {
   const { lang } = useLang();
   const navigate = useNavigate();
@@ -33,6 +65,41 @@ export default function CheckoutReturn() {
   const [status, setStatus] = useState<OeBookingStatus | "loading">("loading");
   const [booking, setBooking] = useState<OeBooking | null>(null);
   const tries = useRef(0);
+
+  // ── Spawned-tab handling (only when the booking page said embed=1) ────────
+  // `hasOpener` decides whether a countdown is even worth showing: window.close()
+  // and the opener reference are governed by the same browser rule, so with no
+  // opener the close would just fail and the customer would have waited 3s for
+  // nothing. Without embed=1 none of this engages and the page behaves exactly
+  // as before — ticket shown, never auto-closed.
+  const embed = params.get("embed") === "1";
+  const hasOpener = (() => {
+    try {
+      return !!window.opener;
+    } catch {
+      return false;
+    }
+  })();
+  const autoClose = embed && hasOpener;
+  const [countdown, setCountdown] = useState(3);
+  const [closeFailed, setCloseFailed] = useState(false);
+
+  const tryClose = () => {
+    window.close();
+    // If this timer still runs, the close was refused (common after the tab has
+    // navigated cross-origin to Stripe and back). Fall back to the ticket.
+    setTimeout(() => setCloseFailed(true), 800);
+  };
+
+  useEffect(() => {
+    if (status !== "confirmed" || !autoClose || closeFailed) return;
+    if (countdown <= 0) {
+      tryClose();
+      return;
+    }
+    const t = setTimeout(() => setCountdown((n) => n - 1), 1000);
+    return () => clearTimeout(t);
+  }, [status, autoClose, closeFailed, countdown]);
 
   useEffect(() => {
     if ((!bookingCode && !sessionId) || !locationId) {
@@ -49,6 +116,7 @@ export default function CheckoutReturn() {
         if (resp.status === "confirmed" && resp.booking) {
           setBooking(resp.booking);
           setStatus("confirmed");
+          announcePaid(resp.booking.booking_id || bookingCode, sessionId);
           return;
         }
         if (resp.status === "cancelled") {
@@ -84,7 +152,37 @@ export default function CheckoutReturn() {
     <div className="px-4 sm:px-6 pb-16 pt-24 md:pt-28">
       <div className="max-w-md mx-auto">
         {status === "confirmed" && booking ? (
-          <QrTicket lang={lang} booking={booking} paid onBack={() => navigate("/events")} />
+          // Countdown ONLY while auto-close is still viable. The moment it is
+          // refused (or was never possible), fall through to the full ticket —
+          // a paid customer must never be left without their QR code.
+          autoClose && !closeFailed ? (
+            <div className="glass-card rounded-2xl p-6 text-center space-y-3">
+              <p className="text-lg font-bold">
+                {lang === "cn" ? `✅ 付款成功！${countdown} 秒后自动返回…` : `✅ Payment successful — returning in ${countdown}s…`}
+              </p>
+              <p className="text-sm text-muted-foreground">
+                {lang === "cn" ? "二维码已回到你刚才的页面。" : "Your QR ticket is waiting on the page you came from."}
+              </p>
+              <button
+                type="button"
+                onClick={tryClose}
+                className="h-11 px-5 rounded-full bg-primary text-primary-foreground border-2 border-[#141414] text-sm font-bold"
+              >
+                {lang === "cn" ? "立即返回" : "Return now"}
+              </button>
+            </div>
+          ) : (
+            <div className="space-y-3">
+              {embed && (
+                <div className="rounded-xl border-2 border-[#141414] bg-[#fed50a] px-4 py-3 text-sm font-medium text-[#141414]">
+                  {lang === "cn"
+                    ? "付款成功！本页无法自动关闭，请手动切回上一个标签页查看，或截图保存本页二维码。"
+                    : "Payment successful. This tab can't close itself — switch back to the previous tab, or screenshot this QR code."}
+                </div>
+              )}
+              <QrTicket lang={lang} booking={booking} paid onBack={() => navigate("/events")} />
+            </div>
+          )
         ) : status === "cancelled" ? (
           <Notice
             icon={<XCircle className="w-6 h-6" />}
