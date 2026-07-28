@@ -958,10 +958,22 @@ serve(async (req) => {
           ? body.article_ids.map((x: unknown) => String(x)).filter(Boolean)
           : null;
 
-        let q = sb.from("hd_articles").select("id, content");
-        if (only?.length) q = q.in("id", only);
-        const { data: articles, error: aErr } = await q;
-        if (aErr) throw aErr;
+        // PAGED on purpose: PostgREST caps an unbounded select at 1000 rows, so
+        // once the KB passed 1000 articles this scan silently stopped seeing the
+        // newest ones and reported "no new videos" while videos were sitting
+        // there unqueued. Page until a short page comes back.
+        const PAGE = 500;
+        const articles: { id: string; content: string | null }[] = [];
+        for (let from = 0; ; from += PAGE) {
+          let q = sb.from("hd_articles").select("id, content").range(from, from + PAGE - 1);
+          if (only?.length) q = q.in("id", only);
+          const { data: page, error: aErr } = await q;
+          if (aErr) throw aErr;
+          const got = page ?? [];
+          articles.push(...(got as { id: string; content: string | null }[]));
+          if (got.length < PAGE) break;
+          if (from > 100_000) break; // runaway guard
+        }
 
         const { data: existing, error: eErr } = await sb.from("hd_video_steps").select("storage_path");
         if (eErr) throw eErr;

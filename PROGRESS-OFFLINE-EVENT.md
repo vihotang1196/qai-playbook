@@ -587,6 +587,47 @@ Rollout flag is **内测中** (`canary_mode.enabled = true`, i.e. whitelist).
 Everyone else has no row → canary denies. Verified anonymously: test account
 `enabled: true`, Ong pei shirl `false`, a normal customer `false`.
 
+### ⚠️ Vercel env vars are PER-ENVIRONMENT — check before merging (2026-07-28)
+
+**What happened:** the owner found Vercel showing "No Environment Variables Added".
+Confirmed against the LIVE production bundle
+(`playbook.qiai.tech/assets/index-*.js`): it contains the *error message* strings
+`SUPABASE_URL` / `SUPABASE_ANON_KEY` but **no `https://….supabase.co` and no `eyJ…`
+anon key** — Vite inlines `import.meta.env.VITE_*` at build time, so their absence
+proves the build had no values. Root cause: the vars existed only on
+**Production**, not Preview/Development.
+
+**Why nobody noticed:** the pages customers actually visit on the old `main`
+(home, DFY, credits, upgrade, affiliate, guides) never call Supabase, and the
+copywriter entry is hidden. The mine was buried, not defused. Every one of the
+five tools on this branch needs Supabase, so **merging to `main` without the vars
+set would have broken the whole site for customers.**
+
+**Why `/help` looked fine while Offline Event errored** — NOT different env
+reading (both go through the same `getSupabase()`): `helpdesk.ts checkHelpAccess`
+wraps the call in try/catch and fails OPEN, so it rendered an empty shell instead
+of an error. Offline Event surfaced it honestly. A tool that "works" can still be
+completely disconnected.
+
+**The complete list (only two, both build-time, all three environments):**
+
+| var | value | Production | Preview | Development |
+|---|---|---|---|---|
+| `VITE_SUPABASE_URL` | `https://hkqzzfyigmvisaftdmwh.supabase.co` | ✅ | ✅ | ✅ |
+| `VITE_SUPABASE_ANON_KEY` | the anon *public* key | ✅ | ✅ | ✅ |
+
+Never add a `service_role` key as a `VITE_` var — it would be inlined into
+browser code. Every other secret (Stripe `sk_`, Anthropic, WaveSpeed, MiniMax,
+Notion, GHL) belongs in Supabase Edge secrets, NOT Vercel. Vite inlines at build
+time, so **changing a var requires a redeploy** to take effect.
+
+**Owner fixed it 2026-07-28** (added to all three environments, redeployed,
+preview then read data correctly). **Pre-merge check: confirm Production has every
+var the build needs.** Security scan run at the same time: no `sk_live_`,
+`sk-ant-`, `service_role`, WaveSpeed/MiniMax/Notion keys anywhere in `src/`,
+`index.html`, the shipped bundle, or the full git history; `.env` is gitignored
+and has never been committed (only the placeholder `.env.example`).
+
 ### Remaining before launch (owner's list)
 
 - [ ] **C** — make the Admin Portal 归档 entry obvious (owner archived one item and
