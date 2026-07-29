@@ -1006,6 +1006,27 @@ picker offers 31 seats that will be refused at claim time, and the refusal
 surfaces as "所选座位已被占用" on a seat that is visibly empty. Decide which is
 authoritative (the plan's enabled seats or `capacity`) and make the other follow.
 
+**Batch 8 backlog — found while verifying batch 6 commit 4:**
+- 🔴 **Seats may be unselectable on a phone — possible launch blocker.** Seat taps
+  are ignored until the map is zoomed past `CLICK_SCALE_THRESHOLD = 0.6`
+  (`SeatMap.tsx`), but the initial scale is `min(1, container / 944)`:
+  **0.2394 at a 320px viewport, 0.3072 at 384px** — measured. So on a phone the
+  map ALWAYS starts below the threshold and needs 6 (320px) or 4 (384px) zoom-in
+  taps, or a pinch, before any seat responds. There is a hint ("双指缩放放大后可
+  选座") but the default state is unusable, and this market is phone-first. At
+  ≥768px `isMobile` is false, scale is 1 and taps always work — **so the real
+  question is how wide the GHL iframe renders**. Owner is testing on a real phone
+  inside GHL before this is prioritised.
+- 🟠 **Shrinking capacity after tickets are sold is painful.** `saveFloorPlan`
+  refuses to disable any seat that is currently booked (`booked_seats_removed`).
+  Sensible, but to go from 91 down to 50 after 30 scattered bookings you must
+  find 41 seats that nobody holds — with a scattered layout that is fiddly and
+  there is no "shrink to N" helper.
+- 🟡 **Disabling seats in the floor-plan editor is a per-seat click.** Verified by
+  doing it: the editor has no bulk select / "disable all except…" — reducing 91
+  seats to 4 by hand would be ~87 clicks (the batch 6 verification did it through
+  the API instead). Any real capacity change means a lot of clicking.
+
 **Batch 8 backlog:** the change-date warning; and `deleteEvent` still permits
 deleting an event whose bookings are all cancelled, which orphans them via
 `ON DELETE SET NULL` — the sturdier fix is to forbid deleting any event with
@@ -1013,8 +1034,8 @@ bookings at all and archive events instead.
 
 ### Launch order (owner's list, REVISED 2026-07-29 — follow the numbers)
 
-1. [ ] **Batch 6 commit 4** (capacity gate → floor plan) **+ commit 5** (the
-       10-minute notice on the payment tab). Commits 1–3 are done and verified.
+1. [ ] **Batch 6 commit 5** — the 10-minute notice on the payment tab.
+       Commits 1–4 are done and verified (0bdf32f closed the capacity work).
 2. [ ] **Batch 8** — polish + change-date warning + `deleteEvent` orphan fix +
        `seats_unavailable` error-code split + the `verify_jwt` exposure review +
        the 票/座 unit problems inherited from the cancelled 7b (see its backlog).
