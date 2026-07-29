@@ -592,28 +592,77 @@ serve(async (req) => {
           return json({ error: "seats_unavailable" }, 409);
         }
 
-        // 3) Hosted Stripe Checkout session. Two line items so the receipt shows
-        //    the SST breakdown. metadata.bookingId lets the webhook find this row.
+        // 3) Hosted Stripe Checkout session. The summary is ITEMISED (paid
+        //    tickets / free tickets / lunch / SST) so the Stripe page and the
+        //    receipt show what the money actually bought, instead of one lumped
+        //    subtotal. metadata.bookingId lets the webhook find this row.
         try {
           const { stripe } = await resolveOeStripe(sb);
           const subtotalCents = Math.round(plan.subtotal * 100);
           const sstCents = Math.round(plan.sst * 100);
+          const totalCents = Math.round(plan.total * 100);
+          // Percentage is DERIVED, never hardcoded — the rate is an admin setting.
+          const sstPct = Number((plan.sstRate * 100).toFixed(2));
+          // Line-item names are FIXED CHINESE this round. The bilingual-name +
+          // Stripe `locale` decision is DEFERRED to batch 6 (see PROGRESS).
+          const myr = (name: string, unitAmount: number, quantity: number) => ({
+            price_data: { currency: "myr", product_data: { name }, unit_amount: unitAmount },
+            quantity,
+          });
+
           // deno-lint-ignore no-explicit-any
-          const lineItems: any[] = [
-            {
-              price_data: {
-                currency: "myr",
-                product_data: { name: `${snapshotEventName(plan.event)} — ${plan.seatCount} seat(s)` },
-                unit_amount: subtotalCents,
-              },
-              quantity: 1,
-            },
+          const itemised: any[] = [];
+          if (plan.paidSeats > 0) {
+            itemised.push(
+              myr(`门票 · ${snapshotEventName(plan.event)}`, Math.round(plan.pricePerSeat * 100), plan.paidSeats),
+            );
+          }
+          // A 0-amount line IS accepted by Stripe as long as the session total is
+          // > 0 (verified against the sandbox API before this shipped). Worth a
+          // row of its own: without it the seat count the customer sees on the
+          // Stripe page wouldn't match the seats on their ticket.
+          if (plan.freeUsedNow > 0) itemised.push(myr("免费票（额度内）", 0, plan.freeUsedNow));
+          if (plan.lunchQty > 0) {
+            itemised.push(myr("午餐（两天）", Math.round(plan.lunchPrice * 100), plan.lunchQty));
+          }
+          if (sstCents > 0) itemised.push(myr(`SST ${sstPct}%`, sstCents, 1));
+
+          // The previous LUMPED shape (subtotal + SST), kept only as the fallback
+          // for the cent check below.
+          // deno-lint-ignore no-explicit-any
+          const lumped: any[] = [
+            myr(`${snapshotEventName(plan.event)} — ${plan.seatCount} seat(s)`, subtotalCents, 1),
           ];
-          if (sstCents > 0) {
-            lineItems.push({
-              price_data: { currency: "myr", product_data: { name: "SST (8%)" }, unit_amount: sstCents },
-              quantity: 1,
+          if (sstCents > 0) lumped.push(myr(`SST ${sstPct}%`, sstCents, 1));
+
+          // ── CENT CHECK ────────────────────────────────────────────────────
+          // The itemised lines must charge EXACTLY oe_bookings.total, because
+          // that column is what confirmBooking reconciles the payment against —
+          // a one-cent difference is a wrong charge. Per-line rounding can drift
+          // from the whole-order rounding once a price has sub-cent decimals
+          // (e.g. RM33.333/seat: round(3333.3)*3 ≠ round(9999.9)). If the lines
+          // don't add up we charge the OLD lumped shape instead: uglier, but the
+          // total is always right. Never "fix" this by adjusting a line.
+          const itemisedCents = itemised.reduce(
+            (n: number, li: { price_data: { unit_amount: number }; quantity: number }) =>
+              n + li.price_data.unit_amount * li.quantity,
+            0,
+          );
+          let lineItems = itemised;
+          if (itemisedCents !== totalCents) {
+            // Edge-function log (Supabase → Functions → Logs), NOT the browser
+            // console. This fallback is SILENT to the customer.
+            console.error("oe.createCheckout: itemised cent mismatch — using the lumped summary", {
+              bookingCode: bookingId,
+              sum: itemisedCents,
+              totalCents,
+              lineItems: itemised.map((li) => ({
+                name: li.price_data.product_data.name,
+                unit_amount: li.price_data.unit_amount,
+                quantity: li.quantity,
+              })),
             });
+            lineItems = lumped;
           }
 
           const HOLD_SECONDS = 30 * 60; // seats held ~30 min during checkout
