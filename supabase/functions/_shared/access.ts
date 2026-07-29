@@ -25,23 +25,72 @@ import { requireAdmin } from "./admin.ts";
 const CANARY_TTL_MS = 20_000;
 let canaryCache: { value: boolean; at: number } | null = null;
 
+/**
+ * What to assume when the canary flag CANNOT be read — a query error, a missing
+ * row, or a `value` that is not the shape we store.
+ *
+ * Read from the ENVIRONMENT, not the database, on purpose. This is the value that
+ * decides what happens when the database is the very thing we cannot trust, so it
+ * must not need the database to answer. `Deno.env.get` is available synchronously
+ * on a cold isolate and has no failure mode of its own.
+ *
+ * A "reuse the last good value" cache cannot cover this: a cold isolate has no
+ * last good value, and at pre-launch traffic almost every request is cold.
+ *
+ *   deny (default) → treat an unreadable flag as WHITELIST mode: only sub-accounts
+ *                    with an explicit enabled=true row get in.
+ *   allow          → treat it as normal mode (the old behaviour).
+ *
+ * ⚠️ ON THE DAY THE PLAYBOOK OPENS TO EVERYONE: set CANARY_FALLBACK=allow **and
+ * redeploy every function that imports this file** — Edge Function secrets are
+ * injected at deploy time, so changing the value alone does nothing.
+ *
+ * Forgetting to flip it refuses some sub-accounts and someone complains within the
+ * hour: loud, and fixable in one deploy. The old default failed the other way, and
+ * nobody has ever reported "I got in when I should not have".
+ */
+function canaryFallback(): boolean {
+  return (Deno.env.get("CANARY_FALLBACK") ?? "deny").trim().toLowerCase() !== "allow";
+}
+
 export async function isCanaryMode(sb: SupabaseClient): Promise<boolean> {
   const now = Date.now();
   if (canaryCache && now - canaryCache.at < CANARY_TTL_MS) return canaryCache.value;
   try {
-    const { data } = await sb
+    const { data, error } = await sb
       .from("platform_settings")
       .select("value")
       .eq("key", "canary_mode")
       .maybeSingle();
-    const enabled = (data?.value as { enabled?: boolean } | null)?.enabled === true;
-    canaryCache = { value: enabled, at: now };
-    return enabled;
+
+    // The error used to be dropped on the floor (`const { data }` alone). supabase-js
+    // RETURNS query errors here rather than throwing, so the catch below never saw
+    // them: a failed read looked exactly like "flag is off" → default-allow, cached
+    // for the full TTL, not one line in the log. That is the failure nobody reports.
+    if (error) {
+      console.error("isCanaryMode: platform_settings read failed:", error.message);
+      return canaryFallback();
+    }
+    // A MISSING ROW IS NOT "CANARY OFF" — it means the switch we gate on is gone
+    // (deleted, renamed, or never seeded). maybeSingle returns data=null, error=null
+    // for it, which is why this needs its own branch and its own log line. Same for
+    // a `value` that is not `{ enabled: boolean }`: the shape changed under us, and
+    // guessing "off" would silently open the platform.
+    const value = data?.value as { enabled?: boolean } | null | undefined;
+    if (!value || typeof value.enabled !== "boolean") {
+      console.warn(
+        "isCanaryMode: platform_settings.canary_mode is missing or malformed — using CANARY_FALLBACK",
+      );
+      return canaryFallback();
+    }
+
+    // Only a real, well-formed read is cached. A fallback must never stick for the
+    // TTL: the next request should get another chance at the truth.
+    canaryCache = { value: value.enabled, at: now };
+    return value.enabled;
   } catch (e) {
-    // Fail OPEN (treat as normal mode): a settings-read blip must not lock every
-    // customer out of every tool. Explicit enabled=false rows still apply.
-    console.error("isCanaryMode failed (assuming normal mode):", e);
-    return false;
+    console.error("isCanaryMode: threw, using CANARY_FALLBACK:", e);
+    return canaryFallback();
   }
 }
 

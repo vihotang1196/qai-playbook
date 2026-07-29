@@ -587,6 +587,40 @@ Rollout flag is **内测中** (`canary_mode.enabled = true`, i.e. whitelist).
 Everyone else has no row → canary denies. Verified anonymously: test account
 `enabled: true`, Ong pei shirl `false`, a normal customer `false`.
 
+#### `CANARY_FALLBACK` — the switch that decides what an unreadable flag means (2026-07-29)
+
+`isCanaryMode` used to fail OPEN in three separate ways, all silent: a query error
+(the `error` was never destructured, and supabase-js RETURNS it rather than throwing,
+so the `catch` never fired), a missing `canary_mode` row, and a `value` whose shape
+changed. Each looked identical to "flag is off" → default-allow → **cached for the
+full 20s TTL, with no log line**. Nobody ever reports being let in when they should
+not have been, so this class of bug has no reporter.
+
+Now all three read `CANARY_FALLBACK` from the environment (not the DB — the DB is the
+thing that just failed; `Deno.env` answers on a cold isolate with no failure mode of
+its own). A "reuse the last good value" cache was rejected: a cold isolate has no last
+good value, and at pre-launch traffic almost every request is cold.
+
+| value | meaning when the flag can't be read |
+|---|---|
+| `deny` (default when unset) | whitelist mode — only an explicit `enabled=true` row gets in |
+| `allow` | normal mode (the old behaviour) |
+
+**Cost of `deny` today: zero.** `isCanaryMode` is only consulted when a sub-account has
+NO `location_tool_access` row (`access.ts`, the `stored === null` branch).
+`gsRRLb2A8IoATd9qWNmh` has an explicit `playbook=true` row, so it never reaches it.
+
+> ### ⚠️ Edge Function secrets are injected AT DEPLOY TIME
+>
+> Setting or changing `CANARY_FALLBACK` in Supabase → Edge Functions → Secrets does
+> **nothing** until every function that imports `_shared/access.ts` is redeployed —
+> at minimum `oe` and `offline-event-admin`.
+>
+> **This applies twice:** once now (setting it to `deny`), and again on the day the
+> Playbook opens to everyone (flipping it to `allow`). Forgetting the flip refuses
+> some sub-accounts and someone complains within the hour — loud and fixable in one
+> deploy, which is the whole point of choosing `deny` as the default.
+
 ### ⚠️ Vercel env vars are PER-ENVIRONMENT — check before merging (2026-07-28)
 
 **What happened:** the owner found Vercel showing "No Environment Variables Added".
