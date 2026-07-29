@@ -132,26 +132,82 @@ const Copywriter = () => {
     }
   };
 
-  /** "Check result" — collect a generation that finished while we were away. */
+  /** Collect a finished generation. Shared by the poll and the button; only the
+   *  button says anything when the answer is "not yet". */
+  const collect = async (announceEmpty: boolean) => {
+    if (!inflight) return;
+    const r = await recoverCopy(locationId, inflight.requestId);
+    if (r) {
+      clearInflight();
+      setInflight(null);
+      setResult(r);
+      setLastInput((prev) => prev ?? ({ language: r.language } as SurveyInput));
+      setStage("result");
+      toast.success(uiLang === "cn" ? "已找回上次生成的文案" : "Recovered your last generation");
+      return;
+    }
+    if (announceEmpty) {
+      toast.message(
+        uiLang === "cn" ? "还没生成好，请再等一下" : "Not ready yet — give it a little longer",
+      );
+    }
+  };
+
+  // Poll while a generation is unaccounted for. The manual button alone is not
+  // enough: someone who checks at 60s, is told "not ready", and walks away never
+  // comes back to press it again — and the result they paid for then sits in the
+  // table unclaimed, which is the exact failure this whole feature exists to
+  // prevent. Cheap enough to justify: one indexed read, not a Claude call.
+  //
+  // Paused while the tab is hidden — a backgrounded tab polling every 15s is
+  // load nobody asked for, and there is no one there to see the result anyway.
+  // Resumes on the way back, and checks immediately rather than waiting out
+  // another interval, since returning to the tab is precisely when the customer
+  // is looking. Stops on result, on TTL, and on unmount.
+  useEffect(() => {
+    if (!inflight) return;
+    let cancelled = false;
+    let timer: ReturnType<typeof setInterval> | null = null;
+
+    const tick = () => {
+      if (cancelled || document.visibilityState === "hidden") return;
+      void collect(false);
+    };
+    const start = () => {
+      if (timer) return;
+      timer = setInterval(tick, 15_000);
+    };
+    const stop = () => {
+      if (!timer) return;
+      clearInterval(timer);
+      timer = null;
+    };
+    const onVisibility = () => {
+      if (document.visibilityState === "hidden") {
+        stop();
+      } else {
+        tick();
+        start();
+      }
+    };
+
+    if (document.visibilityState !== "hidden") start();
+    document.addEventListener("visibilitychange", onVisibility);
+    return () => {
+      cancelled = true;
+      stop();
+      document.removeEventListener("visibilitychange", onVisibility);
+    };
+    // Re-armed whenever the marker changes (new attempt / cleared).
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [inflight?.requestId]);
+
+  /** "Check result" — the manual nudge, for people who don't want to wait 15s. */
   const checkInflight = async () => {
     if (!inflight || checking) return;
     setChecking(true);
     try {
-      const r = await recoverCopy(locationId, inflight.requestId);
-      if (r) {
-        clearInflight();
-        setInflight(null);
-        setResult(r);
-        setLastInput((prev) => prev ?? ({ language: r.language } as SurveyInput));
-        setStage("result");
-        toast.success(uiLang === "cn" ? "已找回上次生成的文案" : "Recovered your last generation");
-      } else {
-        toast.message(
-          uiLang === "cn"
-            ? "还没生成好，请再等一下"
-            : "Not ready yet — give it a little longer",
-        );
-      }
+      await collect(true);
     } finally {
       setChecking(false);
     }
