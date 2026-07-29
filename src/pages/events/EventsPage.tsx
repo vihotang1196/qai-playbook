@@ -1,4 +1,4 @@
-import { useEffect, useState, useCallback, useRef } from "react";
+import { useEffect, useLayoutEffect, useState, useCallback, useRef } from "react";
 import { createPortal } from "react-dom";
 import {
   CalendarDays,
@@ -435,6 +435,33 @@ function EventBooking({
     setLunchQty((q) => Math.min(q, Math.max(0, seatCount)));
   }, [seatCount]);
 
+  // The floating confirm bar's real height, so the seat map can reserve exactly
+  // that much room below itself. MEASURED, not hardcoded: the bar grows a second
+  // row while free tickets remain and its text wraps on narrow screens, so any
+  // constant is wrong in some state — and when it is too small the bar sits on
+  // top of the last row of seats. Declared after seatCount on purpose (it is a
+  // dependency).
+  const barRef = useRef<HTMLDivElement>(null);
+  const [barHeight, setBarHeight] = useState(0);
+  // No dependency array on purpose: this runs after EVERY render, which covers
+  // every content-driven height change (the pill appearing, seat labels growing,
+  // a language switch). The window listener covers the other cause — a viewport
+  // change that rewraps the text without any re-render. The state guard makes
+  // the unconditional effect safe: identical height → no setState → no loop.
+  //
+  // A ResizeObserver would be the tidier tool and was tried first; it is also
+  // driven by the rendering pipeline, which made it impossible to verify in a
+  // non-compositing browser pane. This version needs neither.
+  useLayoutEffect(() => {
+    const measure = () => {
+      const h = barRef.current?.offsetHeight ?? 0;
+      setBarHeight((prev) => (prev === h ? prev : h));
+    };
+    measure();
+    window.addEventListener("resize", measure);
+    return () => window.removeEventListener("resize", measure);
+  });
+
   // Smooth-scroll to the active step on each step change (skip first mount).
   useEffect(() => {
     if (firstPhase.current) {
@@ -859,16 +886,29 @@ function EventBooking({
       {/* ── Step 1: select seats (+ fixed bottom confirm bar) ── */}
       {phase === "selecting" && (
         <>
-          <div className="pb-32">{seatArea(true)}</div>
+          {/* Padding is MEASURED from the bar, not guessed. The bar is 1 or 2 rows
+              depending on whether the free-ticket pill shows, and its text wraps
+              on narrow screens — a fixed pb-32 was under the real height in the
+              two-row case, so the bar sat on top of the last row of seats. */}
+          <div style={{ paddingBottom: seatCount > 0 ? barHeight + 24 : 0 }}>{seatArea(true)}</div>
 
           {/* Floating bar, portalled to <body>. SETTLED BY OBSERVATION in the
               real GHL frame: this one IS visible there, so the iframe scrolls
               internally and `fixed` correctly pins to the iframe's own viewport.
               An inline bar was tried and removed — it landed below the tall
               91-seat map, out of view. Portalled because the event card is
-              overflow-hidden and would clip a fixed child. */}
+              overflow-hidden and would clip a fixed child.
+
+              The bottom gap is env(safe-area-inset-bottom) + 1.25rem: pb-4 alone
+              left the bar flush against the viewport edge, where a phone's home
+              indicator / browser chrome ate the bottom half of it and the confirm
+              button could not be tapped. */}
           {seatCount > 0 && createPortal(
-            <div className="fixed bottom-0 left-0 right-0 z-40 px-3 sm:px-4 pb-4 pointer-events-none">
+            <div
+              ref={barRef}
+              className="fixed bottom-0 left-0 right-0 z-40 px-3 sm:px-4 pointer-events-none"
+              style={{ paddingBottom: "calc(env(safe-area-inset-bottom, 0px) + 1.25rem)" }}
+            >
               <div className="max-w-4xl mx-auto pointer-events-auto">{barInner}</div>
             </div>,
             document.body,
