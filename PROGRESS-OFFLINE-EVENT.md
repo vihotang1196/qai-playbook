@@ -777,6 +777,28 @@ add another `??`.**
 > through his own Stripe, so **one free seat = RM 397 not collected**. Granting a
 > free ticket is a deliberate admin action, never something a sub-account inherits
 > by existing.
+>
+> **The demo account went to 0/0 too (2026-07-29).** `gsRRLb2A8IoATd9qWNmh`
+> (AJ | QiAi Demo🔥) was `free_tickets=2, free_seats=4` and is the account the
+> owner demos to clients with after launch — leaving it meant the first four
+> people in a demo walking off with RM 397 tickets. Set to `0/0`; the row still
+> exists, so `oe_subaccount_settings` is **still 911 rows**, now 911 of 911 at
+> zero. Verified: `resolveContext` returns `freeTickets 0, freeSeats 0,
+> freeSeatsRemaining 0`.
+
+#### Lesson: think in windows, not just in end states
+
+Setting the global default to 0 **before** the booking wipe was not cosmetic
+ordering. The wipe resets `freeSeatsUsedFor` to zero; had the default still been
+`1`, any sub-account arriving in the gap between the two steps would have found a
+fresh free seat waiting. Both end states are fine — the window between them was
+not.
+
+Generalise it: when two changes each look safe on their own, ask what is true
+**between** them, and order them so the unsafe combination never exists. The same
+question applies to the Stripe Live switch and 「放开全体」 (open first and the
+window is "everyone can book while payment is still sandbox") and to any future
+allowance change paired with a data reset.
 
 **Setting them for real still works, and always did:** `updateSettings` upserts
 with `onConflict: "key"` and `oe_settings.key` is the PK, so saving the admin
@@ -1162,6 +1184,18 @@ items), the `seats_unavailable` error-code split ("seat taken" vs "event full"),
 `deleteEvent`'s orphan source, the change-date warning, the `verify_jwt` exposure
 review, un-archive overspending the allowance, the phone seat-tap threshold,
 shrinking capacity after tickets are sold, and **the SST server-side guard below**.
+
+- 🟠 **(8b) 「你的免费票已用完」 is now wrong for every customer.** With all 911
+  sub-accounts at `0/0`, `freeRemaining` is 0 for everyone, so
+  `EventsPage.tsx` (the `freeRemaining > 0` ternary) shows **「你的免费票已用完，
+  超出部分按活动票价收费」** to a first-time visitor who never had a free ticket
+  to use up. Verified anonymously 2026-07-29. It does *not* print the meaningless
+  「还有 0 张」 — that case was already handled — but "已用完" asserts a history
+  that does not exist.
+  → Fix: distinguish "allowance is 0" from "allowance spent". When the sub-account
+  was never granted any (`freeSeats === 0`), either drop the banner entirely or say
+  something true like 「本活动按票价收费（最多 4 人/单）」. Same for the English
+  string. Cosmetic, but it is the first sentence every customer reads.
 
 - 🟠 **(8b) `sst_rate`'s server-side guard is decorative — the UI hides the hole
   rather than closing it.** `updateSettings` refuses a blank `sst_rate` with
