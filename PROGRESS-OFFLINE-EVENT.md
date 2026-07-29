@@ -661,14 +661,20 @@ release seats or delete anything (that is batch 7a). The free-seat *allowance*
 did read as freed, because `freeSeatsUsedFor` excludes archived rows — which is
 exactly why the archive looked like a delete from the outside.
 
-> **归档 ≠ 删除 ≠ 释放座位。** 归档只是隐藏（并挡住签到）；座位只有**取消**或
-> **永久删除**才会释放。这是批 7a 之前的语义。
+> **SEMANTICS CHANGED IN BATCH 7a (2026-07-29).** Archiving now RELEASES the
+> seats as well as hiding the booking and blocking its check-in; un-archiving has
+> to claim seats again and may have to pick different ones. A booking that took
+> money and is not cancelled CANNOT be archived at all until batch 7b.
+>
+> The pre-7a rule, for reading older notes: 归档 ≠ 删除 ≠ 释放座位 — archiving was
+> only hiding, and seats were freed by **取消** or **永久删除** only.
 
-### Test data: CLEARED 2026-07-29 (end of batch 5)
+### Test data: CLEARED 2026-07-29 (end of batch 5, re-checked after batch 7a)
 
 `oe_booked_seats` holds **0 rows** — verified across every event (there is only
-one, `74753c55`, status live). All **16** booking rows are `status = cancelled`
-and **0** are archived; the rows are kept on purpose as history. The customer seat
+one, `74753c55`, status live). All **19** booking rows are `status = cancelled`
+and **0** are archived; the rows are kept on purpose as history. (16 after batch 5,
+plus batch 7a's three: `BK-XP79-B1YWU5`, `BK-XPZS-2IS98O`, `BK-XQOU-YSTLLS`.) The customer seat
 map now renders **91 seats, all selectable, 0 disabled** (checked anonymously).
 
 How it was done (kept as the recipe): archive modal → select all → 批量取消归档
@@ -848,19 +854,37 @@ confirm and its delete completed (`BK-OJKF-YH6BFL`). Empty state rendered with t
 list response stubbed empty in the browser (no data touched) — a live empty
 archive needs the 15 remaining rows cleared first.
 
-**To do — ORDER REVISED 2026-07-29 by the owner (7a jumps ahead of 6):**
-1. **7a** — archive RELEASES the seats; un-archive re-books by manually picking
-   from the seats still available. Split out of batch 7 and pulled forward,
-   because archiving that silently keeps seats locked is the more damaging half.
-   **Confirmed in the wild during batch 5:** the owner archived 14 test bookings
-   believing they were deleted, and 23 seats stayed locked behind them.
-   **Backfill question:** "archive releases the seat" will only apply to NEW
-   archives — it cannot retroactively free what existing archived rows hold. So
-   7a needs either a pre-cleared table or a one-off backfill. **Settled: no
-   backfill needed** — the cleanup at the end of batch 5 left `oe_booked_seats`
-   empty and no archived rows at all (see "Test data: CLEARED" above). If archived
-   rows accumulate again before 7a ships, re-check that before skipping it.
-2. **6** — 10-minute pending timeout + `sessions.expire()` + cron.
+**7a — DONE, awaiting acceptance** (0cc0739 `blocksArchive`, 4a219c3 the server,
+77e1c25 the UI; `offline-event-admin` redeployed). Archiving frees the seats with
+the same one-liner `cancelBooking` uses; un-archiving CLAIMS seats first and only
+then clears the flag, so a booking whose seats were sold meanwhile stays archived
+rather than going live holding nothing. Un-archive opens a seat picker
+(`UnarchiveModal`, a shell over `AdminSeatPicker` — `SeatOpModal` is wired to
+changeSeats/changeEvent, so only the picker is shared) that pre-selects the
+original seats when free and otherwise names the booking holding them;
+`getEventSeatmap` gained `bookedBy` (label → holder code) for that. **No backfill
+was needed** — the batch 5 cleanup had already emptied `oe_booked_seats`.
+
+**`blocksArchive(b) = hasPaymentTrace(b) && status !== 'cancelled'`** is the single
+rule for "may this be archived": per-row button, detail modal and bulk archive all
+use it, and the server enforces it too (`archive_blocked_paid`, HTTP 400) because a
+disabled button is not a gate. Excluding `cancelled` matters — without it the
+normal cleanup path (cancel, then archive away) is blocked for every booking that
+ever touched Stripe.
+
+Verified live (test rows `BK-XP79-B1YWU5`, `BK-XPZS-2IS98O`, `BK-XQOU-YSTLLS`, all
+cancelled afterwards): archive freed G7 Seat 1 and an anonymous customer saw it
+selectable; un-archive with that seat still free pre-selected and re-claimed it;
+after another booking took it, un-archive said "G7 Seat 1 已被 BK-XPZS-2IS98O
+占用", pre-selected nothing and kept submit disabled until a new seat was picked;
+the paid live row's archive button was disabled with the batch-7b wording, the API
+refused it 400, and after cancelling it archived fine. Bulk archive skipped the 1
+paid live row out of 19. Caught while verifying: bulk archive claimed it would free
+43 seats when 2 would be — cancelled bookings keep their seat LABELS while holding
+nothing, so the count now excludes them.
+
+**To do:**
+1. **6** — 10-minute pending timeout + `sessions.expire()` + cron.
 3. **7b** — the credit/allowance ledger (the big one), including the two
    ticket-vs-seat problems below.
 4. **8** — UI polish + the change-date warning + the `deleteEvent` orphan fix.
@@ -892,6 +916,18 @@ FIRST, they change what the ledger must model):**
   money arrived". `sweepStalePending` and the admin cancel path both need it.
 - `createCheckout` should pass Stripe `locale` and switch line-item names to the
   fixed bilingual single strings (the deferred receipt-language decision above).
+- 🔴 **Capacity — REVISED 2026-07-29, do NOT do the original version.** The old
+  plan was "mark `capacity` deprecated and drop the容量 input from the admin
+  form". That would tear out the only overselling defence: `oe_claim_seats`
+  enforces `taken + want > capacity → refuse` (migration :189-196). Correct order,
+  and it must be this order:
+  1. keep the gate, but change what it reads — the floor plan's **enabled seat
+     count** instead of the hand-typed `capacity`;
+  2. fix the misleading refusal: a seat beyond capacity is rejected and the UI
+     says 「所选座位已被占用」 about a visibly empty seat — it must say
+     「本场活动名额已满」;
+  3. only then may the `capacity` field be retired. Retiring it before step 1
+     leaves nothing enforcing capacity at all.
 
 **Batch 8 backlog — capacity vs the floor plan (found 2026-07-29, NOT fixed):**
 the seat map renders **91 selectable seats** while the event reports
