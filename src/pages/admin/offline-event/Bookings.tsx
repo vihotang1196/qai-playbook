@@ -1,12 +1,11 @@
 import { useCallback, useEffect, useState } from "react";
-import { Loader2, AlertCircle, Search, X, Ticket, RefreshCw, Archive, ArchiveRestore, Ban, QrCode, UserPlus, Armchair, CalendarClock, Trash2 } from "lucide-react";
+import { Loader2, AlertCircle, Search, X, Ticket, RefreshCw, Archive, Ban, QrCode, UserPlus, Armchair, CalendarClock } from "lucide-react";
 import {
   listBookings,
   ORPHAN_EVENT,
   getBookingDetail,
   cancelBooking,
   archiveBooking,
-  deleteBookingHard,
   getCheckinEvents,
   type OeBookingRow,
   type OeBookingDetail,
@@ -20,6 +19,8 @@ import { formatEventDateCompact } from "@/lib/offlineEventFormat";
 import { QrTicket } from "@/components/offline-event/QrTicket";
 import ManualAddModal from "@/components/offline-event/ManualAddModal";
 import SeatOpModal from "@/components/offline-event/SeatOpModal";
+import ArchiveModal from "@/components/offline-event/ArchiveModal";
+import { hasPaymentTrace } from "@/lib/offlineEventDelete";
 
 /**
  * Offline Event admin — P7a bookings management (`/admin/offline-event/bookings`).
@@ -27,6 +28,10 @@ import SeatOpModal from "@/components/offline-event/SeatOpModal";
  * check-in, QR), and cancel (void + free seats) or archive (hide). All through
  * the requireAdmin-gated `offline-event-admin` fn — the frontend never touches
  * the RLS-locked oe_ tables directly.
+ *
+ * Batch 5: this list shows LIVE bookings only. Archived rows live behind the
+ * 「已归档」button in their own modal, and permanent delete exists ONLY there —
+ * it must never sit one click away from everyday work.
  */
 
 const STATUS_META: Record<OeBookingStatus, { label: string; cls: string }> = {
@@ -52,14 +57,18 @@ export default function OfflineEventBookings() {
 
   const [eventId, setEventId] = useState("");
   const [status, setStatus] = useState<OeBookingStatus | "">("");
-  const [includeArchived, setIncludeArchived] = useState(false);
-  // How many rows the archive is hiding right now (same filters) — surfaced so
-  // an archived booking never just looks lost.
+  // How many rows the archive holds — named on the button so an archived
+  // booking never just looks lost. Shown even at 0 (greyed), because a button
+  // that disappears is a feature the owner has to remember exists.
   const [archivedCount, setArchivedCount] = useState(0);
+  const [archiveOpen, setArchiveOpen] = useState(false);
   const [orphanCount, setOrphanCount] = useState(0);
   // Row whose archive/un-archive is awaiting confirmation.
   const [confirmArchive, setConfirmArchive] = useState<OeBookingRow | null>(null);
   const [search, setSearch] = useState("");
+  // Multi-select on the main list (bulk archive only — no delete path here).
+  const [picked, setPicked] = useState<Set<string>>(new Set());
+  const [confirmBulkArchive, setConfirmBulkArchive] = useState(false);
 
   const [detail, setDetail] = useState<{ booking: OeBookingDetail; event: OeBookingEvent } | null>(null);
   const [detailLoading, setDetailLoading] = useState(false);
@@ -74,7 +83,8 @@ export default function OfflineEventBookings() {
   const load = useCallback(() => {
     setRows(null);
     setErr(null);
-    listBookings({ eventId, status, includeArchived, search })
+    setPicked(new Set());
+    listBookings({ eventId, status, search })
       .then((r) => {
         setRows(r.bookings);
         setTotal(r.total);
@@ -82,13 +92,13 @@ export default function OfflineEventBookings() {
         setOrphanCount(r.orphanCount ?? 0);
       })
       .catch((e) => setErr(e instanceof Error ? e.message : "加载失败"));
-  }, [eventId, status, includeArchived, search]);
+  }, [eventId, status, search]);
 
   // Reload on filter changes (search is applied explicitly via the box below).
   useEffect(() => {
     load();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [eventId, status, includeArchived]);
+  }, [eventId, status]);
 
   const openDetail = async (code: string) => {
     setDetailLoading(true);
@@ -106,7 +116,6 @@ export default function OfflineEventBookings() {
   // Confirmations use the in-app dialog, never window.confirm — a suppressed
   // native dialog returns false and the action would abort SILENTLY.
   const [confirmCancel, setConfirmCancel] = useState<string | null>(null);
-  const [confirmHardDelete, setConfirmHardDelete] = useState<string | null>(null);
 
   const doCancel = async (code: string) => {
     setBusy(true);
@@ -137,19 +146,46 @@ export default function OfflineEventBookings() {
     }
   };
 
-  const doHardDelete = async (code: string) => {
+  // ── Multi-select bulk archive ───────────────────────────────────────────
+  // Bookings that took money (or could still take it) are SKIPPED, not archived:
+  // archiving neither refunds nor issues credit today, so doing it in bulk is how
+  // a paid customer silently loses their seat. The skip test is the same
+  // hasPaymentTrace used by the delete gate — one question, one answer.
+  const pickedRows = (rows ?? []).filter((b) => picked.has(b.booking_id));
+  const bulkSkipped = pickedRows.filter(hasPaymentTrace);
+  const bulkArchivable = pickedRows.filter((b) => !hasPaymentTrace(b));
+  const bulkSeatCount = bulkArchivable.reduce((n, b) => n + b.seats.length, 0);
+
+  const togglePick = (code: string) =>
+    setPicked((prev) => {
+      const next = new Set(prev);
+      if (next.has(code)) next.delete(code);
+      else next.add(code);
+      return next;
+    });
+
+  const doBulkArchive = async () => {
     setBusy(true);
+    let ok = 0;
+    const failed: string[] = [];
     try {
-      await deleteBookingHard(code);
-      setConfirmHardDelete(null);
-      setDetail(null);
-      toast.success(`订单 ${code} 已永久删除，座位已释放`);
+      for (const b of bulkArchivable) {
+        try {
+          await archiveBooking(b.booking_id, true);
+          ok++;
+        } catch {
+          failed.push(b.booking_id);
+        }
+      }
+      if (ok) toast.success(`已归档 ${ok} 笔`);
+      if (bulkSkipped.length) {
+        toast.info(
+          `其中 ${bulkSkipped.length} 笔已收款或仍有付款痕迹，已跳过（需等批 7b 额度系统上线）`,
+          { duration: 9000 },
+        );
+      }
+      if (failed.length) toast.error(`${failed.length} 笔失败：${failed.join("、")}`, { duration: 8000 });
       load();
-    } catch (e) {
-      setConfirmHardDelete(null);
-      // Includes any server-side guard refusing the delete — the user must be
-      // told WHY, never left with a button that appears to do nothing.
-      toast.error(e instanceof Error ? e.message : "删除失败", { duration: 8000 });
     } finally {
       setBusy(false);
     }
@@ -190,27 +226,21 @@ export default function OfflineEventBookings() {
             <option value="pending">待付款</option>
             <option value="cancelled">已取消</option>
           </select>
-          {/* Archive visibility as a real, self-explaining control instead of a
-              faint checkbox: it names the count it is hiding, so "I archived a
-              booking and now I can't find it" can't happen silently. */}
+          {/* The archive is a PLACE, not a view toggle: archived rows never mix
+              into this list any more. Rendered even at 0 (greyed but present) so
+              the entry point is always where the owner last saw it. */}
           <button
             type="button"
-            onClick={() => setIncludeArchived((v) => !v)}
+            onClick={() => setArchiveOpen(true)}
             className={`inline-flex items-center gap-1.5 h-10 rounded-xl px-3 text-sm font-medium border-2 transition-colors ${
-              includeArchived
-                ? "border-[#141414] bg-[#141414] text-[#fed50a]"
-                : archivedCount > 0
-                  ? "border-[#141414] bg-[#fed50a] text-[#141414]"
-                  : "border-border text-muted-foreground"
+              archivedCount > 0
+                ? "border-[#141414] bg-[#fed50a] text-[#141414]"
+                : "border-border text-muted-foreground"
             }`}
-            title={includeArchived ? "点一下隐藏已归档" : "点一下把已归档的也显示出来"}
+            title="打开归档（取消归档 / 永久删除都在里面）"
           >
             <Archive className="w-4 h-4" />
-            {includeArchived
-              ? "已归档：正在显示"
-              : archivedCount > 0
-                ? `另有 ${archivedCount} 单已归档 · 点击显示`
-                : "无已归档"}
+            已归档（{archivedCount}）
           </button>
         </div>
         <div className="flex gap-2">
@@ -227,7 +257,7 @@ export default function OfflineEventBookings() {
           <button onClick={load} className="h-10 px-4 rounded-xl bg-primary text-primary-foreground text-sm font-medium flex items-center gap-1.5">
             <Search className="w-4 h-4" /> 搜索
           </button>
-          <button onClick={() => { setSearch(""); setEventId(""); setStatus(""); setIncludeArchived(false); }} className="h-10 px-3 rounded-xl bg-muted text-sm text-muted-foreground flex items-center gap-1.5">
+          <button onClick={() => { setSearch(""); setEventId(""); setStatus(""); }} className="h-10 px-3 rounded-xl bg-muted text-sm text-muted-foreground flex items-center gap-1.5">
             <RefreshCw className="w-4 h-4" /> 重置
           </button>
         </div>
@@ -254,6 +284,28 @@ export default function OfflineEventBookings() {
             <UserPlus className="w-3.5 h-3.5" /> 手动加票
           </button>
         </div>
+        {/* Bulk bar — appears only with a selection, so it never looks like a
+            permanent toolbar. Archive only: permanent delete lives in the
+            archive modal and nowhere else. */}
+        {pickedRows.length > 0 && (
+          <div className="px-4 py-3 border-b border-border/40 flex flex-wrap items-center gap-2 bg-muted/40">
+            <span className="text-sm font-medium">已选 {pickedRows.length} 笔</span>
+            <button
+              disabled={busy}
+              onClick={() => setConfirmBulkArchive(true)}
+              className="h-9 px-3 rounded-xl bg-white border-2 border-[#141414] text-sm font-medium inline-flex items-center gap-1.5 disabled:opacity-50"
+            >
+              <Archive className="w-4 h-4" /> 批量归档
+            </button>
+            <button
+              disabled={busy}
+              onClick={() => setPicked(new Set())}
+              className="h-9 px-3 rounded-xl text-sm text-muted-foreground disabled:opacity-50"
+            >
+              清除选择
+            </button>
+          </div>
+        )}
         {rows === null ? (
           <div className="p-10 flex items-center justify-center text-muted-foreground">
             <Loader2 className="w-5 h-5 animate-spin" />
@@ -265,6 +317,17 @@ export default function OfflineEventBookings() {
             <table className="w-full text-sm">
               <thead>
                 <tr className="text-left text-xs text-muted-foreground border-b border-border/40">
+                  <th className="px-4 py-2 w-8">
+                    <input
+                      type="checkbox"
+                      checked={rows.length > 0 && picked.size === rows.length}
+                      onChange={() =>
+                        setPicked((prev) => (prev.size === rows.length ? new Set() : new Set(rows.map((b) => b.booking_id))))
+                      }
+                      aria-label="全选"
+                      className="w-4 h-4 accent-[#141414]"
+                    />
+                  </th>
                   <th className="px-4 py-2 font-medium">报名码</th>
                   <th className="px-4 py-2 font-medium">邮箱</th>
                   <th className="px-4 py-2 font-medium">子账号</th>
@@ -281,9 +344,20 @@ export default function OfflineEventBookings() {
                 {rows.map((b) => (
                   <tr
                     key={b.booking_id}
-                    className={`border-b border-border/30 hover:bg-muted/40 cursor-pointer ${b.is_archived ? "opacity-50" : ""}`}
+                    className="border-b border-border/30 hover:bg-muted/40 cursor-pointer"
                     onClick={() => openDetail(b.booking_id)}
                   >
+                    {/* stopPropagation on the cell: ticking a row must not also
+                        open its detail modal. */}
+                    <td className="px-4 py-3.5" onClick={(ev) => ev.stopPropagation()}>
+                      <input
+                        type="checkbox"
+                        checked={picked.has(b.booking_id)}
+                        onChange={() => togglePick(b.booking_id)}
+                        aria-label={`选择 ${b.booking_id}`}
+                        className="w-4 h-4 accent-[#141414]"
+                      />
+                    </td>
                     <td className="px-4 py-3.5 font-mono text-xs whitespace-nowrap">{b.booking_id}</td>
                     <td className="px-4 py-3.5 truncate max-w-[160px]">{b.email || "—"}</td>
                     <td className="px-4 py-3.5 font-mono text-[11px] text-muted-foreground truncate max-w-[120px]" title={b.ghl_location_id || undefined}>{b.ghl_location_id || "—"}</td>
@@ -303,14 +377,16 @@ export default function OfflineEventBookings() {
                       <QrCode className="w-4 h-4 text-muted-foreground inline" />
                       {/* stopPropagation: the row itself opens the detail modal,
                           and archiving must not also open it. */}
+                      {/* This list is live-only, so the per-row action is always
+                          "archive" — un-archive lives in the archive modal. */}
                       <button
                         type="button"
-                        title={b.is_archived ? "取消归档" : "归档"}
-                        aria-label={b.is_archived ? "取消归档" : "归档"}
+                        title="归档"
+                        aria-label={`归档 ${b.booking_id}`}
                         onClick={(ev) => { ev.stopPropagation(); setConfirmArchive(b); }}
                         className="ml-2 inline-flex h-7 w-7 items-center justify-center rounded-lg align-middle text-[#141414] hover:bg-[#141414]/[0.08]"
                       >
-                        {b.is_archived ? <ArchiveRestore className="w-4 h-4" /> : <Archive className="w-4 h-4" />}
+                        <Archive className="w-4 h-4" />
                       </button>
                     </td>
                   </tr>
@@ -446,13 +522,9 @@ export default function OfflineEventBookings() {
                       <Archive className="w-4 h-4" /> {detail.booking.is_archived ? "取消归档" : "归档"}
                     </button>
                   </div>
-                  <button
-                    disabled={busy}
-                    onClick={() => setConfirmHardDelete(detail.booking.booking_id)}
-                    className="w-full h-9 rounded-xl text-xs font-medium text-[#141414] hover:bg-[#141414]/[0.06] flex items-center justify-center gap-1.5 disabled:opacity-50"
-                  >
-                    <Trash2 className="w-3.5 h-3.5" /> 永久删除（不可撤销）
-                  </button>
+                  {/* No permanent-delete entry here on purpose (batch 5): the only
+                      way to delete is 归档 → 已归档 modal, so an irreversible
+                      action can't be reached from everyday booking work. */}
                 </div>
               </div>
             )}
@@ -536,23 +608,44 @@ export default function OfflineEventBookings() {
         onCancel={() => setConfirmCancel(null)}
       />
 
+      {/* Bulk archive. Paid / payment-traced rows are excluded from the batch
+          and reported, never silently included. */}
       <ConfirmDialog
-        open={!!confirmHardDelete}
-        danger
+        open={confirmBulkArchive}
+        danger={bulkArchivable.length > 0}
         busy={busy}
-        title="永久删除这张订单？"
+        title={bulkArchivable.length === 0 ? "这批没有可归档的报名" : `归档 ${bulkArchivable.length} 笔？`}
         description={
-          <>
-            订单 <b className="text-[#141414]">{confirmHardDelete}</b> 会被
-            <b className="text-[#141414]">彻底删除、无法恢复</b>，座位同时释放。
-            只想作废但保留记录的话，请改用「取消订单」。
-          </>
+          bulkArchivable.length === 0 ? (
+            <>
+              已选的 {pickedRows.length} 笔<b className="text-[#141414]">全部已收款或仍有付款痕迹</b>，
+              批量归档会跳过它们（需等批 7b 额度系统上线）。请单独处理。
+            </>
+          ) : (
+            <>
+              将归档 <b className="text-[#141414]">{bulkArchivable.length}</b> 笔、共{" "}
+              <b className="text-[#141414]">{bulkSeatCount}</b> 个座位。
+              当前版本归档后顾客无法签到入场，<b className="text-[#141414]">座位仍被占用</b>。
+              {bulkSkipped.length > 0 && (
+                <>
+                  <br />
+                  其中 <b className="text-[#141414]">{bulkSkipped.length}</b> 笔已收款或仍有付款痕迹，
+                  <b className="text-[#141414]">将被跳过</b>（需等批 7b 额度系统上线）。
+                </>
+              )}
+            </>
+          )
         }
-        confirmLabel="永久删除"
+        confirmLabel={bulkArchivable.length === 0 ? "我知道了" : "归档"}
         cancelLabel="返回"
-        onConfirm={() => confirmHardDelete && doHardDelete(confirmHardDelete)}
-        onCancel={() => setConfirmHardDelete(null)}
+        onConfirm={() => {
+          setConfirmBulkArchive(false);
+          if (bulkArchivable.length > 0) doBulkArchive();
+        }}
+        onCancel={() => setConfirmBulkArchive(false)}
       />
+
+      <ArchiveModal open={archiveOpen} onClose={() => setArchiveOpen(false)} onChanged={load} />
     </div>
   );
 }
