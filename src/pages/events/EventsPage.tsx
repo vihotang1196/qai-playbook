@@ -183,6 +183,14 @@ function BookingBrowser({ lang, locationId, ctx, onRefreshCtx }: { lang: "cn" | 
   }, [onRefreshCtx, loadEvents]);
 
   const freeRemaining = ctx.freeSeatsRemaining ?? 0;
+  // The allowance GRANTED, as opposed to what is left of it. The banner below used
+  // to conflate the two: it only asked `freeRemaining > 0`, so a sub-account with
+  // no allowance at all fell into the "used up" branch and a first-time visitor was
+  // told they had spent free tickets they never had. Since 2026-07-29 that is every
+  // sub-account until an admin grants some, so it was the first sentence every
+  // customer read — and false for all of them. Saying nothing beats inventing a
+  // history, hence the block disappears entirely when the allowance was always 0.
+  const freeAllowance = ctx.freeSeats ?? 0;
 
   return (
     <Shell>
@@ -206,22 +214,28 @@ function BookingBrowser({ lang, locationId, ctx, onRefreshCtx }: { lang: "cn" | 
 
       {showMine && <MyBookings lang={lang} locationId={locationId} onClose={() => setShowMine(false)} />}
 
-      <div className="glass-card rounded-2xl px-4 py-3 mb-5 flex items-center gap-2.5">
-        <Ticket className="w-4 h-4 text-[#141414] shrink-0" />
-        <p className="text-sm">
-          {lang === "cn" ? (
-            freeRemaining > 0 ? (
-              <>你还有 <span className="font-bold text-[#141414] bg-[#fed50a] px-1.5 rounded">{freeRemaining}</span> 张免费票（最多 4 人/单）</>
+      {/* Three states, not two. "Never had an allowance" is NOT "spent it all", and
+          the difference is the whole point: with no allowance there is nothing to
+          announce, so the banner is absent rather than telling the customer a story
+          about tickets that never existed. */}
+      {freeAllowance > 0 && (
+        <div className="glass-card rounded-2xl px-4 py-3 mb-5 flex items-center gap-2.5">
+          <Ticket className="w-4 h-4 text-[#141414] shrink-0" />
+          <p className="text-sm">
+            {lang === "cn" ? (
+              freeRemaining > 0 ? (
+                <>你还有 <span className="font-bold text-[#141414] bg-[#fed50a] px-1.5 rounded">{freeRemaining}</span> 张免费票（最多 4 人/单）</>
+              ) : (
+                <>你的免费票已用完，超出部分按活动票价收费（最多 4 人/单）</>
+              )
+            ) : freeRemaining > 0 ? (
+              <>You have <span className="font-bold text-[#141414] bg-[#fed50a] px-1.5 rounded">{freeRemaining}</span> free ticket{freeRemaining === 1 ? "" : "s"} (up to 4 / booking)</>
             ) : (
-              <>你的免费票已用完，超出部分按活动票价收费（最多 4 人/单）</>
-            )
-          ) : freeRemaining > 0 ? (
-            <>You have <span className="font-bold text-[#141414] bg-[#fed50a] px-1.5 rounded">{freeRemaining}</span> free ticket{freeRemaining === 1 ? "" : "s"} (up to 4 / booking)</>
-          ) : (
-            <>Your free tickets are used up; extra seats are charged at the event price (up to 4 / booking)</>
-          )}
-        </p>
-      </div>
+              <>Your free tickets are used up; extra seats are charged at the event price (up to 4 / booking)</>
+            )}
+          </p>
+        </div>
+      )}
 
       {err ? (
         <div className="glass-card rounded-2xl p-6 flex items-start gap-3">
