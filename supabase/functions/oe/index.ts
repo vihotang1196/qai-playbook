@@ -116,21 +116,22 @@ async function loadSettings(sb: SB): Promise<OeSettings> {
     sstRate: num("sst_rate", 0.08),
     // Global default allowance for a NEW sub-account (admin-configurable, P7c).
     //
-    // ⚠️ NEITHER KEY EXISTS IN oe_settings — confirmed in the Table Editor on
-    // 2026-07-29. So these are not a safety net that never fires: THEY ARE THE
-    // LIVE VALUES. They used to read 1 and 2, which means every sub-account
-    // auto-registered since P7c inherited TWO free seats, while PROGRESS recorded
-    // "1/1" and the admin settings page displayed a number nobody ever stored.
+    // BOTH KEYS DO EXIST in oe_settings, each `"1"`, written 2026-07-28 04:11:29 by
+    // the allowance reset — verified directly against the database 2026-07-29.
+    // (An earlier pass through this file claimed they were absent, off a Table
+    // Editor reading; the SQL says otherwise. The stored value wins and these
+    // fallbacks do NOT currently decide anything.)
     //
-    // The default must be "give nothing". A sub-account that should get free seats
-    // is one row in oe_subaccount_settings away and leaves a record of the
-    // decision; one that gets them by accident is revenue given away silently.
+    // So these are what happens only if a row is ever deleted or renamed. They
+    // still matter: the seven fallbacks for these two keys used to read 1, 2, 2,
+    // "1", "2", 1, 1 — five different opinions about the same two numbers, which
+    // is a trap that springs the day a row goes missing. Now all zero, because the
+    // right answer to "no configuration" is "give nothing": a sub-account that
+    // should get free seats is one oe_subaccount_settings row away and that row
+    // records the decision.
     //
-    // FIVE fallbacks decide these two keys and they must all agree. The other
-    // three: `getSettings` in offline-event-admin/index.ts (what the admin page
-    // shows) and the `sa?.free_seats` default at the createBooking site below.
-    // Configuration cannot police code defaults — when they disagree the code
-    // wins, and the admin reads a number off a page that was never in the table.
+    // ⚠️ Changing these does NOT change what new sub-accounts inherit today —
+    // that is the stored `1`. Only editing oe_settings does.
     defaultFreeTickets: Math.max(0, Math.floor(num("default_free_tickets", 0))),
     defaultFreeSeats: Math.max(0, Math.floor(num("default_free_seats", 0))),
   };

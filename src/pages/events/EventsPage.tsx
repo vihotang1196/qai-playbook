@@ -50,14 +50,17 @@ import {
  * observation on a real device, not derived.
  *
  * Observed 2026-07-29 (owner, real GHL desktop): at a 20px gap the bar showed
- * about HALF of its 125px height, so the shortfall is roughly 60–80px.
+ * about HALF of its 125px height, so the shortfall was roughly 60–80px.
+ *
+ * ✅ VERIFIED ON A REAL DEVICE 2026-07-29 (owner, GHL desktop): at 6rem the bar is
+ * fully visible. Settled — do not treat this as a guess needing another round.
  *
  * Standalone desktop is NOT affected and keeps the 1.25rem gap — measured there
  * at 1440×900 and 1920×1080, the confirm button already clears the viewport
  * bottom by 34px. Do not "fix" the unframed case with this value.
  *
- * If the owner reports it is still short (or now overshoots), THIS LINE is the
- * one to change.
+ * If the frame geometry ever changes and it goes short (or overshoots), THIS LINE
+ * is the one to change.
  */
 const IFRAME_BAR_BOTTOM_OFFSET = "6rem";
 

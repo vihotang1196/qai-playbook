@@ -682,51 +682,55 @@ separate ticket / lunch / SST lines.
 | Thing | Value | Note |
 |---|---|---|
 | Test sub-account `gsRRLb2A8IoATd9qWNmh` | `free_tickets=2`, `free_seats=4` | Read 2026-07-28T09:17:53Z. **The restore target for batch 7.** The owner changed this during GHL testing — do not assume 1/2. During batch 5.5 it was temporarily `free_tickets=1`, `free_seats=2`; `free_seats` is being restored to 4. Only `free_seats` affects charging — see the 票/座 traps in the batch 8 backlog. |
-| Global defaults | **THE ROWS DO NOT EXIST** — see the correction below | Was recorded here as `1`/`1`. Both wrong and misleading: nothing was ever stored. |
+| Global defaults | `default_free_tickets=1`, `default_free_seats=1` | Re-verified by SQL 2026-07-29; both rows written 2026-07-28 04:11:29 by the allowance reset. This line was briefly "corrected" to "the rows do not exist" — that was wrong, see below. |
 | `oe_settings.sst_rate` | `0.08` | Stored as a STRING decimal → `Number(x)*100` for display, and skip the label when 0. |
 | `oe_settings.lunch_price` | `39.99` | |
 
-#### 🔴 Correction (2026-07-29): the global free-allowance rows never existed
+#### The seven free-allowance fallbacks, and a retracted "correction" (2026-07-29)
 
-The owner checked `oe_settings` in the Supabase Table Editor: there is **no
-`default_free_tickets` row and no `default_free_seats` row**. The "1/1" recorded
-above was never in the table.
+**Verified by SQL against the live database:**
 
-What was actually in force was the **code fallback**, and it read `1` ticket /
-`2` seats — so every sub-account auto-registered by `resolveContext` since P7c
-inherited **two free seats**, not one. Three surfaces disagreed at once:
+```
+default_free_seats     = "1"   updated_at 2026-07-28 04:11:29+00
+default_free_tickets   = "1"   updated_at 2026-07-28 04:11:29+00
+```
 
-| surface | said | source |
-|---|---|---|
-| customer path (`oe` `loadSettings`) | **1 / 2** | the only one that decided anything real |
-| admin 设置页 → 免费额度 (`getSettings`) | 1 / 2 | a code default, rendered as if stored |
-| admin 子账号管理 blurb (`listSubaccountSettings`) | **1 / 1** | a *different* code default |
-| PROGRESS (this file) | 1 / 1 | almost certainly copied off the blurb above |
-| `oe_settings` | — | no rows at all |
+Both rows exist. The `1/1` originally recorded in the table above was **correct**.
 
-**Two admin pages in the same tool showed different "global defaults" to the same
-person on the same day**, and neither matched a stored value because there was
-none. That is where the "1/1" in this file came from.
+> **Retracted.** A note here briefly claimed the two rows did not exist — read off
+> the Supabase Table Editor — and built a whole story on it: that the live values
+> were really `1/2`, that every sub-account since P7c had inherited two free seats,
+> and that two admin pages were showing different numbers. **All of that was
+> false.** A stored value always won, so all three surfaces read `1/1` and always
+> agreed. The lesson that survives is a smaller one, and it is about method: a
+> Table Editor glance is not a verification. `supabase db query --linked` is.
 
-**This is the lesson, and it generalises: configuration cannot police code
-defaults.** When they disagree the code wins silently, and the admin page will
-happily display a number that exists nowhere but a function argument. An admin
-looking at that page has no way to tell a stored value from a default.
+What was real: the **seven code fallbacks** for these two keys held five different
+opinions — `1, 2, 2, "1", "2", 1, 1`. Harmless while the rows exist, and a trap the
+day one is deleted, since the three surfaces would then diverge silently.
 
-Fixed by commit B: **seven** fallbacks — not the five originally scoped — now all
-read `0`. The two extra ones were found by grepping after the first five were
-changed, and they were the pair feeding the 子账号管理 blurb:
+| # | location | was | now |
+|---|---|---|---|
+| 1–2 | `oe/index.ts` `loadSettings` | `1`, `2` | `0` |
+| 3 | `oe/index.ts` `createBooking` — `sa?.free_seats ?? 2` | `2` | `0` |
+| 4–5 | `offline-event-admin/index.ts` `getSettings` | `"1"`, `"2"` | `"0"` |
+| 6–7 | `offline-event-admin/index.ts` `listSubaccountSettings` `defaults` | `1`, `1` | `0` |
 
-| # | location | was |
-|---|---|---|
-| 1–2 | `oe/index.ts` `loadSettings` | `1`, `2` |
-| 3 | `oe/index.ts` `createBooking` — `sa?.free_seats ?? 2` | `2` |
-| 4–5 | `offline-event-admin/index.ts` `getSettings` | `"1"`, `"2"` |
-| 6–7 | `offline-event-admin/index.ts` `listSubaccountSettings` `defaults` | `1`, `1` |
+Zero is the right answer to "no configuration": a sub-account that should get free
+seats is one `oe_subaccount_settings` row away, and that row records the decision.
+**If an eighth surface ever needs this number it reads one of these — it does not
+add another `??`.**
 
-The default is now "give nothing"; granting free seats requires a real row, which
-leaves a record of the decision. **If a sixth surface ever needs this number, it
-reads it from one of these — it does not add an eighth `??`.**
+> ### ⚠️ STILL OPEN: a new sub-account inherits 1 free seat
+>
+> Commit B changed only the fallbacks. `resolveContext` auto-registers a new
+> sub-account with the **stored** default, and the store says `1`. So every
+> sub-account that syncs in after launch still gets one free seat.
+>
+> The 910 existing `0/0` rows are unaffected — this is only about new arrivals.
+>
+> Closing it means setting both `oe_settings` rows to `0`, which is a data change,
+> not a code change. **Not done yet — awaiting the owner's go-ahead.**
 
 **Setting them for real still works, and always did:** `updateSettings` upserts
 with `onConflict: "key"` and `oe_settings.key` is the PK, so saving the admin
