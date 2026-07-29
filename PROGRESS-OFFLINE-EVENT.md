@@ -895,11 +895,14 @@ FIRST, they change what the ledger must model):**
 
 **Batch 8 backlog — capacity vs the floor plan (found 2026-07-29, NOT fixed):**
 the seat map renders **91 selectable seats** while the event reports
-**`seats_left` 60**, because `capacity` is set to 60 on `oe_events` and
-`seats_left = capacity − booked` (`oe/index.ts` :374) is display-only — nothing
-stops seat 61. So the counter can read 剩 0 座 with seats still clickable, and a
-booking can exceed the stated capacity. Decide which is authoritative (the plan's
-enabled seats or `capacity`) and make the other follow.
+**`seats_left` 60**, because `oe_events.capacity` is 60 and
+`seats_left = capacity − booked` (`oe/index.ts` :374).
+**Correction to an earlier note here: capacity IS enforced** — `oe_claim_seats`
+refuses a claim when `taken + want > capacity` (migration :189-196), so seat 61
+cannot be sold and there is no overselling. The real defect is the mismatch: the
+picker offers 31 seats that will be refused at claim time, and the refusal
+surfaces as "所选座位已被占用" on a seat that is visibly empty. Decide which is
+authoritative (the plan's enabled seats or `capacity`) and make the other follow.
 
 **Batch 8 backlog:** the change-date warning; and `deleteEvent` still permits
 deleting an event whose bookings are all cancelled, which orphans them via
