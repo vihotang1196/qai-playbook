@@ -486,7 +486,12 @@ serve(async (req) => {
             freeSeats,
             freeSeatsUsed,
             freeSeatsRemaining: Math.max(0, freeSeats - freeSeatsUsed),
-            settings: { maxSeats: s.maxSeats, lunchPrice: s.lunchPrice, sstRate: s.sstRate },
+            // holdMinutes travels to the client so the "finish paying within N
+            // minutes" copy can never disagree with the sweep. It is the SAME
+            // constant the sweep uses — change HOLD_STALE_MINUTES and every
+            // sentence follows. Hardcoding it in the UI is how the payment page
+            // ended up promising "~30 minutes" after the window became 10.
+            settings: { maxSeats: s.maxSeats, lunchPrice: s.lunchPrice, sstRate: s.sstRate, holdMinutes: HOLD_STALE_MINUTES },
           },
         });
       }
@@ -854,7 +859,10 @@ serve(async (req) => {
 
           await sb.from("oe_bookings").update({ stripe_session_id: session.id }).eq("id", inserted.id);
 
-          return json({ ok: true, checkoutUrl: session.url, bookingCode: bookingId });
+          // holdMinutes again (see resolveContext): the waiting screen the customer
+          // stares at is rendered from this response, and its promise about how
+          // long the seats are held must come from the constant that enforces it.
+          return json({ ok: true, checkoutUrl: session.url, bookingCode: bookingId, holdMinutes: HOLD_STALE_MINUTES });
         } catch (e) {
           // Checkout creation failed — release the held seats + pending booking
           // (booked_seats cascade-delete with the row) so nothing is stranded.

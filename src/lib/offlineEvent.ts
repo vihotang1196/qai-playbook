@@ -28,7 +28,16 @@ async function callOe<T>(action: string, locationId: string, payload: Record<str
 }
 
 // ── Types ─────────────────────────────────────────────────────────────────
-export type OeSettings = { maxSeats: number; lunchPrice: number; sstRate: number };
+export type OeSettings = {
+  maxSeats: number;
+  lunchPrice: number;
+  sstRate: number;
+  /** How long unpaid seats are held, from the server's HOLD_STALE_MINUTES. Any
+   *  "pay within N minutes" copy MUST read this — never a literal, or the promise
+   *  drifts from the sweep that enforces it. Optional: an older server omits it,
+   *  and the right response to "we don't know" is to say nothing. */
+  holdMinutes?: number;
+};
 
 export type OeContext = {
   enabled: boolean;
@@ -185,7 +194,7 @@ export async function createCheckout(
      *  themselves. Omitting it keeps the pre-existing behaviour exactly. */
     embed?: boolean;
   },
-): Promise<{ ok: true; checkoutUrl: string; bookingCode: string }> {
+): Promise<{ ok: true; checkoutUrl: string; bookingCode: string; holdMinutes?: number }> {
   return callOe("createCheckout", locationId, input);
 }
 

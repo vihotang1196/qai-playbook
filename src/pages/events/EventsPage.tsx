@@ -462,6 +462,7 @@ function EventBooking({
     return () => window.removeEventListener("resize", measure);
   });
 
+
   // Smooth-scroll to the active step on each step change (skip first mount).
   useEffect(() => {
     if (firstPhase.current) {
@@ -495,6 +496,23 @@ function EventBooking({
   const [payUrl, setPayUrl] = useState<string | null>(null);
   const [payBlocked, setPayBlocked] = useState(false);
   const [payCode, setPayCode] = useState<string | null>(null);
+  // Straight from the createCheckout response, so the waiting screen quotes the
+  // window the sweep will actually apply to THIS booking.
+  const [payHoldMinutes, setPayHoldMinutes] = useState<number | null>(null);
+
+  // "Pay within N minutes." N is the server's HOLD_STALE_MINUTES — from the
+  // checkout response once we have one (that is the window this very booking
+  // gets), otherwise from resolveContext. NEVER a literal: the sweep enforces the
+  // number, so the sentence has to follow it. If the server didn't send one we
+  // render nothing at all — silence beats a stale promise about someone's seats.
+  // Declared HERE, after payHoldMinutes: reading a `const` declared further down
+  // is a temporal-dead-zone crash at render, and tsc does not catch it.
+  const holdMinutes = payHoldMinutes ?? ctx.settings?.holdMinutes ?? null;
+  const holdNotice = holdMinutes
+    ? lang === "cn"
+      ? `请在 ${holdMinutes} 分钟内完成付款，超时座位将被释放`
+      : `Please complete payment within ${holdMinutes} minutes or your seats will be released`
+    : null;
 
   // The ONE way a confirmed paid booking reaches the UI. Polling and the
   // broadcast accelerator both call this — there is no second render path.
@@ -644,13 +662,14 @@ function EventBooking({
         }
 
         toast.message(lang === "cn" ? "正在打开付款页…" : "Opening payment…");
-        const { checkoutUrl, bookingCode } = await createCheckout(locationId, {
+        const { checkoutUrl, bookingCode, holdMinutes: holdFromCheckout } = await createCheckout(locationId, {
           ...input,
           origin: window.location.origin,
           // Tells the return/cancel pages they are a spawned tab (framed flow).
           embed: framed,
         });
         setPayCode(bookingCode);
+        if (holdFromCheckout) setPayHoldMinutes(holdFromCheckout);
 
         if (!framed) {
           window.location.href = checkoutUrl;
@@ -859,9 +878,20 @@ function EventBooking({
         </p>
         <p className="text-sm text-muted-foreground">
           {payBlocked
-            ? lang === "cn" ? "请点下面的按钮打开付款页。座位已为你保留约 30 分钟。" : "Tap the button below to open it. Your seats are held for ~30 minutes."
+            ? lang === "cn" ? "请点下面的按钮打开付款页。" : "Tap the button below to open it."
             : lang === "cn" ? "请在新窗口完成付款。付好之后这里会自动显示成功，电子票会在那个窗口打开。" : "Finish paying in that window. This page updates automatically, and the ticket opens there."}
         </p>
+        {/* THE screen the customer actually waits on, so the deadline belongs
+            here most of all — and it covers the blocked-popup branch too, which
+            is where someone is most likely to wander off and come back late.
+            This used to read "held for ~30 minutes" as a literal; it was wrong
+            the moment the window became 10. Rendered only when the server told
+            us the number: no value → no claim. */}
+        {holdNotice && (
+          <p className="text-xs font-bold text-[#141414] bg-[#fed50a] border-2 border-[#141414] rounded-full px-3 py-1 inline-block">
+            {holdNotice}
+          </p>
+        )}
         <a
           href={payUrl}
           target="_blank"
@@ -1025,6 +1055,12 @@ function EventBooking({
                 ? lang === "cn" ? `去付款 RM ${total.toFixed(2)}` : `Pay RM ${total.toFixed(2)}`
                 : lang === "cn" ? "确认免费报名" : "Confirm free booking"}
             </button>
+            {/* Only on the paid path — a free booking is confirmed on the spot and
+                nothing is ever released. Plain small text, deliberately below the
+                button: it is a condition of paying, not a competing action. */}
+            {total > 0 && holdNotice && (
+              <p className="text-[11px] text-muted-foreground text-center mt-2">{holdNotice}</p>
+            )}
           </div>
         </div>
       )}

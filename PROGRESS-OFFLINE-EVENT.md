@@ -1022,10 +1022,16 @@ authoritative (the plan's enabled seats or `capacity`) and make the other follow
   Sensible, but to go from 91 down to 50 after 30 scattered bookings you must
   find 41 seats that nobody holds — with a scattered layout that is fiddly and
   there is no "shrink to N" helper.
-- 🟡 **Disabling seats in the floor-plan editor is a per-seat click.** Verified by
-  doing it: the editor has no bulk select / "disable all except…" — reducing 91
-  seats to 4 by hand would be ~87 clicks (the batch 6 verification did it through
-  the API instead). Any real capacity change means a lot of clicking.
+- 🔴 **The floor-plan editor has no bulk seat disable — and it is now the ONLY way
+  to set a seat-selection event's headcount.** Removing the capacity box (commit 4)
+  means "limit this event to 60" went from typing `60` to clicking 31 seats one at
+  a time; reducing 91 to 4 in the batch 6 verification would have been ~87 clicks,
+  so that was done through the API instead. **This is a real regression introduced
+  by commit 4, not a pre-existing annoyance** — the owner raised it as such, and
+  the trade was accepted deliberately: one authoritative number beats two numbers
+  that disagree, and the disagreement was already producing "所选座位已被占用" on
+  visibly empty seats. What batch 8 owes: drag-select / bulk disable in the editor,
+  or a "keep only the first N seats" shortcut. The commit-4 change itself stands.
 
 **Batch 8 backlog:** the change-date warning; and `deleteEvent` still permits
 deleting an event whose bookings are all cancelled, which orphans them via
@@ -1034,8 +1040,10 @@ bookings at all and archive events instead.
 
 ### Launch order (owner's list, REVISED 2026-07-29 — follow the numbers)
 
-1. [ ] **Batch 6 commit 5** — the 10-minute notice on the payment tab.
-       Commits 1–4 are done and verified (0bdf32f closed the capacity work).
+1. [x] ~~**Batch 6** — DONE. Commits 1–5 all verified: 10-minute hold with
+       retrieve→expire→release, sweepAll behind a shared secret with an overlap
+       lock, the 2-minute cron, the capacity source rules, and the pay-within-N
+       notice (N read from HOLD_STALE_MINUTES, never a literal).~~
 2. [ ] **Batch 8** — polish + change-date warning + `deleteEvent` orphan fix +
        `seats_unavailable` error-code split + the `verify_jwt` exposure review +
        the 票/座 unit problems inherited from the cancelled 7b (see its backlog).
