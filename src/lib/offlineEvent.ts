@@ -344,3 +344,116 @@ export function layoutToSeatGroups(raw: unknown, bookedLabels: string[] = []): {
   }
   return { groups, layout };
 }
+
+// ── "Keep only the first N seats" (batch 8a) ────────────────────────────────
+// Since batch 6 commit 4 the floor plan is the ONLY place a seat-selection event's
+// headcount is set, and the editor could only toggle one seat at a time — 91 down
+// to 60 meant 31 clicks. This does it in one step.
+
+/** One physical seat, with everything needed to order it. */
+type SeatSlot = { tableId: string; col: number; row: number; seat: number; label: string };
+
+/**
+ * Every physical seat, ordered NEAREST THE STAGE FIRST. Real venues shrink from
+ * the back, so "the first N" has to mean "closest to the stage": rows outward
+ * from the stage, then left→right, then seat number. `stagePosition: "bottom"`
+ * flips the row direction — otherwise "first" would mean the far wall.
+ * `missingSeats` are excluded: those seats do not physically exist.
+ */
+function orderedSeatSlots(layout: OeFloorPlanLayout): SeatSlot[] {
+  const slots: SeatSlot[] = [];
+  for (const t of layout.tables) {
+    const missing = new Set(t.missingSeats ?? []);
+    for (const n of t.seats) {
+      if (missing.has(n)) continue;
+      slots.push({ tableId: t.id, col: t.col, row: t.row, seat: n, label: seatLabel(t.id, n) });
+    }
+  }
+  const fromBottom = layout.stagePosition === "bottom";
+  return slots.sort((a, b) => {
+    if (a.row !== b.row) return fromBottom ? b.row - a.row : a.row - b.row;
+    if (a.col !== b.col) return a.col - b.col;
+    return a.seat - b.seat;
+  });
+}
+
+export type KeepFirstNSeatsResult =
+  | {
+      ok: true;
+      layout: OeFloorPlanLayout;
+      /** What was asked for. */
+      requested: number;
+      /** What the plan will actually have — higher than `requested` when booked
+       *  seats sit beyond the cut and had to stay enabled. */
+      effective: number;
+      /** Seats this turns off. */
+      disabledCount: number;
+      /** Booked seats kept enabled despite falling outside the first N. */
+      bookedOutside: string[];
+      /** Enabled seats in the baseline, i.e. the ceiling for `requested`. */
+      available: number;
+    }
+  | { ok: false; error: "invalid_n" }
+  | { ok: false; error: "below_booked"; bookedCount: number };
+
+/**
+ * Disable everything after the first N seats.
+ *
+ * ALWAYS RECOMPUTED FROM `baseline`, never from its own output — otherwise
+ * applying 60 twice would shrink to 60 of 60's tail and keep eating the plan. The
+ * caller passes the layout AS THE EDITOR OPENED IT, which also means seats that
+ * were already deliberately disabled (the default hall keeps G24–G28 off) stay
+ * off instead of being resurrected by a large N.
+ *
+ * Booked seats are NEVER disabled, even beyond the cut: `saveFloorPlan` rejects
+ * the whole save if a booked seat is disabled (`booked_seats_removed`), so
+ * silently including one would turn a routine change into an unexplainable
+ * failure. They are reported instead, and they push `effective` above `requested`.
+ *
+ * `missingSeats` is never touched — that is the venue's physical shape, not a
+ * sales decision.
+ */
+export function keepFirstNSeats(
+  baseline: OeFloorPlanLayout,
+  n: number,
+  bookedLabels: string[] = [],
+): KeepFirstNSeatsResult {
+  if (!Number.isFinite(n) || Math.floor(n) !== n || n < 1) return { ok: false, error: "invalid_n" };
+
+  const baselineDisabled = new Set<string>();
+  for (const t of baseline.tables) {
+    for (const s of t.disabledSeats ?? []) baselineDisabled.add(seatLabel(t.id, s));
+  }
+  const slots = orderedSeatSlots(baseline);
+  const candidates = slots.filter((s) => !baselineDisabled.has(s.label));
+
+  // Only bookings on seats this plan actually has can constrain it.
+  const physical = new Set(slots.map((s) => s.label));
+  const booked = [...new Set(bookedLabels)].filter((l) => physical.has(l));
+  if (n < booked.length) return { ok: false, error: "below_booked", bookedCount: booked.length };
+
+  const keep = new Set(candidates.slice(0, n).map((s) => s.label));
+  const bookedOutside = booked.filter((l) => !keep.has(l));
+  for (const l of bookedOutside) keep.add(l);
+
+  const layout: OeFloorPlanLayout = {
+    ...baseline,
+    tables: baseline.tables.map((t) => {
+      const missing = new Set(t.missingSeats ?? []);
+      return {
+        ...t,
+        disabledSeats: t.seats.filter((s) => !missing.has(s) && !keep.has(seatLabel(t.id, s))),
+      };
+    }),
+  };
+
+  return {
+    ok: true,
+    layout,
+    requested: n,
+    effective: keep.size,
+    disabledCount: candidates.length - Math.min(n, candidates.length) - bookedOutside.length,
+    bookedOutside,
+    available: candidates.length,
+  };
+}

@@ -502,6 +502,10 @@ export type OeAdminFloorPlan = {
   used_by: string[]; // event labels
   used_by_count: number;
   booked_seats: number;
+  /** Seat labels currently held by bookings on ANY event using this plan, deduped.
+   *  The editor needs the labels (not just the count) so a bulk shrink can keep
+   *  sold seats enabled — saveFloorPlan rejects the whole save otherwise. */
+  booked_labels: string[];
 };
 
 export async function listFloorPlans(): Promise<OeAdminFloorPlan[]> {

@@ -1,8 +1,9 @@
 import { useEffect, useMemo, useState } from "react";
 import { X, Plus, Trash2, Loader2, Save, LayoutGrid } from "lucide-react";
 import { SeatMap } from "./SeatMap";
-import { layoutToSeatGroups, normalizeLayout, type OeFloorPlanLayout, type OeFloorPlanTable, type OeDoorEdge } from "@/lib/offlineEvent";
+import { layoutToSeatGroups, normalizeLayout, keepFirstNSeats, type KeepFirstNSeatsResult, type OeFloorPlanLayout, type OeFloorPlanTable, type OeDoorEdge } from "@/lib/offlineEvent";
 import { saveFloorPlan } from "@/lib/offlineEventAdmin";
+import ConfirmDialog from "@/components/ConfirmDialog";
 
 /**
  * Visual floor-plan editor (ported from the old app, adapted to this stack).
@@ -15,6 +16,14 @@ import { saveFloorPlan } from "@/lib/offlineEventAdmin";
 interface Props {
   open: boolean;
   plan: { id: string | null; name: string; layout: OeFloorPlanLayout };
+  /** Labels of the events using this plan. More than one means every edit here
+   *  lands on all of them — capacity belongs to the PLAN, not the event. */
+  usedBy?: string[];
+  /** Seat labels already sold on any of those events. Bulk shrink must not
+   *  disable these (saveFloorPlan would reject the entire save). */
+  bookedLabels?: string[];
+  /** Offered when the plan is shared: duplicate it so one event can change alone. */
+  onRequestDuplicate?: () => void;
   onClose: () => void;
   onSaved: () => void;
 }
@@ -35,23 +44,34 @@ function countEnabled(layout: OeFloorPlanLayout): number {
   return n;
 }
 
-export default function FloorPlanEditor({ open, plan, onClose, onSaved }: Props) {
+export default function FloorPlanEditor({ open, plan, usedBy = [], bookedLabels = [], onRequestDuplicate, onClose, onSaved }: Props) {
   const [name, setName] = useState(plan.name);
   const [layout, setLayout] = useState<OeFloorPlanLayout>(plan.layout);
   const [selId, setSelId] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
   const [err, setErr] = useState<string | null>(null);
   const [blocked, setBlocked] = useState<{ seat: string; event: string }[] | null>(null);
+  // The layout AS OPENED. "Keep first N" always recomputes from this, never from
+  // its own output, so pressing apply twice can't shrink the hall twice — and
+  // seats that were already deliberately off (the default hall keeps G24–G28 off)
+  // stay off no matter how large N is.
+  const [baseline, setBaseline] = useState<OeFloorPlanLayout>(plan.layout);
+  const [keepN, setKeepN] = useState("");
+  const [keepPreview, setKeepPreview] = useState<KeepFirstNSeatsResult | null>(null);
 
   useEffect(() => {
     if (open) {
       setName(plan.name);
       // Normalize on load so legacy door values (bottom-right, …) map to the
       // edge + doorPos model and the controls match.
-      setLayout(normalizeLayout(plan.layout));
+      const norm = normalizeLayout(plan.layout);
+      setLayout(norm);
+      setBaseline(norm);
       setSelId(null);
       setErr(null);
       setBlocked(null);
+      setKeepN("");
+      setKeepPreview(null);
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [open, plan.id]);
@@ -92,6 +112,32 @@ export default function FloorPlanEditor({ open, plan, onClose, onSaved }: Props)
 
   const tableByCell = (col: number, row: number) => layout.tables.find((t) => t.col === col && t.row === row);
 
+  // ── Keep only the first N seats ──────────────────────────────────────────
+  // Computes against `baseline` and only PREVIEWS; the confirm dialog applies it
+  // to the in-memory layout, and saving is still a separate, deliberate click.
+  const shared = usedBy.length > 1;
+  const previewKeepN = () => {
+    setErr(null);
+    const n = Number(keepN.trim());
+    const r = keepFirstNSeats(baseline, n, bookedLabels);
+    if (!r.ok) {
+      setKeepPreview(null);
+      setErr(
+        r.error === "invalid_n"
+          ? "请填一个 1 以上的整数座位数。"
+          : `已有 ${r.bookedCount} 个座位售出，无法缩到 ${keepN.trim()} 以下。`,
+      );
+      return;
+    }
+    setKeepPreview(r);
+  };
+  const applyKeepN = () => {
+    if (!keepPreview?.ok) return;
+    setLayout(keepPreview.layout);
+    setSelId(null);
+    setKeepPreview(null);
+  };
+
   const save = async () => {
     if (!name.trim()) { setErr("请填名称"); return; }
     setSaving(true); setErr(null); setBlocked(null);
@@ -125,6 +171,60 @@ export default function FloorPlanEditor({ open, plan, onClose, onSaved }: Props)
         </div>
 
         <div className="p-5 space-y-4">
+          {/* Capacity lives on the PLAN, not the event. Sharing one plan across
+              events is the natural thing to do for a second run of the same
+              class — and then changing the headcount here silently changes the
+              other event's, which may already be selling. Say so before anything
+              is touched, and offer the way out. */}
+          {shared && (
+            <div className="rounded-2xl border-2 border-[#141414] bg-[#fed50a] px-4 py-3 text-sm text-[#141414]">
+              <p className="font-bold">此平面图被 {usedBy.length} 场活动使用，修改会同时影响全部：</p>
+              <p className="mt-1">{usedBy.join("、")}</p>
+              <p className="mt-1.5">
+                只想改一场，请<b>先复制平面图</b>，把复制出来的那张绑到那场活动上再改。
+              </p>
+              {onRequestDuplicate && (
+                <button
+                  onClick={onRequestDuplicate}
+                  className="mt-2 h-9 px-3 rounded-xl bg-white border-2 border-[#141414] text-sm font-bold"
+                >
+                  复制这张平面图
+                </button>
+              )}
+            </div>
+          )}
+
+          {/* Bulk headcount. Since batch 6 removed the event-level capacity box,
+              this is how a seat-selection event's headcount is set — one seat at a
+              time was 31 clicks to go from 91 to 60. */}
+          <div className="rounded-2xl border border-border/60 bg-muted/30 p-3 space-y-2">
+            <p className="text-[11px] uppercase tracking-wider text-muted-foreground font-semibold">批量设定人数</p>
+            <div className="flex items-end gap-2 flex-wrap">
+              <div>
+                <label className="text-[11px] text-muted-foreground">只启用前 N 个座位</label>
+                <input
+                  value={keepN}
+                  onChange={(e) => { setKeepN(e.target.value); setKeepPreview(null); }}
+                  onKeyDown={(e) => e.key === "Enter" && previewKeepN()}
+                  inputMode="numeric"
+                  placeholder="例如 60"
+                  className="mt-1 h-9 w-28 rounded-lg border border-border bg-background px-2 text-sm"
+                />
+              </div>
+              <button
+                onClick={previewKeepN}
+                disabled={!keepN.trim()}
+                className="h-9 px-3 rounded-lg bg-[#141414] text-[#fed50a] text-sm font-bold disabled:opacity-30"
+              >
+                预览
+              </button>
+              <p className="text-[11px] text-muted-foreground flex-1 min-w-[180px]">
+                从<b className="text-[#141414]">靠舞台的一端</b>开始数，其余座位停用。
+                已售出的座位<b className="text-[#141414]">不会</b>被停用。缺失的座位不受影响。
+              </p>
+            </div>
+          </div>
+
           {/* Controls */}
           <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
             <div className="col-span-2">
@@ -289,6 +389,58 @@ export default function FloorPlanEditor({ open, plan, onClose, onSaved }: Props)
           </div>
         </div>
       </div>
+
+      {/* Preview → confirm → in-memory change. Saving stays a separate click, so
+          a mis-typed N is two undos away (close without saving). */}
+      <ConfirmDialog
+        open={!!keepPreview?.ok}
+        danger={!!keepPreview?.ok && keepPreview.disabledCount > 0}
+        title={
+          // Counted against what is on screen NOW, not against the baseline.
+          // disabledCount is baseline-relative, which reads as a contradiction on a
+          // second apply ("currently 60 → 60 seats, disabling 31").
+          !keepPreview?.ok || totalSeats - keepPreview.effective <= 0
+            ? "无需停用任何座位"
+            : `停用 ${totalSeats - keepPreview.effective} 个座位？`
+        }
+        description={
+          keepPreview?.ok ? (
+            <>
+              当前 <b className="text-[#141414]">{totalSeats}</b> 座 → 应用后{" "}
+              <b className="text-[#141414]">{keepPreview.effective}</b> 座
+              {totalSeats - keepPreview.effective > 0 ? <>（将停用 {totalSeats - keepPreview.effective} 个）</> : null}。
+              {keepPreview.requested > keepPreview.available && (
+                <>
+                  <br />
+                  这张平面图可用座位只有 {keepPreview.available} 个，已全部启用。
+                </>
+              )}
+              {keepPreview.bookedOutside.length > 0 && (
+                <>
+                  <br />
+                  你要 {keepPreview.requested}，实际 <b className="text-[#141414]">{keepPreview.effective}</b>，
+                  因为有 {keepPreview.bookedOutside.length} 个<b className="text-[#141414]">已售出</b>的座位
+                  排在前 {keepPreview.requested} 名之外，不能停用：
+                  <span className="block font-mono text-xs mt-0.5">{keepPreview.bookedOutside.join("、")}</span>
+                </>
+              )}
+              {shared && (
+                <>
+                  <br />
+                  ⚠️ 此平面图被 <b className="text-[#141414]">{usedBy.length}</b> 场活动使用
+                  （{usedBy.join("、")}），保存后<b className="text-[#141414]">全部生效</b>。
+                </>
+              )}
+              <br />
+              这一步只改编辑器里的布局，<b className="text-[#141414]">还要点「保存」才会生效</b>。
+            </>
+          ) : null
+        }
+        confirmLabel="应用"
+        cancelLabel="返回"
+        onConfirm={applyKeepN}
+        onCancel={() => setKeepPreview(null)}
+      />
     </div>
   );
 }

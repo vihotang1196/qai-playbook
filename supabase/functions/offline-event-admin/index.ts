@@ -1384,9 +1384,19 @@ serve(async (req) => {
           }
         }
         const bookedByEvent: Record<string, number> = {};
+        // LABELS too, not just counts: the editor's bulk "keep first N" must leave
+        // booked seats enabled, and it can only do that if it knows which ones they
+        // are. Without this, a bulk shrink that happens to cross a sold seat gets
+        // rejected wholesale by saveFloorPlan (booked_seats_removed) and the admin
+        // has no idea why.
+        const bookedLabelsByEvent: Record<string, string[]> = {};
         if (eventIds.length) {
-          const { data: seats } = await sb.from("oe_booked_seats").select("event_id").in("event_id", eventIds);
-          for (const s of seats ?? []) bookedByEvent[s.event_id as string] = (bookedByEvent[s.event_id as string] || 0) + 1;
+          const { data: seats } = await sb.from("oe_booked_seats").select("event_id, seat_label").in("event_id", eventIds);
+          for (const s of seats ?? []) {
+            const ev = s.event_id as string;
+            bookedByEvent[ev] = (bookedByEvent[ev] || 0) + 1;
+            (bookedLabelsByEvent[ev] ??= []).push(s.seat_label as string);
+          }
         }
         const out = list.map((p) => {
           const evs = evByPlan[p.id as string] ?? [];
@@ -1395,6 +1405,9 @@ serve(async (req) => {
             used_by: evs.map((e) => e.label),
             used_by_count: evs.length,
             booked_seats: evs.reduce((n, e) => n + (bookedByEvent[e.id] || 0), 0),
+            // Deduped across every event on this plan: one seat label held on two
+            // different events is still one seat that must stay enabled.
+            booked_labels: [...new Set(evs.flatMap((e) => bookedLabelsByEvent[e.id] ?? []))],
           };
         });
         return json({ plans: out });
