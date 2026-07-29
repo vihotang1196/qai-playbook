@@ -1006,8 +1006,24 @@ picker offers 31 seats that will be refused at claim time, and the refusal
 surfaces as "所选座位已被占用" on a seat that is visibly empty. Decide which is
 authoritative (the plan's enabled seats or `capacity`) and make the other follow.
 
+### Batch 8 is split: 8a gates launch, 8b does not
+
+**8a — before launch, one item only:** bulk seat disable in the floor-plan editor.
+It is on the critical path because batch 6 commit 4 made the floor plan the ONLY
+way to set a seat-selection event's headcount, and today that means clicking seats
+one at a time.
+
+**8b — after launch**, in no particular order: the 票/座 unit mismatch (both
+items), the `seats_unavailable` error-code split ("seat taken" vs "event full"),
+`deleteEvent`'s orphan source, the change-date warning, the `verify_jwt` exposure
+review, un-archive overspending the allowance, the phone seat-tap threshold, and
+shrinking capacity after tickets are sold.
+
 **Batch 8 backlog — found while verifying batch 6 commit 4:**
-- 🔴 **Seats may be unselectable on a phone — possible launch blocker.** Seat taps
+- 🟠 **(8b — NOT a launch blocker; owner tested a real phone inside GHL and seat
+  selection plus the confirm bar both worked, so the GHL iframe renders at
+  desktop width ≥768px and takes the desktop path.) A customer opening the URL
+  in a phone browser DIRECTLY still hits this.** Seat taps
   are ignored until the map is zoomed past `CLICK_SCALE_THRESHOLD = 0.6`
   (`SeatMap.tsx`), but the initial scale is `min(1, container / 944)`:
   **0.2394 at a 320px viewport, 0.3072 at 384px** — measured. So on a phone the
@@ -1044,9 +1060,9 @@ bookings at all and archive events instead.
        retrieve→expire→release, sweepAll behind a shared secret with an overlap
        lock, the 2-minute cron, the capacity source rules, and the pay-within-N
        notice (N read from HOLD_STALE_MINUTES, never a literal).~~
-2. [ ] **Batch 8** — polish + change-date warning + `deleteEvent` orphan fix +
-       `seats_unavailable` error-code split + the `verify_jwt` exposure review +
-       the 票/座 unit problems inherited from the cancelled 7b (see its backlog).
+2. [ ] **Batch 8a — the only batch-8 item that gates launch:** bulk seat disable
+       in the floor-plan editor. Everything else moves to **8b (after launch)** —
+       see the 8a/8b split below.
    — ~~**Batch 7b**~~ CANCELLED 2026-07-29; its real findings moved into batch 8.
    — **H** (navbar icons) is deferred to AFTER launch by the owner's decision.
 3. [ ] **Clear ALL test data — genuinely delete it.** Every row in `oe_bookings`
@@ -1124,6 +1140,13 @@ RPC: `try_book_seats`→`oe_claim_seats` (seat-level atomic).
   untouched (never read or print the token itself). Batch 5.5 learned this the
   expensive way: one scenario ran with the owner's session live and had to be
   re-run, leaving a stray test booking behind.
+- **`EventsPage.tsx`: `const` declaration ORDER is load-bearing, and `tsc` will not
+  save you.** One `const` reading another that is declared further down is a
+  temporal-dead-zone `ReferenceError` at RENDER time — the whole `EventBooking`
+  component blanks out, and `npx tsc --noEmit` reports nothing. Batch 6 hit this
+  twice in one session (the measured bar height reading `seatCount`; `holdMinutes`
+  reading the `payHoldMinutes` state). **A clean typecheck is not evidence this
+  file renders. Open the page in a browser before committing a change to it.**
 - **Never inspect a pending booking with `getEvent` — it sweeps.** `getEvent`,
   `createBooking` and `createCheckout` all call `sweepStalePending` on the way in,
   so merely *looking* at a ripe pending booking through the customer API consumes
