@@ -266,5 +266,10 @@ export async function buildPdfBlob(result: GenerateResult, lang: Language): Prom
   emCard(t.autoMsgCurrentDay, em.currentDay);
 
   const bytes = await doc.save();
-  return new Blob([bytes], { type: "application/pdf" });
+  // Copied into a fresh Uint8Array rather than passed straight to Blob: since
+  // TS 5.7 Uint8Array is generic over its buffer, and pdf-lib's return is typed
+  // ArrayBufferLike, which BlobPart (ArrayBuffer-backed only) rejects. The copy
+  // is ArrayBuffer-backed by construction, so this is a real fix rather than a
+  // cast papering over a mismatch.
+  return new Blob([new Uint8Array(bytes)], { type: "application/pdf" });
 }

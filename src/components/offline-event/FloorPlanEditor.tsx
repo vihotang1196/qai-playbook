@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { X, Plus, Trash2, Loader2, Save, LayoutGrid } from "lucide-react";
 import { SeatMap } from "./SeatMap";
-import { layoutToSeatGroups, normalizeLayout, keepFirstNSeats, type KeepFirstNSeatsResult, type OeFloorPlanLayout, type OeFloorPlanTable, type OeDoorEdge } from "@/lib/offlineEvent";
+import { layoutToSeatGroups, normalizeLayout, keepFirstNSeats, keepFirstNSeatsFailed, isBelowBooked, type KeepFirstNSeatsResult, type OeFloorPlanLayout, type OeFloorPlanTable, type OeDoorEdge } from "@/lib/offlineEvent";
 import { saveFloorPlan } from "@/lib/offlineEventAdmin";
 import ConfirmDialog from "@/components/ConfirmDialog";
 
@@ -120,12 +120,15 @@ export default function FloorPlanEditor({ open, plan, usedBy = [], bookedLabels 
     setErr(null);
     const n = Number(keepN.trim());
     const r = keepFirstNSeats(baseline, n, bookedLabels);
-    if (!r.ok) {
+    // Type predicates rather than `!r.ok` / `r.error === …`: this project compiles
+    // with strictNullChecks off, which stops TS narrowing the union here. See
+    // keepFirstNSeatsFailed in lib/offlineEvent.ts.
+    if (keepFirstNSeatsFailed(r)) {
       setKeepPreview(null);
       setErr(
-        r.error === "invalid_n"
-          ? "请填一个 1 以上的整数座位数。"
-          : `已有 ${r.bookedCount} 个座位售出，无法缩到 ${keepN.trim()} 以下。`,
+        isBelowBooked(r)
+          ? `已有 ${r.bookedCount} 个座位售出，无法缩到 ${keepN.trim()} 以下。`
+          : "请填一个 1 以上的整数座位数。",
       );
       return;
     }

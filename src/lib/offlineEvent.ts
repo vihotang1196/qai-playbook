@@ -396,6 +396,30 @@ export type KeepFirstNSeatsResult =
   | { ok: false; error: "invalid_n" }
   | { ok: false; error: "below_booked"; bookedCount: number };
 
+/** The failure half of the union, as one name. */
+export type KeepFirstNSeatsFailure = Extract<KeepFirstNSeatsResult, { ok: false }>;
+
+/**
+ * `if (!r.ok)` reads better and SHOULD be enough — but this project compiles with
+ * `strictNullChecks: false`, under which TypeScript stops narrowing a union on a
+ * boolean-literal discriminant, so the call site ends up seeing the success shape
+ * and erroring on `.error`. (Verified: flip `strictNullChecks` on and those errors
+ * vanish with no code change.) An explicit type predicate narrows regardless of
+ * that setting.
+ *
+ * Delete this and go back to `!r.ok` the day the project turns strictNullChecks on.
+ */
+export function keepFirstNSeatsFailed(r: KeepFirstNSeatsResult): r is KeepFirstNSeatsFailure {
+  return !r.ok;
+}
+
+/** Distinguishes the two failure reasons — same narrowing caveat as above. */
+export function isBelowBooked(
+  r: KeepFirstNSeatsFailure,
+): r is Extract<KeepFirstNSeatsResult, { error: "below_booked" }> {
+  return r.error === "below_booked";
+}
+
 /**
  * Disable everything after the first N seats.
  *

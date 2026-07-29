@@ -3,6 +3,11 @@ import { LayoutDashboard, Megaphone, Layers, Star } from "lucide-react";
 import { useLang } from "@/i18n/LanguageContext";
 import { useLocationContext } from "@/hooks/useLocationContext";
 
+// No `end` on these: the three destinations are siblings, not nested, so exact
+// matching buys nothing — and it is right for Campaigns to stay highlighted while
+// you are inside /campaigns/new. The JSX used to pass `end={it.end}` for a field
+// no item ever declared, which was always `undefined` at runtime and a type error
+// at build time.
 type Item = { to: string; icon: typeof LayoutDashboard; label: { cn: string; en: string } };
 
 /**
@@ -38,7 +43,6 @@ export default function AdminSidebar() {
             <NavLink
               key={it.to}
               to={it.to}
-              end={it.end}
               className={({ isActive }) =>
                 `flex items-center gap-2.5 px-3 py-2 rounded-xl text-sm whitespace-nowrap transition-colors ${
                   isActive
