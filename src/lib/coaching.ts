@@ -19,6 +19,12 @@ export interface CoachingRecording {
 // supply `cover` when a thumbnail exists, otherwise the placeholder is used.
 export const coachingRecordings: CoachingRecording[] = [
   {
+    date: "27 JUL 2026",
+    topic: "转化",
+    url: "https://assets.cdn.filesafe.space/UQhNDa03bFrytsA8NXtD/media/6a67600495687dbf221e49dd.mp4",
+    // no cover → branded placeholder fallback
+  },
+  {
     date: "13 JUL 2026",
     topic: "转化",
     url: "https://assets.cdn.filesafe.space/UQhNDa03bFrytsA8NXtD/media/6a55de071097b811959d71f8.mp4",
