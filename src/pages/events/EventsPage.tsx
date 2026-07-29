@@ -19,7 +19,7 @@ import {
 import { toast } from "sonner";
 import { useLang } from "@/i18n/LanguageContext";
 import { resolveLocationId, inIframe } from "@/lib/ghl";
-import { formatEventDate, formatEventTime, eventTitle, eventTheme } from "@/lib/offlineEventFormat";
+import { formatEventDate, formatEventTime, eventTitle, eventTheme, formatSstPct } from "@/lib/offlineEventFormat";
 import { SeatMap } from "@/components/offline-event/SeatMap";
 import { QrTicket } from "@/components/offline-event/QrTicket";
 import { MyBookings } from "@/components/offline-event/MyBookings";
@@ -264,6 +264,11 @@ function EventCard({
   const dateText = formatEventDate(event.start_date, event.end_date, lang);
   const timeText = formatEventTime(event.start_time, event.end_time, event.time_slot);
   const displayOnly = event.status === "display";
+  // The headline price EXCLUDES SST, so say so on the card instead of letting
+  // the customer meet the extra 8% for the first time at checkout. No rate
+  // configured → no claim about tax (never guess a rate the server didn't send).
+  const cardSstRate = ctx.settings?.sstRate;
+  const showSstHint = !!cardSstRate && cardSstRate > 0 && Number(event.price_per_seat) > 0;
 
   return (
     <div className="glass-card rounded-2xl overflow-hidden">
@@ -289,6 +294,11 @@ function EventCard({
         </div>
         <div className="text-right shrink-0">
           <p className="text-base sm:text-lg font-bold tabular-nums">RM {Number(event.price_per_seat).toFixed(0)}</p>
+          {showSstHint && (
+            <p className="text-[11px] text-muted-foreground mt-0.5">
+              {lang === "cn" ? `另加 ${formatSstPct(cardSstRate!)}% SST` : `+${formatSstPct(cardSstRate!)}% SST`}
+            </p>
+          )}
           <p className="text-[11px] text-muted-foreground mt-0.5">
             {event.seats_left != null ? (lang === "cn" ? `剩 ${event.seats_left} 座` : `${event.seats_left} left`) : lang === "cn" ? "座位充足" : "seats open"}
           </p>
@@ -922,8 +932,16 @@ function EventBooking({
             )}
             <div className="text-sm space-y-1">
               <Row l={lang === "cn" ? "座位" : "Seats"} r={`${seatCount}${freeUsed > 0 ? `（${lang === "cn" ? "免费" : "free"} ${freeUsed}${paidSeats > 0 ? ` · ${lang === "cn" ? "付费" : "paid"} ${paidSeats}` : ""}）` : ""}`} />
+              {/* Money per line, mirroring the Stripe checkout summary — the page
+                  and the Stripe page must not itemise differently. */}
+              {paidSeats > 0 && (
+                <Row
+                  l={lang === "cn" ? "付费门票" : "Paid tickets"}
+                  r={`${paidSeats} × RM ${Number(event.price_per_seat).toFixed(2)}`}
+                />
+              )}
               {lunchQty > 0 && <Row l={lang === "cn" ? "午餐" : "Lunch"} r={`${lunchQty} × RM ${lunchPrice.toFixed(2)}`} />}
-              {total > 0 && <Row l="SST 8%" r={`RM ${sst.toFixed(2)}`} />}
+              {total > 0 && <Row l={`SST ${formatSstPct(sstRate)}%`} r={`RM ${sst.toFixed(2)}`} />}
               <Row l={lang === "cn" ? "合计" : "Total"} r={total > 0 ? `RM ${total.toFixed(2)}` : lang === "cn" ? "免费" : "Free"} bold />
             </div>
             <div>

@@ -111,6 +111,14 @@ export function eventTitle(
   return lang === "en" ? en || zh : zh || en;
 }
 
+/** SST rate (a FRACTION, e.g. 0.08) as a display percentage without trailing
+ *  zeros ("8", not "8.00"). Mirrors the same expression in the `oe` edge
+ *  function so the Stripe line item and the page never disagree — change one,
+ *  change the other. */
+export function formatSstPct(rate: number): string {
+  return String(Number((rate * 100).toFixed(2)));
+}
+
 /** Theme label, or "" when the event has no theme. Falls back en → zh ONLY.
  *  It must never fall back to the event name: that is how the name ended up
  *  displayed as the theme (the same class of bug as name-shown-as-date). */
