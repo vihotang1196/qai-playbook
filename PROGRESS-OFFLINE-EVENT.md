@@ -1053,6 +1053,12 @@ RPC: `try_book_seats`→`oe_claim_seats` (seat-level atomic).
   untouched (never read or print the token itself). Batch 5.5 learned this the
   expensive way: one scenario ran with the owner's session live and had to be
   re-run, leaving a stray test booking behind.
+- **Never inspect a pending booking with `getEvent` — it sweeps.** `getEvent`,
+  `createBooking` and `createCheckout` all call `sweepStalePending` on the way in,
+  so merely *looking* at a ripe pending booking through the customer API consumes
+  the test case you were about to use. Read it with the ADMIN
+  `getEventSeatmap` / `listBookings` (neither sweeps) or the customer
+  `getBooking` (also safe).
 - **To test anything about PENDING bookings, burn the free allowance first.**
   `max_seats_per_booking` and the test account's `free_seats` are both **4**, so
   while the allowance is untouched every booking comes out fully free →
