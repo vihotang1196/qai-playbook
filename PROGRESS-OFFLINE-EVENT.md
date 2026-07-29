@@ -807,6 +807,16 @@ bookings at all and archive events instead.
 RPC: `try_book_seats`→`oe_claim_seats` (seat-level atomic).
 
 ## Rules carried over (same as RB/Admin Portal/Helpdesk)
+- **Customer-side verification must be ANONYMOUS, and prove it BEFORE you start,
+  not after.** An admin session passes every gate by design, so an admin browser
+  shows a working page even when real customers are blocked. The trap: the Claude
+  browser pane keeps a logged-in Supabase session in `localStorage`
+  (`sb-<project-ref>-auth-token`) ACROSS sessions — a freshly opened pane or a new
+  tab is NOT incognito. So the first step of any customer-side check is to read
+  that key; if it exists, stash it under a temp key, verify, then put it back
+  untouched (never read or print the token itself). Batch 5.5 learned this the
+  expensive way: one scenario ran with the owner's session live and had to be
+  re-run, leaving a stray test booking behind.
 - Commit + push after every phase (owner lost unpushed work once).
 - DB: dry-run then apply; only ADD oe_ tables; never touch other tools' tables.
 - Backend keys (Stripe, GHL, Anthropic) only in Supabase Edge secrets (owner sets).
