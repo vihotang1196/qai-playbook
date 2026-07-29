@@ -664,13 +664,36 @@ exactly why the archive looked like a delete from the outside.
 > **归档 ≠ 删除 ≠ 释放座位。** 归档只是隐藏（并挡住签到）；座位只有**取消**或
 > **永久删除**才会释放。这是批 7a 之前的语义。
 
+### Test data: CLEARED 2026-07-29 (end of batch 5)
+
+`oe_booked_seats` holds **0 rows** — verified across every event (there is only
+one, `74753c55`, status live). All **16** booking rows are `status = cancelled`
+and **0** are archived; the rows are kept on purpose as history. The customer seat
+map now renders **91 seats, all selectable, 0 disabled** (checked anonymously).
+
+How it was done (kept as the recipe): archive modal → select all → 批量取消归档
+(16 back to the main list) → main list → select all → 批量取消订单, which
+cancelled **9** bookings and released **25** seats. The other 7 were already
+cancelled. 6 of the 9 carried payment records totalling **RM8,063.20** — the
+confirmation said so, and cancelling refunds nothing. Permanent delete was NOT
+used: the tier-A typed-code gate exists for real paid orders, not for clearing
+test data, and a cancel frees the seats just the same while keeping the record.
+
+**→ Batch 7a needs NO backfill logic.** "Archive releases the seat" only applies
+to new archives and cannot retroactively free what existing archived rows hold —
+but there are no archived rows left holding anything.
+
+Only `BK-OJKF-YH6BFL` was ever destroyed (batch 5, to prove the tier-B delete
+path). Historical codes stay listed below for cross-referencing Stripe.
+
 **EVERY booking in `oe_bookings` right now is TEST DATA.** (An earlier note here
 claimed the opposite — that anything still present was real. It was wrong, and it
-is the kind of wrong that gets real data deleted.) Read 2026-07-29, all on event
-`74753c55`:
+is the kind of wrong that gets real data deleted.) The table below is the state
+read 2026-07-29 BEFORE the cleanup above — statuses are now all `cancelled` and
+nothing is archived; it is kept for the codes, amounts and seat counts.
 
-**15 archived — all test data.** 9 are `confirmed` and still hold **25 seats**
-between them; 6 are `cancelled` and hold none.
+**15 archived at the time.** 9 were `confirmed` and held **25 seats** between
+them; 6 were already `cancelled` and held none.
 
 | Code | Status | Total | Seats held |
 |---|---|---|---|
@@ -833,10 +856,10 @@ archive needs the 15 remaining rows cleared first.
    believing they were deleted, and 23 seats stayed locked behind them.
    **Backfill question:** "archive releases the seat" will only apply to NEW
    archives — it cannot retroactively free what existing archived rows hold. So
-   7a needs either a pre-cleared table or a one-off backfill. As of this writing
-   25 seats are still held by 9 archived test bookings (see the test-data table
-   above); if that cleanup happens first, 7a needs **no backfill logic** — if it
-   does not, 7a must include one. Check the table before deciding.
+   7a needs either a pre-cleared table or a one-off backfill. **Settled: no
+   backfill needed** — the cleanup at the end of batch 5 left `oe_booked_seats`
+   empty and no archived rows at all (see "Test data: CLEARED" above). If archived
+   rows accumulate again before 7a ships, re-check that before skipping it.
 2. **6** — 10-minute pending timeout + `sessions.expire()` + cron.
 3. **7b** — the credit/allowance ledger (the big one), including the two
    ticket-vs-seat problems below.
@@ -869,6 +892,14 @@ FIRST, they change what the ledger must model):**
   money arrived". `sweepStalePending` and the admin cancel path both need it.
 - `createCheckout` should pass Stripe `locale` and switch line-item names to the
   fixed bilingual single strings (the deferred receipt-language decision above).
+
+**Batch 8 backlog — capacity vs the floor plan (found 2026-07-29, NOT fixed):**
+the seat map renders **91 selectable seats** while the event reports
+**`seats_left` 60**, because `capacity` is set to 60 on `oe_events` and
+`seats_left = capacity − booked` (`oe/index.ts` :374) is display-only — nothing
+stops seat 61. So the counter can read 剩 0 座 with seats still clickable, and a
+booking can exceed the stated capacity. Decide which is authoritative (the plan's
+enabled seats or `capacity`) and make the other follow.
 
 **Batch 8 backlog:** the change-date warning; and `deleteEvent` still permits
 deleting an event whose bookings are all cancelled, which orphans them via
