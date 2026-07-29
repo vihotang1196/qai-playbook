@@ -809,6 +809,20 @@ Correct order — do NOT restore the allowance first:
   `cron.job_run_details`, two minutes later, and would have sat there forever.
   → **After ANY change to cron SQL, go back and confirm `status = 'succeeded'` in
   `cron.job_run_details`. "The migration applied" is not "the feature works".**
+  That table has **no `jobname` column** — only `jobid`. The query is:
+  ```sql
+  select j.jobname, d.status, d.return_message, d.start_time
+    from cron.job_run_details d
+    join cron.job j on j.jobid = d.jobid
+   where j.jobname = 'oe-sweep-stale'
+   order by d.start_time desc limit 5;
+  ```
+  `return_message = 'DO'` is the DO block's command tag, i.e. success — not an
+  error. **And `succeeded` is NOT proof the sweep ran:** `net.http_post` is
+  fire-and-forget, so the row says "the HTTP request was queued", nothing about
+  what the function did with it. A Vault/Edge secret mismatch produces a silent
+  401 every two minutes while this table keeps reporting `succeeded`. The only
+  end-to-end proof is watching a real pending booking clean itself up.
 - **`blocksArchive` exists twice, and has to** (client `offlineEventDelete.ts`,
   server `archiveBooking`). The server cannot trust a disabled button, so it
   re-implements the rule. This project has been bitten by duplicated logic before,
