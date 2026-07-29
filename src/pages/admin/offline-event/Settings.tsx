@@ -70,6 +70,20 @@ export default function OfflineEventSettings() {
   useEffect(load, []);
 
   const saveCharges = async () => {
+    // An empty SST box must never reach the server. `Number("")` is 0, so a blank
+    // field submitted a perfectly valid "0%" — from that moment every order stops
+    // collecting tax, and the page answers with a 已保存 tick. Nobody writes in to
+    // report being under-charged, so this is a mistake that never surfaces on its
+    // own. Blank and 0% are different answers: a tax-free event says 0 out loud.
+    //
+    // This guard is the PRIMARY one. The server cannot cover this case on its own —
+    // by the time the request leaves here the blank has already become the number
+    // 0, and 0 is indistinguishable from a deliberate 0. Its matching check is for
+    // any other caller that sends the field blank.
+    if (sstPercent.trim() === "") {
+      toast.error("税率不能为空 —— 免税活动请明确输入 0");
+      return;
+    }
     setSaving(true);
     setSavedFlag(false);
     try {
@@ -85,7 +99,12 @@ export default function OfflineEventSettings() {
       load();
       setReloadToken((n) => n + 1); // rows showing "全局默认" must pick up the new numbers
     } catch (e) {
-      setErr(e instanceof Error ? e.message : "保存失败");
+      // `err` only renders in the !resp full-page state (see below), so on a loaded
+      // page a failed save used to show NOTHING — the button just stopped. Same
+      // silent-failure class as the SST bug above, so it gets a toast too.
+      const msg = e instanceof Error ? e.message : "保存失败";
+      setErr(msg);
+      toast.error(msg === "sst_rate_required" ? "税率不能为空 —— 免税活动请明确输入 0" : `保存失败：${msg}`);
     } finally {
       setSaving(false);
     }

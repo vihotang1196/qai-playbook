@@ -1085,6 +1085,20 @@ serve(async (req) => {
         const nowIso = new Date().toISOString();
         const rows: { key: string; value: string; updated_at: string }[] = [];
         for (const k of allowed) {
+          // sst_rate is the one field where "left blank" must NOT be read as "zero".
+          // Writing 0 stops tax collection on every later order and produces no
+          // complaint from anyone — a customer who is under-charged does not write
+          // in. So a blank sst_rate is refused out loud rather than skipped like
+          // the rest. A genuinely tax-free event must send an explicit 0.
+          //
+          // Note the limit of this check: the admin page converts its input with
+          // Number(x)/100 before sending, so a blank box arrives here as the number
+          // 0 and is indistinguishable from a deliberate 0. THE UI GUARD IN
+          // Settings.tsx saveCharges IS THE PRIMARY ONE; this covers any other
+          // caller that sends the field blank.
+          if (k === "sst_rate" && p[k] !== undefined && p[k] !== null && String(p[k]).trim() === "") {
+            return json({ error: "sst_rate_required" }, 400);
+          }
           if (p[k] === undefined || p[k] === null || String(p[k]).trim() === "") continue;
           let v = Number(p[k]);
           if (!Number.isFinite(v) || v < 0) return json({ error: `invalid_${k}` }, 400);
