@@ -91,4 +91,55 @@ cascade actually fired rather than assuming it.
 
 ## Execution log
 
-_Appended after the SQL runs._
+**Executed 2026-07-29 via `supabase db query --linked`,** after the owner
+reviewed the rows above and confirmed both campaigns are test data.
+
+### Before
+
+| table | rows |
+|---|---|
+| `rb_campaigns` | 2 |
+| `rb_qr_codes` | 2 |
+| `rb_generations` | 5 |
+| `rb_platform_integrations` | 1 |
+
+Matches this snapshot exactly.
+
+### The statement
+
+```sql
+delete from rb_campaigns;
+```
+
+One statement only — `rb_qr_codes.campaign_id` and `rb_generations.campaign_id`
+are both `on delete cascade`, so the children go with the parents.
+
+### After — cascade confirmed by count, not assumed
+
+| table | after | expected |
+|---|---|---|
+| `rb_campaigns` | **0** | 0 ✅ |
+| `rb_qr_codes` | **0** | 0 ✅ (cascade fired) |
+| `rb_generations` | **0** | 0 ✅ (cascade fired) |
+| `rb_platform_integrations` | **1** | 1 ✅ (kept) |
+
+The two child tables were never named in the statement. They went to zero on
+their own, which is the cascade doing its job.
+
+### The kept link, read back in full
+
+```
+platform    google_maps
+label       (NULL)
+review_url  https://maps.app.goo.gl/ueD7acVjnsZefixH6
+location_id gsRRLb2A8IoATd9qWNmh
+```
+
+Intact. Still unnamed — with the campaigns gone this is now the only Review
+Boost row in the database, and the campaign dropdown will show it as
+「未命名链接（去平台页命名）」 until someone names it.
+
+### No audit-log entry
+
+As with the Offline Event wipe: the delete ran as CLI SQL, so `admin_audit_log`
+has no row for it. This file is the record.

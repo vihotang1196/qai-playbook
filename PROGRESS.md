@@ -60,3 +60,42 @@ _Last updated: 2026-07-15 — merged to `main` + live on playbook.qiai.tech (Too
 - Secrets are read at function boot — after changing a secret, **redeploy** the function for it to take effect.
 - Verify a PDF is copyable (not an image): `pdftotext file.pdf -` should return the text.
 - **Known minor nit:** the PDF's CJK font renders the Latin "ff" ligature with a small gap (e.g. "Coffee" → "Co ee"); Chinese is perfect. Fixable later by using Helvetica for Latin runs in zh mode.
+
+## Voice-over: all three languages confirmed usable (2026-07-29)
+
+**Owner listened to all three and approved.** `MINIMAX_VOICE_ID_EN` and
+`MINIMAX_VOICE_ID_MS` stay **unconfigured on purpose** — `generate-voice` falls
+back to `MINIMAX_VOICE_ID_ZH` for any language without its own voice id, and the
+owner judged the English and Malay output acceptable read by the Chinese voice.
+**No separate voice ids needed; do not "fix" the fallback.**
+
+Generated for the check via the deployed function, ~250–350 KB mp3 each.
+
+### End-to-end run, same day
+
+Full UI flow on the live edge functions, anonymous, with a real questionnaire
+(盈利营销实战班 / RM 397 / Malaysian SME owners):
+
+- Generation succeeded, **~130 s**, no errors. All five blocks rendered (AIDA ad
+  script + top/bottom banners, ad caption, 9-section funnel, WhatsApp + email
+  automation). Output was well localised — it used *lah* and *ponteng* naturally
+  and carried the price, the 91-seat cap, and the stated pain point.
+- Voice from the UI: ~13 s, `<audio>` mounted and autoplayed, 378 KB data URL.
+- `tool_usage` metered correctly (`generation` ×1, `voice` ×N) and rate-limit
+  counters incremented.
+- Actual spend came in **under** the ~US$0.25 estimate — that figure assumes the
+  full 16 000-token ceiling, and a real generation does not reach it.
+
+> ⚠️ **The loading screen says "预计 20-40 秒" and the real time was 130 s.** A
+> customer who refreshes at that point pays twice: `logToolUsage` meters *before*
+> the Claude call, and the edge function runs to completion server-side after the
+> browser disconnects. The questionnaire itself survives (localStorage draft), so
+> the loss is money and quota, not re-typing.
+
+### Rate limits are per event type — the two do not share a bucket
+
+`generate-copy` passes `eventType: "generation"` and `generate-voice` passes
+`eventType: "voice"` to `checkRateLimit`, and the admin usage overview filters on
+`event_type` too. So generation (15/h, 40/day) and voice (40/h, 120/day) are
+counted separately, and **a new `event_type` can be added to `tool_usage` without
+disturbing either the limits or the admin stats.**
