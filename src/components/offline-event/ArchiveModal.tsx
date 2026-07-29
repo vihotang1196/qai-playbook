@@ -11,6 +11,7 @@ import {
 import { requiresHardDeleteGate, hasAttendance } from "@/lib/offlineEventDelete";
 import { formatEventDateCompact } from "@/lib/offlineEventFormat";
 import ConfirmDialog from "@/components/ConfirmDialog";
+import UnarchiveModal from "./UnarchiveModal";
 
 /**
  * The archive, in its own modal (batch 5).
@@ -64,7 +65,9 @@ export default function ArchiveModal({
 
   // One row awaiting a permanent-delete confirmation (tier A or B).
   const [confirmDelete, setConfirmDelete] = useState<OeBookingRow | null>(null);
-  const [confirmUnarchive, setConfirmUnarchive] = useState<OeBookingRow | null>(null);
+  // Single un-archive goes through the seat picker (batch 7a) — archiving freed
+  // the seats, so coming back means claiming seats again.
+  const [unarchiving, setUnarchiving] = useState<OeBookingRow | null>(null);
   const [confirmBulkUnarchive, setConfirmBulkUnarchive] = useState(false);
   const [confirmBulkDelete, setConfirmBulkDelete] = useState(false);
 
@@ -102,21 +105,35 @@ export default function ArchiveModal({
   const toggleAll = () =>
     setPicked((prev) => (prev.size === all.length ? new Set() : new Set(all.map((b) => b.booking_id))));
 
-  const doUnarchive = async (codes: string[]) => {
+  // BULK un-archive re-claims each booking's ORIGINAL seats (no picker — there is
+  // no sane way to pick seats for many bookings in one dialog). Nothing is taken
+  // from anyone: a booking whose old seats are gone is REFUSED by the server and
+  // stays archived, and we name it so it can be un-archived one at a time with
+  // the picker.
+  const doBulkUnarchive = async (codes: string[]) => {
     setBusy(true);
     let ok = 0;
+    const blocked: string[] = [];
     const failed: string[] = [];
     try {
       for (const code of codes) {
         try {
           await archiveBooking(code, false);
           ok++;
-        } catch {
-          failed.push(code);
+        } catch (e) {
+          const msg = e instanceof Error ? e.message : "失败";
+          if (msg === "seats_unavailable") blocked.push(code);
+          else failed.push(`${code}（${msg}）`);
         }
       }
       if (ok) toast.success(`已取消归档 ${ok} 笔`);
-      if (failed.length) toast.error(`${failed.length} 笔失败：${failed.join("、")}`, { duration: 8000 });
+      if (blocked.length) {
+        toast.error(
+          `${blocked.length} 笔原座位已被订走，仍是已归档：${blocked.join("、")} —— 请逐笔取消归档并重新选座`,
+          { duration: 12000 },
+        );
+      }
+      if (failed.length) toast.error(`${failed.length} 笔失败：${failed.join("；")}`, { duration: 8000 });
       load();
       onChanged();
     } finally {
@@ -124,9 +141,6 @@ export default function ArchiveModal({
     }
   };
 
-  // TODO(批7a)：7a 之后归档本身就会释放座位，此处的「座位将被释放」会变成 no-op，
-  // 届时需复核这些文案和 doDelete 的说明。当前版本：归档不释放座位，只有永久删除
-  // 才释放。
   const doDelete = async (codes: string[]) => {
     setBusy(true);
     let ok = 0;
@@ -273,9 +287,9 @@ export default function ArchiveModal({
                       <button
                         type="button"
                         disabled={busy}
-                        title="取消归档"
+                        title="取消归档（要重新选座）"
                         aria-label={`取消归档 ${b.booking_id}`}
-                        onClick={() => setConfirmUnarchive(b)}
+                        onClick={() => setUnarchiving(b)}
                         className="inline-flex h-7 w-7 items-center justify-center rounded-lg text-[#141414] hover:bg-[#141414]/[0.08] disabled:opacity-40"
                       >
                         <ArchiveRestore className="w-4 h-4" />
@@ -299,38 +313,38 @@ export default function ArchiveModal({
         </div>
       </div>
 
-      {/* ── Single un-archive ───────────────────────────────────────────────── */}
+      {/* ── Single un-archive → the seat picker ─────────────────────────────── */}
+      {unarchiving && (
+        <UnarchiveModal
+          booking={unarchiving}
+          onClose={() => setUnarchiving(null)}
+          onDone={() => {
+            toast.success(`${unarchiving.booking_id} 已取消归档`);
+            load();
+            onChanged();
+          }}
+        />
+      )}
+
+      {/* ── Bulk un-archive: re-claims the original seats, refuses the rest ─── */}
       <ConfirmDialog
-        open={!!confirmUnarchive}
+        open={confirmBulkUnarchive}
         busy={busy}
-        title="取消归档？"
+        title={`取消归档 ${selected.length} 笔？`}
         description={
           <>
-            「<b className="text-[#141414]">{confirmUnarchive?.booking_id}</b>」将回到正常列表，
-            顾客可以再次签到入场。
+            这些报名将回到正常列表，顾客可以再次签到入场。
+            <br />
+            批量操作会<b className="text-[#141414]">重新占用它们原本的座位</b>；
+            原座位已被别人订走的那几笔<b className="text-[#141414]">会被拒绝、仍留在归档里</b>，
+            之后逐笔取消归档时可以重新选座。
           </>
         }
         confirmLabel="取消归档"
         cancelLabel="返回"
         onConfirm={() => {
-          const code = confirmUnarchive?.booking_id;
-          setConfirmUnarchive(null);
-          if (code) doUnarchive([code]);
-        }}
-        onCancel={() => setConfirmUnarchive(null)}
-      />
-
-      {/* ── Bulk un-archive (ordinary confirmation) ─────────────────────────── */}
-      <ConfirmDialog
-        open={confirmBulkUnarchive}
-        busy={busy}
-        title={`取消归档 ${selected.length} 笔？`}
-        description={<>这些报名将回到正常列表，顾客可以再次签到入场。</>}
-        confirmLabel="取消归档"
-        cancelLabel="返回"
-        onConfirm={() => {
           setConfirmBulkUnarchive(false);
-          doUnarchive(selected.map((b) => b.booking_id));
+          doBulkUnarchive(selected.map((b) => b.booking_id));
         }}
         onCancel={() => setConfirmBulkUnarchive(false)}
       />

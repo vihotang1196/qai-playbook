@@ -20,7 +20,7 @@ import { QrTicket } from "@/components/offline-event/QrTicket";
 import ManualAddModal from "@/components/offline-event/ManualAddModal";
 import SeatOpModal from "@/components/offline-event/SeatOpModal";
 import ArchiveModal from "@/components/offline-event/ArchiveModal";
-import { hasPaymentTrace } from "@/lib/offlineEventDelete";
+import { blocksArchive, hasPaymentTrace } from "@/lib/offlineEventDelete";
 
 /**
  * Offline Event admin — P7a bookings management (`/admin/offline-event/bookings`).
@@ -148,14 +148,20 @@ export default function OfflineEventBookings() {
   };
 
   // ── Multi-select bulk archive ───────────────────────────────────────────
-  // Bookings that took money (or could still take it) are SKIPPED, not archived:
-  // archiving neither refunds nor issues credit today, so doing it in bulk is how
-  // a paid customer silently loses their seat. The skip test is the same
-  // hasPaymentTrace used by the delete gate — one question, one answer.
+  // Skips exactly what the per-row archive button refuses (blocksArchive): a LIVE
+  // booking that took money. Since batch 7a archiving frees the seats, doing that
+  // to a paid booking leaves the customer with no seat, no entry and no refund.
+  // Cancelled bookings are archivable — see blocksArchive for why.
   const pickedRows = (rows ?? []).filter((b) => picked.has(b.booking_id));
-  const bulkSkipped = pickedRows.filter(hasPaymentTrace);
-  const bulkArchivable = pickedRows.filter((b) => !hasPaymentTrace(b));
-  const bulkSeatCount = bulkArchivable.reduce((n, b) => n + b.seats.length, 0);
+  const bulkSkipped = pickedRows.filter(blocksArchive);
+  const bulkArchivable = pickedRows.filter((b) => !blocksArchive(b));
+  // Seats that will ACTUALLY be freed. A cancelled booking keeps its seat LABELS
+  // on the row but holds no `oe_booked_seats` rows, so counting its labels would
+  // promise seats that were freed long ago.
+  const bulkSeatCount = bulkArchivable.reduce(
+    (n, b) => n + (b.status === "cancelled" ? 0 : b.seats.length),
+    0,
+  );
 
   const togglePick = (code: string) =>
     setPicked((prev) => {
@@ -426,13 +432,20 @@ export default function OfflineEventBookings() {
                       {/* stopPropagation: the row itself opens the detail modal,
                           and archiving must not also open it. */}
                       {/* This list is live-only, so the per-row action is always
-                          "archive" — un-archive lives in the archive modal. */}
+                          "archive" — un-archive lives in the archive modal.
+                          Disabled for a live booking that took money: archiving
+                          now frees its seat, and no refund/credit exists yet. */}
                       <button
                         type="button"
-                        title="归档"
+                        disabled={blocksArchive(b)}
+                        title={
+                          blocksArchive(b)
+                            ? "此单已收款，退款/额度功能尚未上线（批 7b），暂不可归档。如需处理请先取消订单。"
+                            : "归档（座位会被释放）"
+                        }
                         aria-label={`归档 ${b.booking_id}`}
                         onClick={(ev) => { ev.stopPropagation(); setConfirmArchive(b); }}
-                        className="ml-2 inline-flex h-7 w-7 items-center justify-center rounded-lg align-middle text-[#141414] hover:bg-[#141414]/[0.08]"
+                        className="ml-2 inline-flex h-7 w-7 items-center justify-center rounded-lg align-middle text-[#141414] hover:bg-[#141414]/[0.08] disabled:opacity-30 disabled:hover:bg-transparent disabled:cursor-not-allowed"
                       >
                         <Archive className="w-4 h-4" />
                       </button>
@@ -563,11 +576,16 @@ export default function OfflineEventBookings() {
                       </button>
                     )}
                     <button
-                      disabled={busy}
-                      onClick={() => doArchive(detail.booking.booking_id, !detail.booking.is_archived)}
-                      className="flex-1 h-10 rounded-xl bg-muted text-sm font-medium flex items-center justify-center gap-1.5 disabled:opacity-50"
+                      disabled={busy || blocksArchive(detail.booking)}
+                      title={
+                        blocksArchive(detail.booking)
+                          ? "此单已收款，退款/额度功能尚未上线（批 7b），暂不可归档。如需处理请先取消订单。"
+                          : undefined
+                      }
+                      onClick={() => setConfirmArchive(detail.booking)}
+                      className="flex-1 h-10 rounded-xl bg-muted text-sm font-medium flex items-center justify-center gap-1.5 disabled:opacity-40 disabled:cursor-not-allowed"
                     >
-                      <Archive className="w-4 h-4" /> {detail.booking.is_archived ? "取消归档" : "归档"}
+                      <Archive className="w-4 h-4" /> 归档
                     </button>
                   </div>
                   {/* No permanent-delete entry here on purpose (batch 5): the only
@@ -595,40 +613,36 @@ export default function OfflineEventBookings() {
         />
       )}
 
-      {/* Archive / un-archive confirmation.
-          TODO(批7): archiving will then RELEASE the seat and ISSUE credit, so the
-          paid-booking warning below becomes wrong and must be rewritten. Until
-          that lands, archiving a paid booking only blocks entry — it refunds
-          nothing and frees nothing — and saying so plainly is the whole point of
-          this dialog. */}
+      {/* Archive confirmation. Since batch 7a archiving RELEASES the seats, so the
+          dialog has to say that — "hidden from the list" is no longer the whole
+          story, and the seat can be gone by the time anyone un-archives. Bookings
+          that took money can't get here at all (blocksArchive disables the
+          button); credit/refund on archive is still batch 7b. */}
       <ConfirmDialog
         open={!!confirmArchive}
-        danger={!!confirmArchive && !confirmArchive.is_archived && confirmArchive.status === "confirmed"}
-        title={confirmArchive?.is_archived ? "取消归档？" : "归档这笔报名？"}
+        danger={!!confirmArchive && confirmArchive.status !== "cancelled" && confirmArchive.seats.length > 0}
+        title="归档这笔报名？"
         description={
-          confirmArchive?.is_archived ? (
-            <>
-              「<b className="text-[#141414]">{confirmArchive?.booking_id}</b>」将回到正常列表，
-              顾客可以再次签到入场。
-            </>
-          ) : confirmArchive?.status === "confirmed" ? (
-            <>
-              此单<b className="text-[#141414]">已收款 RM {(confirmArchive?.total ?? 0).toFixed(2)}</b>。
-              当前版本归档后：
-              <br />· 顾客<b className="text-[#141414]">无法签到入场</b>
-              <br />· 座位<b className="text-[#141414]">仍被占用</b>
-              <br />· <b className="text-[#141414]">不会退款</b>，也<b className="text-[#141414]">不会发放额度</b>
-              <br />
-              确定继续？
-            </>
-          ) : (
-            <>
-              「<b className="text-[#141414]">{confirmArchive?.booking_id}</b>」将从默认列表隐藏
-              （状态：{confirmArchive ? STATUS_META[confirmArchive.status].label : ""}）。随时可以取消归档。
-            </>
-          )
+          <>
+            「<b className="text-[#141414]">{confirmArchive?.booking_id}</b>」将从默认列表隐藏
+            （状态：{confirmArchive ? STATUS_META[confirmArchive.status].label : ""}）。
+            {confirmArchive && confirmArchive.status !== "cancelled" && confirmArchive.seats.length > 0 ? (
+              <>
+                <br />· 顾客<b className="text-[#141414]">无法签到入场</b>
+                <br />· 它的 <b className="text-[#141414]">{confirmArchive.seats.length}</b> 个座位
+                （{confirmArchive.seats.join("、")}）<b className="text-[#141414]">立即释放</b>，
+                可能被别人订走
+                <br />· 取消归档时<b className="text-[#141414]">需要重新选座</b>
+              </>
+            ) : (
+              <>
+                <br />
+                这笔是「已取消」状态，本来就不占座位，归档只是隐藏。
+              </>
+            )}
+          </>
         }
-        confirmLabel={confirmArchive?.is_archived ? "取消归档" : "归档"}
+        confirmLabel="归档"
         cancelLabel="返回"
         onConfirm={() => {
           if (!confirmArchive) return;
@@ -666,18 +680,24 @@ export default function OfflineEventBookings() {
         description={
           bulkArchivable.length === 0 ? (
             <>
-              已选的 {pickedRows.length} 笔<b className="text-[#141414]">全部已收款或仍有付款痕迹</b>，
-              批量归档会跳过它们（需等批 7b 额度系统上线）。请单独处理。
+              已选的 {pickedRows.length} 笔<b className="text-[#141414]">全部已收款且尚未取消</b>，
+              批量归档会跳过它们（需等批 7b 额度系统上线）。请先取消订单，或单独处理。
             </>
           ) : (
             <>
-              将归档 <b className="text-[#141414]">{bulkArchivable.length}</b> 笔、共{" "}
-              <b className="text-[#141414]">{bulkSeatCount}</b> 个座位。
-              当前版本归档后顾客无法签到入场，<b className="text-[#141414]">座位仍被占用</b>。
+              将归档 <b className="text-[#141414]">{bulkArchivable.length}</b> 笔。
+              {bulkSeatCount > 0 ? (
+                <>
+                  {" "}其中<b className="text-[#141414]">立即释放 {bulkSeatCount}</b> 个座位
+                  （可能被别人订走，取消归档时需要重新选座）。归档后顾客无法签到入场。
+                </>
+              ) : (
+                <> 它们都是「已取消」状态，本来就不占座位，归档只是隐藏。</>
+              )}
               {bulkSkipped.length > 0 && (
                 <>
                   <br />
-                  其中 <b className="text-[#141414]">{bulkSkipped.length}</b> 笔已收款或仍有付款痕迹，
+                  其中 <b className="text-[#141414]">{bulkSkipped.length}</b> 笔已收款且尚未取消，
                   <b className="text-[#141414]">将被跳过</b>（需等批 7b 额度系统上线）。
                 </>
               )}
