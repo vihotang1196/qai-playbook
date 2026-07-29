@@ -1312,6 +1312,82 @@ Still open, slot in where convenient (not gating):
       happens in Stripe and the booking must be cancelled in the Admin separately.
 - [ ] Only after (f) succeeds: open it to everyone (step 11).
 
+## Post-launch to-do (opened 2026-07-29 — everything deferred past the merge)
+
+Ordered by **deadline**, not by size. The 🔴 items have a launch step they must
+land before; the rest are dated only by "after".
+
+### 🔴 Before opening to everyone (step 11)
+
+**1. Root-cause the Copywriter triple retry.**
+One click produced **three** `generation` rows before succeeding — two failures,
+then a pass, 5 min 3 s wall-clock, ~US$0.30 instead of ~US$0.10.
+
+```
+08:53:56 click · 08:54:00 try 1 · 08:55:48 try 2 · 08:57:19 try 3 · 08:58:59 stored
+```
+
+*Why it can't wait:* **every customer costs up to 3× what they're charged for.**
+One order, three Claude calls, one revenue line — that is a per-use loss that
+scales with adoption, so it must be understood before the user count does.
+
+*What to look at:* what actually trips the retry (timeout / `max_tokens`
+exhausted / JSON parse / schema validation); whether failures leave any trace at
+all today (they don't — only the meter row is written, so the reason is invisible
+after the fact — that gap is itself part of the work); and whether
+`max_tokens: 16000` is so close to the ceiling that long outputs truncate →
+fail to parse → retry. If that's it, the fix is cheaper output, not more retries.
+
+**2. Re-set the loading copy once (1) is understood.**
+Provisionally **「通常 1-5 分钟」** — measured runs were 130 s clean and 5 min with
+retries, so 1-3 was understating it. This is a placeholder for a real number, not
+the answer; it depends entirely on what (1) finds.
+
+**3. Flip `CANARY_FALLBACK` from `deny` to `allow`, then REDEPLOY `oe` and
+`offline-event-admin`.**
+Edge Function secrets are injected **at deploy time** — changing the value in the
+dashboard does nothing on its own. Miss this and sub-accounts with no
+`location_tool_access` row are refused: loud, complained about within the hour,
+fixed by one deploy. That noisy failure is exactly why `deny` was chosen as the
+default (see the CANARY_FALLBACK section above).
+
+### 🟠 Soon after launch
+
+**4. Verify the refresh-mid-generation race for real.** The notice was proven
+with a synthetic marker (72 s → notice + live counter + Generate disabled;
+5 min → purged on mount). Driving an actual reload from the test harness did not
+reproduce a user refresh — the retry loop kept running across it — so the live
+race is unproven. One manual refresh in a normal browser closes this.
+
+**5. The four pre-existing type errors**, if they aren't fixed before the merge:
+`FloorPlanEditor.tsx:126,128` (`KeepFirstNSeatsResult` not narrowing),
+`AdminSidebar.tsx:41` (`Item.end`), `pdf.ts:269` (`Uint8Array` vs `BlobPart`).
+Vite doesn't typecheck, so the build passes regardless — which is why they
+survived this long.
+
+**6. End-to-end test of Copywriter recovery through the UI.** The server half is
+verified (result stored, recover by requestId returns the full payload, a wrong
+requestId returns null, the row carries no `client_key` and the limiter counts 4
+not 5). The browser half — refresh, see the notice, poll, collect — has not run
+against the deployed function.
+
+### 🟡 Batch 8b backlog (collected here so it is all in one place)
+
+| Item | Note |
+|---|---|
+| 「你的免费票已用完」 is wrong for an account that never had an allowance | Now every account — the banner is hidden at 0, but the wording still assumes history |
+| 票/座 unit mismatch | Copy says tickets, the number is seats |
+| `seats_unavailable` conflates two errors | "that seat is taken" vs "the event is full" |
+| `deleteEvent` orphan source | Fix where orphans are created, not just the symptom |
+| Change-date warning | Warn that N bookings already exist |
+| `verify_jwt = false` exposure review | |
+| Un-archive can overspend the allowance | Seats are protected atomically; the allowance is not |
+| Phone seat-tap threshold | Direct-URL on a phone browser only; not reproducible inside the GHL iframe |
+| Shrinking capacity after tickets sell | `booked_seats_removed` guard makes it awkward |
+| SST server guard is decorative | UI blocks the normal path; a direct API call still writes 0% |
+| Platform link name should be required | `label` NOT NULL + backfill the existing row |
+| H navbar icon change | |
+
 ## oe_ table map (old → new; built in P1)
 `event_dates`→`oe_events` (+ per-event price) · `floor_plans`→`oe_floor_plans`
 (+ physical_seats) · `bookings`→`oe_bookings` (+ status, stripe_session_id) ·
