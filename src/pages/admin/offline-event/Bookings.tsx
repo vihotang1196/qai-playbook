@@ -69,6 +69,7 @@ export default function OfflineEventBookings() {
   // Multi-select on the main list (bulk archive only — no delete path here).
   const [picked, setPicked] = useState<Set<string>>(new Set());
   const [confirmBulkArchive, setConfirmBulkArchive] = useState(false);
+  const [confirmBulkCancel, setConfirmBulkCancel] = useState(false);
 
   const [detail, setDetail] = useState<{ booking: OeBookingDetail; event: OeBookingEvent } | null>(null);
   const [detailLoading, setDetailLoading] = useState(false);
@@ -163,6 +164,46 @@ export default function OfflineEventBookings() {
       else next.add(code);
       return next;
     });
+
+  // ── Multi-select bulk cancel ────────────────────────────────────────────
+  // Deliberately does NOT reuse bulk archive's skip rule. Archiving skips
+  // payment-traced bookings because it neither refunds nor issues credit; a
+  // CANCEL is exactly what those bookings need — it releases their seats — and
+  // skipping them would leave the seats that matter most still locked, i.e. a
+  // batch action that can't do the job it was added for. So nothing is skipped
+  // for money reasons; the money is spelled out in the confirmation instead.
+  //
+  // Rows already `cancelled` ARE left out of the batch: cancelBooking is
+  // idempotent for them (returns alreadyCancelled), so including them would
+  // only inflate the success count. They are counted separately in the dialog.
+  const bulkCancelTargets = pickedRows.filter((b) => b.status !== "cancelled");
+  const bulkCancelAlready = pickedRows.filter((b) => b.status === "cancelled");
+  const bulkCancelSeats = bulkCancelTargets.reduce((n, b) => n + b.seats.length, 0);
+  const bulkCancelPaid = bulkCancelTargets.filter(hasPaymentTrace);
+  const bulkCancelPaidTotal = bulkCancelPaid.reduce((n, b) => n + (b.total ?? 0), 0);
+
+  const doBulkCancel = async () => {
+    setBusy(true);
+    let ok = 0;
+    const failed: string[] = [];
+    try {
+      for (const b of bulkCancelTargets) {
+        try {
+          await cancelBooking(b.booking_id);
+          ok++;
+        } catch (e) {
+          // One failure must not abort the rest of the batch — and the admin
+          // needs the code AND the reason, not just a count.
+          failed.push(`${b.booking_id}（${e instanceof Error ? e.message : "失败"}）`);
+        }
+      }
+      if (ok) toast.success(`已取消 ${ok} 笔，座位已释放`);
+      if (failed.length) toast.error(`${failed.length} 笔未取消：${failed.join("；")}`, { duration: 12000 });
+      load();
+    } finally {
+      setBusy(false);
+    }
+  };
 
   const doBulkArchive = async () => {
     setBusy(true);
@@ -296,6 +337,13 @@ export default function OfflineEventBookings() {
               className="h-9 px-3 rounded-xl bg-white border-2 border-[#141414] text-sm font-medium inline-flex items-center gap-1.5 disabled:opacity-50"
             >
               <Archive className="w-4 h-4" /> 批量归档
+            </button>
+            <button
+              disabled={busy}
+              onClick={() => setConfirmBulkCancel(true)}
+              className="h-9 px-3 rounded-xl bg-[#141414] text-[#fed50a] text-sm font-bold inline-flex items-center gap-1.5 disabled:opacity-50"
+            >
+              <Ban className="w-4 h-4" /> 批量取消订单
             </button>
             <button
               disabled={busy}
@@ -643,6 +691,48 @@ export default function OfflineEventBookings() {
           if (bulkArchivable.length > 0) doBulkArchive();
         }}
         onCancel={() => setConfirmBulkArchive(false)}
+      />
+
+      {/* Bulk cancel. Nothing is skipped for money reasons — see doBulkCancel —
+          so the confirmation has to carry the numbers instead. */}
+      <ConfirmDialog
+        open={confirmBulkCancel}
+        danger
+        busy={busy}
+        title={bulkCancelTargets.length === 0 ? "这批没有可取消的订单" : `取消 ${bulkCancelTargets.length} 笔订单？`}
+        description={
+          bulkCancelTargets.length === 0 ? (
+            <>已选的 {pickedRows.length} 笔<b className="text-[#141414]">已经全部是「已取消」</b>，无需再处理。</>
+          ) : (
+            <>
+              将取消 <b className="text-[#141414]">{bulkCancelTargets.length}</b> 笔订单，释放{" "}
+              <b className="text-[#141414]">{bulkCancelSeats}</b> 个座位。
+              {bulkCancelPaid.length > 0 && (
+                <>
+                  <br />
+                  其中 <b className="text-[#141414]">{bulkCancelPaid.length}</b> 笔有收款记录，合计{" "}
+                  <b className="text-[#141414]">RM {bulkCancelPaidTotal.toFixed(2)}</b> —— 取消
+                  <b className="text-[#141414]">不会退款</b>。
+                </>
+              )}
+              {bulkCancelAlready.length > 0 && (
+                <>
+                  <br />
+                  另有 {bulkCancelAlready.length} 笔已经是「已取消」，不重复处理。
+                </>
+              )}
+              <br />
+              已取消的订单很难恢复（座位释放后可能被他人订走）。确定继续？
+            </>
+          )
+        }
+        confirmLabel={bulkCancelTargets.length === 0 ? "我知道了" : "确认取消订单"}
+        cancelLabel="返回"
+        onConfirm={() => {
+          setConfirmBulkCancel(false);
+          if (bulkCancelTargets.length > 0) doBulkCancel();
+        }}
+        onCancel={() => setConfirmBulkCancel(false)}
       />
 
       <ArchiveModal open={archiveOpen} onClose={() => setArchiveOpen(false)} onChanged={load} />
