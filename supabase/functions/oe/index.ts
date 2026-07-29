@@ -115,8 +115,24 @@ async function loadSettings(sb: SB): Promise<OeSettings> {
     lunchPrice: num("lunch_price", 39.99),
     sstRate: num("sst_rate", 0.08),
     // Global default allowance for a NEW sub-account (admin-configurable, P7c).
-    defaultFreeTickets: Math.max(0, Math.floor(num("default_free_tickets", 1))),
-    defaultFreeSeats: Math.max(0, Math.floor(num("default_free_seats", 2))),
+    //
+    // ⚠️ NEITHER KEY EXISTS IN oe_settings — confirmed in the Table Editor on
+    // 2026-07-29. So these are not a safety net that never fires: THEY ARE THE
+    // LIVE VALUES. They used to read 1 and 2, which means every sub-account
+    // auto-registered since P7c inherited TWO free seats, while PROGRESS recorded
+    // "1/1" and the admin settings page displayed a number nobody ever stored.
+    //
+    // The default must be "give nothing". A sub-account that should get free seats
+    // is one row in oe_subaccount_settings away and leaves a record of the
+    // decision; one that gets them by accident is revenue given away silently.
+    //
+    // FIVE fallbacks decide these two keys and they must all agree. The other
+    // three: `getSettings` in offline-event-admin/index.ts (what the admin page
+    // shows) and the `sa?.free_seats` default at the createBooking site below.
+    // Configuration cannot police code defaults — when they disagree the code
+    // wins, and the admin reads a number off a page that was never in the table.
+    defaultFreeTickets: Math.max(0, Math.floor(num("default_free_tickets", 0))),
+    defaultFreeSeats: Math.max(0, Math.floor(num("default_free_seats", 0))),
   };
 }
 
@@ -369,7 +385,12 @@ async function computeBookingPlan(sb: SB, locationId: string, body: any): Promis
     .select("free_seats")
     .eq("location_id", locationId)
     .maybeSingle();
-  const freeAllot = Number(sa?.free_seats ?? 2);
+  // `?? 0`, never `?? 2`: a sub-account with no settings row must get NOTHING for
+  // free. This is its own decision point — it reads the sub-account ROW, so
+  // default_free_seats never reaches it and no amount of admin configuration can
+  // correct a wrong number here. Must stay in step with the four fallbacks in
+  // loadSettings above and in offline-event-admin's getSettings.
+  const freeAllot = Number(sa?.free_seats ?? 0);
   const freeRemaining = Math.max(0, freeAllot - freeUsedAlready);
   const freeUsedNow = Math.min(seatCount, freeRemaining);
   const paidSeats = seatCount - freeUsedNow;

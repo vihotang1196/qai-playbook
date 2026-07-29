@@ -1061,8 +1061,16 @@ serve(async (req) => {
             sst_rate: get("sst_rate", "0.08"),
             lunch_price: get("lunch_price", "39.99"),
             max_seats_per_booking: get("max_seats_per_booking", "4"),
-            default_free_tickets: get("default_free_tickets", "1"),
-            default_free_seats: get("default_free_seats", "2"),
+            // ⚠️ Neither key exists in oe_settings (Table Editor, 2026-07-29), so
+            // these fallbacks are what the settings page actually DISPLAYS — an
+            // admin cannot tell a stored value from a default by looking. They
+            // read 1 and 2 until now, so the page showed "1 票 / 2 座" for a
+            // configuration that was never written. Saving the form upserts the
+            // rows for real (oe_settings.key is the PK), which is the only way
+            // these two stop being code-defined.
+            // Must match the same two fallbacks in oe/index.ts loadSettings.
+            default_free_tickets: get("default_free_tickets", "0"),
+            default_free_seats: get("default_free_seats", "0"),
           },
           liveKeyConfigured,
           activeStripe,
@@ -1203,9 +1211,16 @@ serve(async (req) => {
           total: count ?? 0,
           page,
           pageSize,
+          // Feeds the 子账号管理 blurb「全局默认（N 票 / N 座）」. These two used to
+          // fall back to 1 and 1 while getSettings above fell back to 1 and 2 and
+          // the customer path (oe/index.ts loadSettings) used 1 and 2 — three
+          // answers, two of them shown side by side in the same admin tool, none
+          // of them stored anywhere. The "1/1" that reached PROGRESS almost
+          // certainly came from reading this line. Same fallback as everywhere
+          // else now; do not let it drift again.
           defaults: {
-            free_tickets: Number(sm["default_free_tickets"] ?? 1),
-            free_seats: Number(sm["default_free_seats"] ?? 1),
+            free_tickets: Number(sm["default_free_tickets"] ?? 0),
+            free_seats: Number(sm["default_free_seats"] ?? 0),
           },
           whitelistMode,
         });
