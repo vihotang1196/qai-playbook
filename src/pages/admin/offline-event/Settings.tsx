@@ -84,6 +84,25 @@ export default function OfflineEventSettings() {
       toast.error("税率不能为空 —— 免税活动请明确输入 0");
       return;
     }
+    // The same trap as SST, one step milder. `updateSettings` SKIPS any field that
+    // arrives empty-after-trim, so clearing a box and saving changed nothing — while
+    // the page answered with a 已保存 tick and then reloaded the old number back into
+    // the box. An admin reasonably reads that as "cleared, and it went back to the
+    // default". Blank is not a value: zeroing something means typing 0.
+    //
+    // Fixed here rather than server-side on purpose. "Omit a field to leave it
+    // unchanged" is a sound API contract; the bug is that this page SENDS a blank
+    // and then reports success.
+    const blankField = ([
+      ["午餐价", lunchPrice],
+      ["每单最多座位", maxSeats],
+      ["默认免费票", defTickets],
+      ["默认免费座位", defSeats],
+    ] as const).find(([, v]) => v.trim() === "");
+    if (blankField) {
+      toast.error(`${blankField[0]}留空不会清除，请输入 0`);
+      return;
+    }
     setSaving(true);
     setSavedFlag(false);
     try {

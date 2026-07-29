@@ -1110,8 +1110,21 @@ one at a time.
 **8b — after launch**, in no particular order: the 票/座 unit mismatch (both
 items), the `seats_unavailable` error-code split ("seat taken" vs "event full"),
 `deleteEvent`'s orphan source, the change-date warning, the `verify_jwt` exposure
-review, un-archive overspending the allowance, the phone seat-tap threshold, and
-shrinking capacity after tickets are sold.
+review, un-archive overspending the allowance, the phone seat-tap threshold,
+shrinking capacity after tickets are sold, and **the SST server-side guard below**.
+
+- 🟠 **(8b) `sst_rate`'s server-side guard is decorative — the UI hides the hole
+  rather than closing it.** `updateSettings` refuses a blank `sst_rate` with
+  `sst_rate_required`, but it can never fire from the admin page: `Settings.tsx`
+  sends `Number(sstPercent) / 100`, so a blank box has already become the number
+  `0` by the time the request is built, and `0` is a legitimate tax rate. The UI
+  guard added on 2026-07-29 blocks the normal path, so this is not reachable by an
+  admin using the page — **but anyone calling the API directly still writes a 0%
+  tax rate through a check that looks like it prevents exactly that.**
+  → Fix: send the raw string from the form and let the server do the `/100`, so
+  "blank" survives the wire and the server can actually tell the two apart. Small,
+  but it changes the wire contract for one field, which is why it is not being
+  done during launch week.
 
 **Batch 8 backlog — found while verifying batch 6 commit 4:**
 - 🟠 **(8b — NOT a launch blocker; owner tested a real phone inside GHL and seat
