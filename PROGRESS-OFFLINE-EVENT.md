@@ -797,6 +797,18 @@ Correct order — do NOT restore the allowance first:
 - **`fmt12h` exists twice** (client `offlineEventFormat.ts`, server
   `offline-event-admin`). Changing the format means changing BOTH; each has a
   comment pointing at the other.
+- **pg_net's functions live in the `net` schema, NOT `extensions`.** The
+  extension RECORD is registered under `extensions`, which makes
+  `extensions.net.http_post(...)` look like the careful spelling. It isn't: a
+  three-part name is DATABASE.SCHEMA.FUNCTION, so Postgres goes looking for a
+  database called `extensions` and fails with *"cross-database references are not
+  implemented"*. Write **`net.http_post(...)`** — `net` is top-level, so that IS
+  fully qualified and does not depend on `search_path`.
+  **And note how it surfaced:** the broken migration applied cleanly, because a
+  cron job body is just a string until cron runs it. The failure appeared only in
+  `cron.job_run_details`, two minutes later, and would have sat there forever.
+  → **After ANY change to cron SQL, go back and confirm `status = 'succeeded'` in
+  `cron.job_run_details`. "The migration applied" is not "the feature works".**
 - **`blocksArchive` exists twice, and has to** (client `offlineEventDelete.ts`,
   server `archiveBooking`). The server cannot trust a disabled button, so it
   re-implements the rule. This project has been bitten by duplicated logic before,
