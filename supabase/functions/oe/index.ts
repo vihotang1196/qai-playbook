@@ -524,7 +524,15 @@ serve(async (req) => {
         }
 
         const events_out = list.map((e) => {
-          const cap = e.capacity != null ? Number(e.capacity) : (e.floor_plan_id ? planSeats[e.floor_plan_id as string] ?? 0 : 0);
+          // Take the number from whichever source actually governs this event, so
+          // the displayed "N left" can't disagree with what oe_claim_seats will
+          // allow. Seat selection ON → the floor plan (a hand-typed capacity is
+          // no longer written for those, and an old one must not win); OFF →
+          // capacity, which is that path's only limit.
+          const planSeatCount = e.floor_plan_id ? planSeats[e.floor_plan_id as string] ?? 0 : 0;
+          const cap = e.seat_selection_enabled !== false
+            ? planSeatCount
+            : (e.capacity != null ? Number(e.capacity) : 0);
           const booked = bookedByEvent[e.id as string] || 0;
           return { ...e, capacity_effective: cap, booked_seats: booked, seats_left: cap > 0 ? Math.max(0, cap - booked) : null };
         });

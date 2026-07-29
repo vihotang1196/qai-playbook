@@ -109,19 +109,31 @@ function buildTimeSlot(start: string, end: string): string {
   return a && b ? `${a} - ${b}` : "";
 }
 
+/**
+ * capacity exactly as the DB should store it: a positive integer, or NULL.
+ * Never 0 — the two mean OPPOSITE things to the gate in oe_claim_seats
+ * (`if v_cap is not null and v_cap > 0`):
+ *   NULL → fall back to the floor plan; with no plan the
+ *          oe_events_capacity_source CHECK stops the event going live. Loud.
+ *   0    → NO CAPACITY CHECK AT ALL, silently. Unlimited tickets.
+ * The old expression was `Math.floor(Number(x)) || 0`, which sent "abc", " ",
+ * "-5" and "0" to the dangerous side. Unparseable input must land on the safe one.
+ */
+function normalizeCapacity(raw: unknown): number | null {
+  if (raw === null || raw === undefined || String(raw).trim() === "") return null;
+  const n = Math.floor(Number(raw));
+  return Number.isFinite(n) && n > 0 ? n : null;
+}
+
 /** Sanitize an event payload from the admin form into an oe_events row.
- *  capacity: blank/null → NULL (derive from floor plan). */
+ *  capacity: blank / 0 / junk → NULL (derive from floor plan). */
 // deno-lint-ignore no-explicit-any
 function buildEventRow(p: any): Record<string, unknown> {
   const num = (v: unknown) => {
     const n = Number(v);
     return Number.isFinite(n) ? n : 0;
   };
-  const capRaw = p?.capacity;
-  const capacity =
-    capRaw === null || capRaw === undefined || String(capRaw).trim() === ""
-      ? null
-      : Math.max(0, Math.floor(Number(capRaw)) || 0);
+  const capacity = normalizeCapacity(p?.capacity);
   const status = ["live", "display", "off"].includes(p?.status) ? p.status : "live";
 
   const titleZh = String(p?.title_zh || "").trim();
@@ -171,6 +183,26 @@ function validateEvent(p: any): string | null {
   const st = String(p?.start_time || "").trim();
   const et = String(p?.end_time || "").trim();
   if (st && et && et <= st) return "end_time_before_start";
+
+  // A LIVE event must be able to answer "how many people fit". Two paths, one
+  // source each:
+  //   seat selection ON  → the floor plan's enabled seats
+  //   seat selection OFF → capacity, which is then the ONLY limit that exists
+  //     (labels are synthesised per booking, so seat uniqueness never collides)
+  // Only `live` is checked: display/off are refused by computeBookingPlan, and
+  // blocking half-filled drafts would push people to work around the tool.
+  //
+  // The oe_events_capacity_source CHECK constraint enforces the same rule in the
+  // database. That one is the BACKSTOP for direct API calls and hand-written SQL;
+  // THIS is the path a human takes, so it has to fail with something the UI can
+  // turn into a sentence instead of "violates check constraint".
+  const status = ["live", "display", "off"].includes(p?.status) ? p.status : "live";
+  if (status === "live") {
+    const seatSelection = p?.seat_selection_enabled !== false;
+    const planId = String(p?.floor_plan_id || "").trim();
+    if (seatSelection && !planId) return "capacity_source_missing_floorplan";
+    if (!seatSelection && normalizeCapacity(p?.capacity) === null) return "capacity_source_missing_limit";
+  }
   return null;
 }
 

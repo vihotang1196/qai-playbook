@@ -31,6 +31,10 @@ const ERR_ZH: Record<string, string> = {
   dates_required: "请填开始和结束日期。",
   end_before_start: "结束日期不能早于开始日期。",
   end_time_before_start: "结束时间必须晚于开始时间。",
+  // Both mean "this live event has no way to know how many people fit", which
+  // without the guard would mean unlimited ticket sales.
+  capacity_source_missing_floorplan: "开启选座的活动必须选择平面图（人数由平面图的启用座位数决定）。",
+  capacity_source_missing_limit: "不选座的活动必须设定人数上限，否则无法限制报名人数。",
 };
 
 // ── Theme presets ─────────────────────────────────────────────────────────
@@ -215,7 +219,11 @@ export default function OfflineEventEventDates() {
 
       <div className="grid grid-cols-1 gap-3">
         {events.map((e) => {
-          const cap = e.capacity != null ? e.capacity : (e.floor_plan_id ? "按平面图" : "—");
+          // Says WHERE the number comes from, not just the number: the two paths
+          // are the whole point of the capacity rules.
+          const cap = e.seat_selection_enabled
+            ? (e.floor_plan_id ? "按平面图" : "⚠️ 缺平面图")
+            : (e.capacity != null ? `${e.capacity} 人` : "⚠️ 未设上限");
           return (
             <div key={e.id} className="glass-card rounded-2xl p-4">
               <div className="flex items-start gap-3">
@@ -318,16 +326,35 @@ export default function OfflineEventEventDates() {
               {!form.notice_en.trim() && form.notice_zh.trim() && (
                 <p className="text-[11px] text-muted-foreground -mt-1">留空时英文页面将显示中文内容。</p>
               )}
+              {/* ONE source of "how many people fit", and which one depends on
+                  the seat-selection switch below. Showing both boxes at once is
+                  what produced an event carrying two different answers (a typed
+                  60 next to a 91-seat plan). Neither field is cleared when the
+                  switch flips — the hidden value is kept, so toggling back and
+                  forth doesn't silently lose what was typed. */}
               <div className="grid grid-cols-2 gap-3">
                 <Field label="票价 RM/座"><input value={form.price_per_seat} onChange={(e) => setForm({ ...form, price_per_seat: e.target.value })} inputMode="decimal" className={inp} /></Field>
-                <Field label="容量（留空=按平面图）"><input value={form.capacity ?? ""} onChange={(e) => setForm({ ...form, capacity: e.target.value })} inputMode="numeric" className={inp} /></Field>
+                {!form.seat_selection_enabled && (
+                  <Field label="人数上限（必填）">
+                    <input value={form.capacity ?? ""} onChange={(e) => setForm({ ...form, capacity: e.target.value })} inputMode="numeric" className={inp} />
+                  </Field>
+                )}
               </div>
-              <Field label="平面图">
-                <select value={form.floor_plan_id ?? ""} onChange={(e) => setForm({ ...form, floor_plan_id: e.target.value || null })} className={inp}>
-                  <option value="">（不绑定）</option>
-                  {plans.map((p) => <option key={p.id} value={p.id}>{p.name}（{p.physical_seats} 座）</option>)}
-                </select>
-              </Field>
+              {form.seat_selection_enabled ? (
+                <Field label="平面图（必选，人数由平面图决定）">
+                  <select value={form.floor_plan_id ?? ""} onChange={(e) => setForm({ ...form, floor_plan_id: e.target.value || null })} className={inp}>
+                    <option value="">（请选择）</option>
+                    {plans.map((p) => <option key={p.id} value={p.id}>{p.name}（{p.physical_seats} 座）</option>)}
+                  </select>
+                  <p className="text-[11px] text-muted-foreground mt-1">
+                    要改人数，改平面图里的启用座位——不要在这里填数字。
+                  </p>
+                </Field>
+              ) : (
+                <p className="text-[11px] text-muted-foreground">
+                  不选座的活动<b className="text-[#141414]">必须设定人数上限</b>，否则无法限制报名人数。
+                </p>
+              )}
               <div className="grid grid-cols-2 gap-3">
                 <Field label="状态">
                   <select value={form.status} onChange={(e) => setForm({ ...form, status: e.target.value as OeEventStatus })} className={inp}>
