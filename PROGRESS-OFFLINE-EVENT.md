@@ -647,29 +647,19 @@ separate ticket / lunch / SST lines.
 
 | Thing | Value | Note |
 |---|---|---|
-| Test sub-account `gsRRLb2A8IoATd9qWNmh` | `free_tickets=2`, `free_seats=4` | Read 2026-07-28T09:17:53Z. **The restore target for batch 7.** The owner changed this during GHL testing — do not assume 1/2. |
+| Test sub-account `gsRRLb2A8IoATd9qWNmh` | `free_tickets=2`, `free_seats=4` | Read 2026-07-28T09:17:53Z. **The restore target for batch 7.** The owner changed this during GHL testing — do not assume 1/2. During batch 5.5 it was temporarily `free_tickets=1`, `free_seats=2`; `free_seats` is being restored to 4. Only `free_seats` affects charging — see the batch 7b traps. |
 | Global defaults | `default_free_tickets=1`, `default_free_seats=1` | Set by the allowance reset. **Leave alone.** |
 | `oe_settings.sst_rate` | `0.08` | Stored as a STRING decimal → `Number(x)*100` for display, and skip the label when 0. |
 | `oe_settings.lunch_price` | `39.99` | |
 
-**14 test bookings awaiting cleanup** (11 + 3 added by batch 5.5; all on event
-`74753c55`):
-`BK-AYZT-Z6Q44Y` · `BK-A64O-PZM4MN` · `BK-8YC1-KNVYK8` · `BK-NOC3-W5VZTN` ·
-`BK-P34G-G266QR` · `BK-M9LE-S4IXQF` · `BK-BNVU-BYX1V5` · `BK-12B0-3WTICC` ·
-`BK-RNZF-05DQ7M` · `BK-MHZO-IQQK9J` (manual add, G1 Seat 1) ·
-**`BK-O7PA-GESM02` — pending, unpaid, still holding G1 Seat 3.**
+**0 test bookings awaiting cleanup.** The owner deleted every historical test
+booking on 2026-07-29 (the original 11 + the 3 from batch 5.5's A/B runs), so
+`freeSeatsUsed` for the test sub-account went to **0** and all their seats were
+released. The one remaining row is scenario C's `BK-Q6KW-JQ67GC` (pending,
+unpaid, G10 Seat 1–3, RM428.76) which the owner is cancelling. **Anything found
+in `oe_bookings` after this point is real, not test data.**
 
-Added 2026-07-29 by the batch 5.5 checkout tests (all unpaid; the lazy
-`sweepStalePending` cancels them ~35 min after creation and frees the seats):
-- **`BK-DVJP-62825Y`** — scenario A, `batch55-a@example.com`, G2 Seat 3, RM428.76.
-- **`BK-FZFO-RWMWEX`** — scenario B, `batch55-b@example.com`, G6 Seat 2 + G6
-  Seat 4 + 2 lunch, RM943.90.
-- One earlier scenario-A run whose code was not captured: `batch55-a@example.com`,
-  **G2 Seat 1**, RM428.76, created ~01:45Z. Identify it by seat + email in the
-  Admin Portal. (It ran while an owner admin session was still present in the
-  browser profile — see the anonymity note under batch 5.5's verification.)
-
-### ⚠️ Ordering trap for batch 5.5's allowance change
+### ⚠️ Ordering trap for a temporary allowance change (used in 5.5, reuse in 7b)
 
 `freeSeatsUsed` is DERIVED (allowance − consumed), and both the customer figure
 and the pricing figure are clamped with `Math.max(0, …)` (`oe/index.ts` :335 and
@@ -742,32 +732,71 @@ Correct order — do NOT restore the allowance first:
 **Done + accepted:** 0 (check-in refuses archived) · 1 (structured
 start/end_time) · 1.5 (title_zh/title_en) · 2 (structured event form) · 3a
 (customer card: real title, generated date, theme tag) · 3b (snapshot fields take
-title_zh) · 4 (roomier rows, per-row archive, date filter, orphan sentinel).
+title_zh) · 4 (roomier rows, per-row archive, date filter, orphan sentinel) · 5.5
+(itemised Stripe summary + the card's "另加 8% SST" label).
 
-**5.5 — code DONE (b52f96a itemised Stripe summary, 5c08fdf card hint + page
-summary), deployed, scenarios A and B verified anonymously. Scenario C (free +
-paid mix) is NOT verified yet** — it needs the temporary `free_seats` raise, and
-the agent doing the work had no privileged DB path (no service-role key locally,
-CLI credentials live in the Windows credential manager, no arbitrary-SQL CLI
-subcommand). Owner action required: run steps 0/2 → C → 4/5/6 of the ordering
-trap above from the Admin Portal, or hand over a way to run the exact SQL.
+**5.5 — DONE + accepted** (b52f96a itemised Stripe summary, 5c08fdf card hint +
+page summary), deployed, all three scenarios verified anonymously. The allowance
+change needed for scenario C was done by the OWNER in the Admin Portal — the
+agent had no privileged DB path (no service-role key locally, CLI credentials
+live in the Windows credential manager, and the CLI has no arbitrary-SQL
+subcommand), and a temporary service-role function was deliberately NOT used for
+writes: read-only probing is fine, but allowance edits and cancellations have a
+UI already.
 
 Verified 2026-07-29 (anonymous, no admin session):
 | Scenario | Stripe lines | Σ cents | `oe_bookings.total` |
 |---|---|---|---|
 | A — 1 paid seat | 门票 397.00 · SST 8% 31.76 | 42876 | 428.76 ✓ |
 | B — 2 seats + 2 lunch | 门票 2×397.00 · 午餐 2×39.99 · SST 8% 69.92 | 94390 | 943.90 ✓ |
+| C — 2 free + 1 paid | 门票 Qty 1 397.00 · **免费票（额度内） Qty 2 MYR 0.00 each** · SST 8% 31.76 | 42876 | 428.76 ✓ |
 
-Both matched `Math.round(total * 100)` exactly, and the itemised (not lumped)
-layout on the Stripe page is itself proof the cent check did not fall back.
+All three matched `Math.round(total * 100)` exactly, and the itemised (not
+lumped) layout on the Stripe page is itself proof the cent check did not fall
+back. **The 0-amount line is confirmed on the REAL checkout path**, not just in
+the isolated probe: scenario C's Stripe page rendered `免费票（额度内） Qty 2
+MYR 0.00 each`. Nobody needs to re-test whether Stripe accepts it.
+
+Scenario C was run with **3 seats, not 2**: the account had `free_seats = 2`
+remaining, so a 2-seat booking would have been fully free (`total = 0`) and would
+never have reached Stripe. 3 seats = 2 free + 1 paid gives the same mixed order.
+Changing `max_seats_per_booking` to force a mix is the wrong fix — pick a seat
+count above the remaining allowance instead.
 **Anonymity trap:** the Claude browser pane persists a logged-in Supabase
 session in `localStorage` across sessions, so "a fresh browser" is NOT anonymous
 — check for the `sb-<ref>-auth-token` key and stash it before any customer-side
 verification, or an admin bypass will be mistaken for a working gate.
 
-**To do:** 5 (archive modal, permanent delete moves inside it) · 6 (10-min
-release + Stripe session expire + cron) · 7 (credit ledger — the big one) ·
-8 (polish).
+**To do — ORDER REVISED 2026-07-29 by the owner (7a jumps ahead of 6):**
+1. **5** — archive in its own modal + the two-tier permanent-delete gate, plus
+   multi-select archive / multi-select delete.
+2. **7a** — archive RELEASES the seats; un-archive re-books by manually picking
+   from the seats still available. Split out of batch 7 and pulled forward,
+   because archiving that silently keeps seats locked is the more damaging half.
+3. **6** — 10-minute pending timeout + `sessions.expire()` + cron.
+4. **7b** — the credit/allowance ledger (the big one), including the two
+   ticket-vs-seat problems below.
+5. **8** — UI polish + the change-date warning + the `deleteEvent` orphan fix.
+
+**Batch 7b backlog — the two allowance traps found in batch 5.5 (read these
+FIRST, they change what the ledger must model):**
+
+1. 🔴 **`free_tickets` (票) and `free_seats` (座) are two fully independent
+   inputs with NO conversion between them.** `updateSubaccountSettings` writes
+   whatever each box says, verbatim (`offline-event-admin/index.ts`), and the
+   ONLY field that affects money is `free_seats` — pricing derives the free
+   portion from it in `computeBookingPlan`. **The owner hit this live**: setting
+   「票」to 1 left 「座」at 2, so the intended "1 free seat left" was actually 2,
+   and a 2-seat booking would have been fully free. An admin can believe they
+   changed the allowance while having changed only the box that does not matter.
+   → Batch 7b must either bind the two with an explicit conversion, or mark 票 as
+   display-only AND label on the form which box controls charging.
+2. 🔴 **The customer banner "你还有 N 张免费票" prints `freeSeatsRemaining` — a
+   SEAT count under a ticket label.** Today `free_tickets:free_seats` happens to
+   be 1:2 for the test account, so the mismatch is invisible on screen; the
+   moment the two stop being proportional the number the customer reads is simply
+   wrong. → Settle one unit (almost certainly seats) before the ledger is built,
+   and fix the wording with it.
 
 **Batch 6 backlog:**
 - `stripe.checkout.sessions.expire()` whenever a booking is cancelled or its
