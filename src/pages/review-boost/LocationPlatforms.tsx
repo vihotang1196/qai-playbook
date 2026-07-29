@@ -174,7 +174,13 @@ export default function LocationPlatforms() {
                         <input
                           value={draft.label}
                           onChange={(e) => setDraft((d) => ({ ...d, label: e.target.value }))}
-                          placeholder={label("名称（选填），如 美容院-总店", "Name (optional), e.g. Main branch")}
+                          // "Optional" alone left owners with no reason to fill it in, and a
+                          // nameless link shows up as 「未命名链接」 in the campaign dropdown —
+                          // say that here, where it can still be avoided.
+                          placeholder={label(
+                            "名称（选填，留空会显示为「未命名链接」），如 美容院-总店",
+                            "Name (optional — blank shows as “Unnamed link”), e.g. Main branch",
+                          )}
                           className="glass-input w-full px-3 py-2 text-sm"
                         />
                         <input

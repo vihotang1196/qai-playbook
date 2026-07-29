@@ -283,9 +283,19 @@ export default function LocationCampaignCreate() {
               if (group.length === 0) return null;
               return (
                 <optgroup key={p.id} label={p.label[lang]}>
+                  {/* The name the owner gave the link, never the URL. A raw
+                      review URL here is unreadable (maps.app.goo.gl/ueD7ac…)
+                      and tells you nothing about WHICH branch it points at —
+                      the whole reason links are nameable. When the name is
+                      missing the honest answer is to say so and point at the
+                      fix, rather than dress up the empty value with the URL or
+                      an invented "Google Maps 1". The platform type is already
+                      the <optgroup> heading above, so it is never lost. */}
                   {group.map((l) => (
                     <option key={l.id} value={l.id}>
-                      {l.label ? l.label : l.review_url}
+                      {l.label?.trim()
+                        ? l.label
+                        : label("未命名链接（去平台页命名）", "Unnamed link — name it on the Platforms page")}
                     </option>
                   ))}
                 </optgroup>
