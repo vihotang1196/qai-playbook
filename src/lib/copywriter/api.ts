@@ -22,13 +22,19 @@ const NO_RETRY_CODES = new Set(["quota_exceeded", "location_required", "tool_dis
 
 type TaggedError = Error & { noRetry?: boolean };
 
-async function invokeGenerateCopy(input: SurveyInput, locationId: string): Promise<GenerateResult> {
+async function invokeGenerateCopy(
+  input: SurveyInput,
+  locationId: string,
+  requestId?: string,
+): Promise<GenerateResult> {
   const supabase = getSupabase();
 
   const { data, error } = await supabase.functions.invoke<GenerateResult>("generate-copy", {
     // locationId identifies the sub-account: the server requires it, checks the
     // tool is enabled for them, and meters/rate-limits per account.
-    body: { ...input, locationId },
+    // requestId is per-BROWSER, not per-account, and is what recoverCopy matches
+    // on — see the comment there.
+    body: { ...input, locationId, requestId },
   });
 
   if (error) {
@@ -66,13 +72,17 @@ async function invokeGenerateCopy(input: SurveyInput, locationId: string): Promi
  * to 3 times: each call is an independent request with its own timeout budget,
  * so retrying here (not in the Edge Function) avoids the ~150s idle limit.
  */
-export async function generateCopy(input: SurveyInput, locationId: string): Promise<GenerateResult> {
+export async function generateCopy(
+  input: SurveyInput,
+  locationId: string,
+  requestId?: string,
+): Promise<GenerateResult> {
   const MAX_ATTEMPTS = 3;
   let lastError: TaggedError = new Error("Generation failed");
 
   for (let attempt = 1; attempt <= MAX_ATTEMPTS; attempt++) {
     try {
-      return await invokeGenerateCopy(input, locationId);
+      return await invokeGenerateCopy(input, locationId, requestId);
     } catch (e) {
       lastError = (e instanceof Error ? e : new Error(String(e))) as TaggedError;
       // A quota/identity/access refusal is a hard no — retrying would just spend
@@ -82,6 +92,37 @@ export async function generateCopy(input: SurveyInput, locationId: string): Prom
   }
 
   throw lastError;
+}
+
+/**
+ * Ask the server whether a generation this browser started ever finished.
+ *
+ * A generation runs ~2 minutes and is billed the moment it starts. If the tab is
+ * refreshed, backgrounded, or loses signal, the fetch dies but the Edge Function
+ * runs to completion and Anthropic still charges for it. This collects that
+ * paid-for result instead of the customer paying a second time.
+ *
+ * Matches on `requestId` — minted per browser — NOT on locationId, which is the
+ * sub-account and is shared by everyone working under that client. Keyed on the
+ * account, "the newest result" would hand one person the product details another
+ * person just typed in.
+ *
+ * Returns null when nothing has landed yet (still running, or it failed).
+ */
+export async function recoverCopy(
+  locationId: string,
+  requestId: string,
+): Promise<GenerateResult | null> {
+  const supabase = getSupabase();
+  const { data, error } = await supabase.functions.invoke<{ result: GenerateResult | null }>(
+    "generate-copy",
+    { body: { action: "recover", locationId, requestId } },
+  );
+  // Recovery is a best-effort convenience on top of a normal flow — if the
+  // lookup itself fails, say "nothing yet" rather than surfacing an error for a
+  // request the customer never made.
+  if (error) return null;
+  return data?.result ?? null;
 }
 
 /**

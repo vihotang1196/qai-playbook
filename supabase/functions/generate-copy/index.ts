@@ -419,6 +419,41 @@ Deno.serve(async (req: Request) => {
     );
   }
 
+  // A browser-scoped id for one generation attempt, minted by the client. It is
+  // the ONLY key the recovery lookup matches on — deliberately not location_id,
+  // which is the SUB-ACCOUNT and is shared by everyone working under that
+  // client. Keyed on location alone, "the newest result here" would hand one
+  // person the product name, pricing and USP another person just typed in.
+  const requestId = String((raw.requestId as string) || "").trim();
+
+  // ── Recovery: hand back a finished generation the browser never received ──
+  // The generation costs real money and runs ~2 minutes. If the customer
+  // refreshes, switches tabs, or loses signal mid-flight, the fetch dies but the
+  // function keeps running server-side to completion and Anthropic still bills
+  // it. Without somewhere to put the answer, that spend buys nothing and the
+  // customer pays again. This reads back the row written at the end of a
+  // successful run.
+  //
+  // Costs nothing and is metered nothing: no Claude call, no rate-limit spend.
+  // It sits after the access check on purpose — a stranger must not be able to
+  // read a result by guessing an id — and before the rate limiter, because being
+  // out of generation quota is exactly when you most need the one you paid for.
+  if (raw.action === "recover") {
+    if (!requestId) return json({ error: "requestId required", code: "request_id_required" }, 400);
+    const { data } = await sb
+      .from("tool_usage")
+      .select("meta, created_at")
+      .eq("tool_key", TOOL_KEY)
+      .eq("event_type", "generation_result")
+      .eq("location_id", locationId)
+      .contains("meta", { requestId })
+      .order("created_at", { ascending: false })
+      .limit(1)
+      .maybeSingle();
+    const result = (data?.meta as { result?: unknown } | null)?.result ?? null;
+    return json({ result, createdAt: data?.created_at ?? null });
+  }
+
   const rl = await checkRateLimit(sb, {
     toolKey: TOOL_KEY,
     clientKey: locKey(locationId),
@@ -608,11 +643,34 @@ Deno.serve(async (req: Request) => {
     },
   };
 
-  return json({
+  const result = {
     language: lang,
     adScript: parsed.adScript,
     adCopy: parsed.adCopy,
     funnel: parsed.funnel,
     automationMessages,
-  });
+  };
+
+  // Park the finished result so a browser that walked away can still collect it
+  // (see the `recover` branch above). Written AFTER the generation, unlike the
+  // metering row at the top, which is written before — the meter charges for the
+  // attempt, this stores what the attempt produced.
+  //
+  // Two independent reasons this cannot double-charge the customer's quota:
+  // `checkRateLimit` above filters on `eventType: "generation"` and this row is
+  // `generation_result`; and it carries NO `client_key`, which is the other
+  // dimension the limiter counts on. The admin usage overview likewise filters
+  // `event_type` ("generation" / "posted"), so this stays out of the stats.
+  // Skipped entirely when the client sent no requestId — an unkeyed row could
+  // never be matched back to its browser, so it would be dead weight.
+  if (requestId) {
+    await logToolUsage(sb, {
+      tool_key: TOOL_KEY,
+      event_type: "generation_result",
+      location_id: locationId,
+      meta: { language: lang, requestId, result },
+    });
+  }
+
+  return json(result);
 });

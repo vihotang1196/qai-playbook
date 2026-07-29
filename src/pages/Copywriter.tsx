@@ -1,16 +1,66 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { Loader2, Sparkles, PenLine } from "lucide-react";
 import { toast } from "sonner";
 import { Survey } from "@/components/copywriter/Survey";
 import { Results } from "@/components/copywriter/Results";
 import OpenFromQai from "@/components/OpenFromQai";
-import { generateCopy } from "@/lib/copywriter/api";
+import { generateCopy, recoverCopy } from "@/lib/copywriter/api";
 import { resolveLocationId } from "@/lib/ghl";
 import { useLang } from "@/i18n/LanguageContext";
 import { T, type Language } from "@/lib/copywriter/i18n";
 import type { GenerateResult, SurveyInput } from "@/lib/copywriter/types";
 
 type Stage = "survey" | "loading" | "result";
+
+/**
+ * In-flight marker for a generation this browser started.
+ *
+ * The expensive moment is not "customer comes back tomorrow" — recovery already
+ * covers that. It is the customer who refreshes at 60 seconds, lands on a blank
+ * questionnaire, assumes it broke, and hits Generate again. The first run is
+ * still executing and still billable; the second one doubles the cost for one
+ * piece of copy. This marker is what stops the page from looking like nothing
+ * ever happened.
+ *
+ * Deliberately localStorage, not React state: its whole job is to outlive the
+ * page. Cleared on success AND on definite failure — a marker left behind after
+ * a real error would block the retry the customer is entitled to.
+ */
+const INFLIGHT_KEY = "qai_copy_inflight";
+/** Past this, treat the attempt as lost and let the customer start over. Real
+ *  runs land around 2 minutes; this leaves generous headroom without stranding
+ *  anyone behind a disabled button forever. */
+const INFLIGHT_TTL_MS = 4 * 60_000;
+
+type Inflight = { requestId: string; startedAt: number };
+
+function readInflight(): Inflight | null {
+  try {
+    const raw = localStorage.getItem(INFLIGHT_KEY);
+    if (!raw) return null;
+    const v = JSON.parse(raw) as Inflight;
+    if (!v?.requestId || typeof v.startedAt !== "number") return null;
+    if (Date.now() - v.startedAt > INFLIGHT_TTL_MS) {
+      localStorage.removeItem(INFLIGHT_KEY);
+      return null;
+    }
+    return v;
+  } catch {
+    return null;
+  }
+}
+
+const writeInflight = (v: Inflight) => {
+  try {
+    localStorage.setItem(INFLIGHT_KEY, JSON.stringify(v));
+  } catch { /* private mode — the guard is a courtesy, not a gate */ }
+};
+
+const clearInflight = () => {
+  try {
+    localStorage.removeItem(INFLIGHT_KEY);
+  } catch { /* see above */ }
+};
 
 /**
  * QAI Ad & Funnel Copy Generator — self-contained mini-app on /copywriter.
@@ -33,17 +83,77 @@ const Copywriter = () => {
   const { lang: uiLang } = useLang();
   const [locationId] = useState<string>(() => resolveLocationId());
 
+  // A generation this browser started and never saw finish, if there is one.
+  const [inflight, setInflight] = useState<Inflight | null>(() => readInflight());
+  const [checking, setChecking] = useState(false);
+
+  // Expire the marker on its own so the disabled Generate button can never
+  // become permanent — the customer gets the questionnaire back at the TTL
+  // whether or not anything is polling.
+  useEffect(() => {
+    if (!inflight) return;
+    const left = INFLIGHT_TTL_MS - (Date.now() - inflight.startedAt);
+    if (left <= 0) {
+      clearInflight();
+      setInflight(null);
+      return;
+    }
+    const id = setTimeout(() => {
+      clearInflight();
+      setInflight(null);
+    }, left);
+    return () => clearTimeout(id);
+  }, [inflight]);
+
   const run = async (input: SurveyInput) => {
+    const requestId =
+      globalThis.crypto?.randomUUID?.() ?? `${Date.now()}-${Math.random().toString(36).slice(2)}`;
+    // Marked BEFORE the call, not after: the whole point is to survive a reload
+    // that happens while the request is still in the air.
+    writeInflight({ requestId, startedAt: Date.now() });
+    setInflight({ requestId, startedAt: Date.now() });
     setLastInput(input);
     setStage("loading");
     try {
-      const r = await generateCopy(input, locationId);
+      const r = await generateCopy(input, locationId, requestId);
+      clearInflight();
+      setInflight(null);
       setResult(r);
       setStage("result");
     } catch (e) {
+      // A definite failure releases the marker — the customer is owed a retry.
+      // (A reload never reaches this branch, which is exactly why the marker
+      // outlives it.)
+      clearInflight();
+      setInflight(null);
       const msg = e instanceof Error ? e.message : "Generation failed";
       toast.error(msg);
       setStage("survey");
+    }
+  };
+
+  /** "Check result" — collect a generation that finished while we were away. */
+  const checkInflight = async () => {
+    if (!inflight || checking) return;
+    setChecking(true);
+    try {
+      const r = await recoverCopy(locationId, inflight.requestId);
+      if (r) {
+        clearInflight();
+        setInflight(null);
+        setResult(r);
+        setLastInput((prev) => prev ?? ({ language: r.language } as SurveyInput));
+        setStage("result");
+        toast.success(uiLang === "cn" ? "已找回上次生成的文案" : "Recovered your last generation");
+      } else {
+        toast.message(
+          uiLang === "cn"
+            ? "还没生成好，请再等一下"
+            : "Not ready yet — give it a little longer",
+        );
+      }
+    } finally {
+      setChecking(false);
     }
   };
 
@@ -65,7 +175,18 @@ const Copywriter = () => {
 
   return (
     <main className="pt-24 pb-20">
-      {stage === "survey" && <Survey onSubmit={run} />}
+      {/* The reload landing pad. Without this the customer sees a blank
+          questionnaire and reasonably concludes it failed — then pays a second
+          time for copy the first run is still producing. */}
+      {stage === "survey" && inflight && (
+        <InflightNotice
+          uiLang={uiLang}
+          startedAt={inflight.startedAt}
+          checking={checking}
+          onCheck={checkInflight}
+        />
+      )}
+      {stage === "survey" && <Survey onSubmit={run} disabled={!!inflight} />}
       {stage === "loading" && <LoadingView lang={lang} />}
       {stage === "result" && result && (
         <Results
@@ -81,6 +202,55 @@ const Copywriter = () => {
     </main>
   );
 };
+
+/** Shown above the questionnaire when a generation this browser paid for is
+ *  still unaccounted for. Names the elapsed time so the wait feels finite. */
+function InflightNotice({
+  uiLang,
+  startedAt,
+  checking,
+  onCheck,
+}: {
+  uiLang: "cn" | "en";
+  startedAt: number;
+  checking: boolean;
+  onCheck: () => void;
+}) {
+  const [now, setNow] = useState(Date.now());
+  useEffect(() => {
+    const id = setInterval(() => setNow(Date.now()), 1000);
+    return () => clearInterval(id);
+  }, []);
+  const secs = Math.max(0, Math.round((now - startedAt) / 1000));
+
+  return (
+    <div className="mx-auto mb-6 max-w-3xl rounded-2xl border-2 border-[#141414] bg-[#fed50a]/15 px-5 py-4">
+      <div className="flex items-start gap-3">
+        <Loader2 className="mt-0.5 h-5 w-5 shrink-0 animate-spin text-[#141414]" />
+        <div className="min-w-0 flex-1">
+          <p className="text-sm font-semibold text-[#141414]">
+            {uiLang === "cn"
+              ? `上次生成还在进行中（已等待 ${secs} 秒）`
+              : `Your last generation is still running (${secs}s so far)`}
+          </p>
+          <p className="mt-1 text-sm text-muted-foreground">
+            {uiLang === "cn"
+              ? "它在服务器上继续跑，不会因为你刷新而丢失。请不要重新生成 —— 那会再收一次费。"
+              : "It keeps running on the server and is not lost by refreshing. Please don't generate again — that would charge you a second time."}
+          </p>
+          <button
+            onClick={onCheck}
+            disabled={checking}
+            className="mt-3 inline-flex h-9 items-center gap-1.5 rounded-xl border-2 border-[#141414] bg-white px-4 text-sm font-semibold text-[#141414] disabled:opacity-50"
+          >
+            {checking && <Loader2 className="h-4 w-4 animate-spin" />}
+            {uiLang === "cn" ? "检查结果" : "Check for result"}
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
 
 function LoadingView({ lang }: { lang: Language }) {
   const t = T[lang];

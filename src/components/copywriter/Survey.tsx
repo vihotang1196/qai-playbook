@@ -56,7 +56,15 @@ const groupCls = (v: string) =>
     ? "rounded-2xl border border-[#141414] p-1.5"
     : "rounded-2xl border border-[#141414] p-1.5";
 
-export function Survey({ onSubmit }: { onSubmit: (data: SurveyInput) => void }) {
+export function Survey({
+  onSubmit,
+  /** Held down while a generation this browser started is still unaccounted for.
+   *  Submitting again would start a second billable run for the same copy. */
+  disabled = false,
+}: {
+  onSubmit: (data: SurveyInput) => void;
+  disabled?: boolean;
+}) {
   const [data, setData] = useState<SurveyInput>(DEFAULT);
   const [hydrated, setHydrated] = useState(false);
 
@@ -324,7 +332,7 @@ export function Survey({ onSubmit }: { onSubmit: (data: SurveyInput) => void }) 
         </section>
 
         <div className="flex justify-end pt-2">
-          <Button onClick={() => onSubmit(data)} disabled={!canSubmit} size="lg">
+          <Button onClick={() => onSubmit(data)} disabled={!canSubmit || disabled} size="lg">
             <Sparkles className="mr-2 h-4 w-4" />
             {t.submit}
           </Button>
