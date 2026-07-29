@@ -652,12 +652,25 @@ separate ticket / lunch / SST lines.
 | `oe_settings.sst_rate` | `0.08` | Stored as a STRING decimal → `Number(x)*100` for display, and skip the label when 0. |
 | `oe_settings.lunch_price` | `39.99` | |
 
-**0 test bookings awaiting cleanup.** The owner deleted every historical test
-booking on 2026-07-29 (the original 11 + the 3 from batch 5.5's A/B runs), so
-`freeSeatsUsed` for the test sub-account went to **0** and all their seats were
-released. The one remaining row is scenario C's `BK-Q6KW-JQ67GC` (pending,
-unpaid, G10 Seat 1–3, RM428.76) which the owner is cancelling. **Anything found
-in `oe_bookings` after this point is real, not test data.**
+**14 test bookings were ARCHIVED, not deleted (correction, 2026-07-29).** The
+previous note here said the owner had deleted them; batch 5 found them alive:
+`listBookings` reported `archivedCount = 14` (the original 11 + batch 5.5's 3),
+and `getEventSeatmap` showed **26 seats still locked**, 23 of them held by those
+archived rows. Archiving hides a booking and stops its check-in; it does NOT
+release seats or delete anything (that is batch 7a). The free-seat *allowance*
+did read as freed, because `freeSeatsUsedFor` excludes archived rows — which is
+exactly why the archive looked like a delete from the outside.
+
+Current test data (all on event `74753c55`, all in the archive unless noted):
+- the original 11 + `BK-DVJP-62825Y`, `BK-FZFO-RWMWEX`, `BK-ASHP-O75KRS`
+  (batch 5.5's A/B runs — `BK-ASHP` is the run whose code was missing, now known).
+- `BK-Q6KW-JQ67GC` — scenario C, **NOT archived**, pending, holds G10 Seat 1–3.
+- `BK-OKFM-8AE7F8` — batch 5 test data (free manual add, G3 Seat 2–3), archived.
+- `BK-OJKF-YH6BFL` — batch 5 test data, **deleted** while verifying the tier-B
+  delete path end to end (the only row batch 5 removed).
+
+To actually clear test data + free seats, delete them (archive modal → tier A/B)
+or cancel them; archiving alone leaves the seats locked.
 
 ### ⚠️ Ordering trap for a temporary allowance change (used in 5.5, reuse in 7b)
 
@@ -767,16 +780,32 @@ session in `localStorage` across sessions, so "a fresh browser" is NOT anonymous
 — check for the `sb-<ref>-auth-token` key and stash it before any customer-side
 verification, or an admin bypass will be mistaken for a working gate.
 
+**5 — DONE, awaiting acceptance** (acf2b80 backend, bf09e1c the gate, 577fde0 the
+UI; `offline-event-admin` redeployed). Main list is live-only with multi-select
+bulk archive; the archive is a modal behind 「已归档（N）」(shown even at 0) and is
+the ONLY place permanent delete exists — the detail modal's delete entry is gone.
+`requiresHardDeleteGate` in `src/lib/offlineEventDelete.ts` is the single decision
+point (inverted: tier B only when provably money-free AND never attended), unit
+tested, and reused by bulk archive's skip test so "did money touch this?" has one
+answer. Verified live: no delete entry on the list or detail (no trash icon in the
+DOM); bulk archive of 3 rows archived 2 and skipped the payment-traced one with
+the toast; bulk delete of all 16 archived rows refused the batch and named the 12
+tier-A rows; tier A kept its confirm button disabled for a wrong and a partial
+code and enabled it only on an exact match (not executed); tier B showed a plain
+confirm and its delete completed (`BK-OJKF-YH6BFL`). Empty state rendered with the
+list response stubbed empty in the browser (no data touched) — a live empty
+archive needs the 15 remaining rows cleared first.
+
 **To do — ORDER REVISED 2026-07-29 by the owner (7a jumps ahead of 6):**
-1. **5** — archive in its own modal + the two-tier permanent-delete gate, plus
-   multi-select archive / multi-select delete.
-2. **7a** — archive RELEASES the seats; un-archive re-books by manually picking
+1. **7a** — archive RELEASES the seats; un-archive re-books by manually picking
    from the seats still available. Split out of batch 7 and pulled forward,
    because archiving that silently keeps seats locked is the more damaging half.
-3. **6** — 10-minute pending timeout + `sessions.expire()` + cron.
-4. **7b** — the credit/allowance ledger (the big one), including the two
+   **Confirmed in the wild during batch 5:** the owner archived 14 test bookings
+   believing they were deleted, and 23 seats stayed locked behind them.
+2. **6** — 10-minute pending timeout + `sessions.expire()` + cron.
+3. **7b** — the credit/allowance ledger (the big one), including the two
    ticket-vs-seat problems below.
-5. **8** — UI polish + the change-date warning + the `deleteEvent` orphan fix.
+4. **8** — UI polish + the change-date warning + the `deleteEvent` orphan fix.
 
 **Batch 7b backlog — the two allowance traps found in batch 5.5 (read these
 FIRST, they change what the ledger must model):**
