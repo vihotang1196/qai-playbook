@@ -931,10 +931,16 @@ nothing, so the count now excludes them.
    and fix the wording with it.
 
 **Batch 6 backlog:**
+- **`pg_cron` + `pg_net` are ENABLED (owner, 2026-07-29).** ⚠️ `pg_net` lives in
+  the **`extensions`** schema, not `public` — the cron migration must call
+  `extensions.net.http_post(...)` by full path. Do not rely on `search_path`:
+  `cron.schedule` runs the job outside any session you control, so an unqualified
+  `net.http_post` fails at run time, not at migration time (i.e. silently, on a
+  schedule, where nobody is watching).
 - `stripe.checkout.sessions.expire()` whenever a booking is cancelled or its
-  seats are released. Today the session outlives the cancellation by ~32 min, so
-  a customer who returns to that tab and pays produces "booking cancelled but the
-  money arrived". `sweepStalePending` and the admin cancel path both need it.
+  seats are released. **Done for the sweep path in commit 1 of batch 6**; the
+  ADMIN cancel path still leaves the session payable for up to ~32 min, so
+  "booking cancelled but the money arrived" is still reachable there.
 - `createCheckout` should pass Stripe `locale` and switch line-item names to the
   fixed bilingual single strings (the deferred receipt-language decision above).
 - 🔴 **Capacity — REVISED 2026-07-29, do NOT do the original version.** The old
@@ -1001,6 +1007,13 @@ RPC: `try_book_seats`→`oe_claim_seats` (seat-level atomic).
   untouched (never read or print the token itself). Batch 5.5 learned this the
   expensive way: one scenario ran with the owner's session live and had to be
   re-run, leaving a stray test booking behind.
+- **To test anything about PENDING bookings, burn the free allowance first.**
+  `max_seats_per_booking` and the test account's `free_seats` are both **4**, so
+  while the allowance is untouched every booking comes out fully free →
+  `total = 0` → no Stripe session → **no pending row exists to test with**. Make
+  one free booking that eats the allowance down (e.g. 3 seats), then book again:
+  that one is part-paid and lands as `pending` with a live session. Batches 5.5
+  and 6 both walked into this; there is no need for a third time.
 - Commit + push after every phase (owner lost unpushed work once).
 - DB: dry-run then apply; only ADD oe_ tables; never touch other tools' tables.
 - Backend keys (Stripe, GHL, Anthropic) only in Supabase Edge secrets (owner sets).

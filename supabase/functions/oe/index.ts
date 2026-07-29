@@ -135,49 +135,106 @@ async function freeSeatsUsedFor(sb: SB, locationId: string): Promise<number> {
 }
 
 // ── Release stale PENDING bookings (no-webhook seat cleanup) ────────────────
-// Without a Stripe webhook, an unpaid checkout would hold its seats forever.
-// Instead we sweep lazily: whenever someone views a seat map (by event) or
-// starts a booking (by location), any pending booking older than the checkout
-// window is reconciled. We VERIFY with Stripe before releasing — a stale
-// pending that actually got PAID (customer closed the return page before it
-// confirmed) is promoted to confirmed instead of cancelled. This doubles as a
-// lightweight missed-order safety net; a real webhook can be added later.
-const HOLD_STALE_MINUTES = 35; // > the ~32-min Stripe session expiry set below
+// Without a Stripe webhook, an unpaid checkout would hold its seats forever. So
+// any pending booking older than HOLD_STALE_MINUTES gets reconciled, both lazily
+// (someone views a seat map / starts a booking) and on a schedule (batch 6's cron
+// calls `sweepAll`, so an event nobody is browsing still frees its seats).
+//
+// ORDER MATTERS — retrieve, then expire, then release (batch 6):
+//   1. RETRIEVE the session and look at payment_status. Paid → promote to
+//      confirmed and touch nothing else. This doubles as the missed-order safety
+//      net (customer closed the return page before it confirmed).
+//   2. Not paid → EXPIRE the session first. Seats are held 10 minutes but Stripe
+//      refuses an `expires_at` under 30 minutes, so for ~20 minutes a session we
+//      have given up on is still payable. Releasing the seats before killing the
+//      session is how "seats resold, then the original customer pays" happens.
+//   3. Only once the session is provably dead do we free the seats.
+//
+// ANY Stripe call that fails means we SKIP this booking and leave it pending for
+// the next round. Treating an unreachable Stripe as "unpaid" (what this used to
+// do) means a blip releases the seats of a booking that was actually paid — and
+// at a 10-minute window with a 2-minute cron, blips get many chances.
+const HOLD_STALE_MINUTES = 10;
+// Per round. Each row costs 1–2 sequential Stripe calls and edge functions die at
+// 150s, so a backlog must be drained over several rounds rather than one long one.
+const SWEEP_LIMIT = 50;
+
+export type SweepResult = { scanned: number; confirmed: number; released: number; skipped: number };
 
 // deno-lint-ignore no-explicit-any
-async function sweepStalePending(sb: SB, filter: { eventId?: string; locationId?: string }): Promise<void> {
+async function sweepStalePending(
+  sb: SB,
+  filter: { eventId?: string; locationId?: string },
+): Promise<SweepResult> {
+  const out: SweepResult = { scanned: 0, confirmed: 0, released: 0, skipped: 0 };
   const cutoff = new Date(Date.now() - HOLD_STALE_MINUTES * 60 * 1000).toISOString();
-  let q = sb.from("oe_bookings").select("id, stripe_session_id").eq("status", "pending").lt("created_at", cutoff);
+  let q = sb
+    .from("oe_bookings")
+    .select("id, booking_id, stripe_session_id")
+    .eq("status", "pending")
+    .lt("created_at", cutoff)
+    .order("created_at", { ascending: true }) // oldest first: they hold seats longest
+    .limit(SWEEP_LIMIT);
   if (filter.eventId) q = q.eq("event_id", filter.eventId);
   if (filter.locationId) q = q.eq("ghl_location_id", filter.locationId);
   const { data } = await q;
   const rows = data ?? [];
-  if (!rows.length) return; // common case: nothing stale, zero Stripe calls
+  out.scanned = rows.length;
+  if (!rows.length) return out; // common case: nothing stale, zero Stripe calls
+
+  const release = async (id: string, note: string) => {
+    // booked_seats cascade-delete with the row, but delete explicitly so seats
+    // free immediately even though we keep the (cancelled) booking for history.
+    await sb.from("oe_booked_seats").delete().eq("booking_id", id);
+    await sb
+      .from("oe_bookings")
+      .update({ status: "cancelled", payment_note: note, updated_at: new Date().toISOString() })
+      .eq("id", id)
+      .eq("status", "pending");
+    out.released++;
+  };
 
   // deno-lint-ignore no-explicit-any
   let stripe: any = null;
   for (const r of rows) {
-    let paid = false;
-    if (r.stripe_session_id) {
-      try {
-        if (!stripe) stripe = (await resolveOeStripe(sb)).stripe;
-        const s = await stripe.checkout.sessions.retrieve(r.stripe_session_id);
-        paid = s?.payment_status === "paid" || s?.status === "complete";
-      } catch { /* unknown → treat as unpaid, release below */ }
+    // No session at all — createCheckout deletes the booking when session
+    // creation fails, so this is a row that can never be paid. Nothing to
+    // verify and nothing to expire; holding its seats forever is the worse bug.
+    if (!r.stripe_session_id) {
+      await release(r.id, "No checkout session (auto-released)");
+      continue;
     }
-    if (paid) {
-      await sb.from("oe_bookings")
-        .update({ status: "confirmed", payment_note: "Reconciled (paid, late)", updated_at: new Date().toISOString() })
-        .eq("id", r.id).eq("status", "pending");
-    } else {
-      // booked_seats cascade-delete with the row, but delete explicitly so seats
-      // free immediately even though we keep the (cancelled) booking for history.
-      await sb.from("oe_booked_seats").delete().eq("booking_id", r.id);
-      await sb.from("oe_bookings")
-        .update({ status: "cancelled", payment_note: "Payment not completed (auto-released)", updated_at: new Date().toISOString() })
-        .eq("id", r.id).eq("status", "pending");
+
+    try {
+      if (!stripe) stripe = (await resolveOeStripe(sb)).stripe;
+      const s = await stripe.checkout.sessions.retrieve(r.stripe_session_id);
+      const paid = s?.payment_status === "paid" || s?.status === "complete";
+      if (paid) {
+        await sb
+          .from("oe_bookings")
+          .update({ status: "confirmed", payment_note: "Reconciled (paid, late)", updated_at: new Date().toISOString() })
+          .eq("id", r.id)
+          .eq("status", "pending");
+        out.confirmed++;
+        continue;
+      }
+      // Kill the session BEFORE the seats go back on sale. An already-expired
+      // session needs no call — expiring it again just errors.
+      if (s?.status !== "expired") {
+        await stripe.checkout.sessions.expire(r.stripe_session_id);
+      }
+      await release(r.id, "Payment not completed (auto-released)");
+    } catch (e) {
+      // Retrieve failed, or expire failed → we do NOT know the money is safe, so
+      // the seats stay held and this row waits for the next round.
+      out.skipped++;
+      console.error("oe.sweepStalePending: skipped, Stripe call failed", {
+        bookingCode: r.booking_id,
+        error: e instanceof Error ? e.message : String(e),
+      });
     }
   }
+  return out;
 }
 
 // ── Shared booking plan: validate + price a request SERVER-SIDE ─────────────
@@ -665,7 +722,12 @@ serve(async (req) => {
             lineItems = lumped;
           }
 
-          const HOLD_SECONDS = 30 * 60; // seats held ~30 min during checkout
+          // Stripe's FLOOR for `expires_at` is 30 minutes — it rejects anything
+          // shorter. That is why this is 30 min while seats are only held
+          // HOLD_STALE_MINUTES (10). The gap is covered by the sweep explicitly
+          // calling sessions.expire() before it frees the seats; do NOT read this
+          // number as the seat-hold window.
+          const HOLD_SECONDS = 30 * 60;
           const session = await stripe.checkout.sessions.create({
             mode: "payment",
             line_items: lineItems,
