@@ -633,6 +633,16 @@ and has never been committed (only the placeholder `.env.example`).
 State that lived only in the working conversation is recorded here so a new
 session can resume without re-deriving it.
 
+### ⚠️ Standing ops reminder (do this every time, not once)
+
+**After changing the seat price, the lunch price or the SST rate in the admin,
+check the NEXT order's edge-function log** (Supabase → Functions → `oe` → Logs)
+for `itemised cent mismatch`. The Stripe summary silently falls back to the old
+lumped two-line layout when the per-line cents don't add up to the order total;
+the charge stays correct, so nothing else will ever tell you. A quicker read of
+the same signal: the Stripe page shows ONE "活动名 — N seat(s)" line instead of
+separate ticket / lunch / SST lines.
+
 ### Test-data baseline
 
 | Thing | Value | Note |
@@ -642,12 +652,22 @@ session can resume without re-deriving it.
 | `oe_settings.sst_rate` | `0.08` | Stored as a STRING decimal → `Number(x)*100` for display, and skip the label when 0. |
 | `oe_settings.lunch_price` | `39.99` | |
 
-**11 test bookings awaiting cleanup** (all on event `74753c55`, 8 confirmed /
-1 pending / 2 cancelled):
+**14 test bookings awaiting cleanup** (11 + 3 added by batch 5.5; all on event
+`74753c55`):
 `BK-AYZT-Z6Q44Y` · `BK-A64O-PZM4MN` · `BK-8YC1-KNVYK8` · `BK-NOC3-W5VZTN` ·
 `BK-P34G-G266QR` · `BK-M9LE-S4IXQF` · `BK-BNVU-BYX1V5` · `BK-12B0-3WTICC` ·
 `BK-RNZF-05DQ7M` · `BK-MHZO-IQQK9J` (manual add, G1 Seat 1) ·
 **`BK-O7PA-GESM02` — pending, unpaid, still holding G1 Seat 3.**
+
+Added 2026-07-29 by the batch 5.5 checkout tests (all unpaid; the lazy
+`sweepStalePending` cancels them ~35 min after creation and frees the seats):
+- **`BK-DVJP-62825Y`** — scenario A, `batch55-a@example.com`, G2 Seat 3, RM428.76.
+- **`BK-FZFO-RWMWEX`** — scenario B, `batch55-b@example.com`, G6 Seat 2 + G6
+  Seat 4 + 2 lunch, RM943.90.
+- One earlier scenario-A run whose code was not captured: `batch55-a@example.com`,
+  **G2 Seat 1**, RM428.76, created ~01:45Z. Identify it by seat + email in the
+  Admin Portal. (It ran while an owner admin session was still present in the
+  browser profile — see the anonymity note under batch 5.5's verification.)
 
 ### ⚠️ Ordering trap for batch 5.5's allowance change
 
@@ -660,11 +680,25 @@ cannot see it. Batch 7's ledger starts from this account, so a wrong starting
 point would be invisible.
 
 Correct order — do NOT restore the allowance first:
-1. raise `free_seats` 4 → 8 (temporarily)
-2. run the mixed-scenario checkout tests
-3. **clear/cancel those test bookings first**, so consumption drops back
-4. only then restore `free_seats` to 4
-5. immediately re-check that `freeSeatsRemaining` is back to 0
+0. MEASURE the real consumption first (`USED` = Σ `free_seats` length over this
+   location's `status != 'cancelled' AND is_archived = false` bookings). Never
+   assume it is 4: `freeSeatsRemaining = 0` only proves `USED >= 4`, because the
+   clamp hides an overspend.
+1. run the scenarios that need NO allowance (pure paid, paid + lunch) FIRST,
+   while remaining is still 0 — they are naturally pure-paid, and their
+   `free_seats` is `[]` so they do not move `USED`. Running them after the raise
+   would silently eat the free seat meant for the mixed test.
+2. raise `free_seats` to **`USED + 1`** — NOT to 8. `max_seats_per_booking` is 4,
+   so a remaining allowance of 4 makes every booking fully free (`total = 0`),
+   which never even reaches Stripe: the mixed scenario becomes untestable.
+   `USED + 1` leaves exactly one free seat, so a 2-seat booking is 1 free + 1 paid.
+3. run the mixed-scenario checkout test immediately after the raise
+4. **clear/cancel those test bookings first**, so consumption drops back
+   (`freeSeatsUsedFor` only excludes `cancelled` and `is_archived` — an unpaid
+   pending booking still consumes)
+5. only then restore `free_seats` to 4
+6. immediately re-check that `freeSeatsRemaining` is back to 0 AND that `USED`
+   equals the step-0 figure
 
 ### Design decisions already settled (don't relitigate)
 
@@ -674,10 +708,24 @@ Correct order — do NOT restore the allowance first:
   (`title_zh || display_label`, the fallback because display_label is NOT NULL,
   so a ticket can't print blank); the date/time render from the live event,
   because the customer must be told the day they should actually turn up.
-- **Receipt language:** Stripe's UI follows the customer (`locale`), but line-item
-  names are FIXED bilingual single strings ("付费座位 Paid seats" etc.) with the
-  event name from `title_zh`. A receipt is a financial record and must not change
-  shape because someone toggled the language.
+- **Receipt language — DEFERRED to batch 6, NOT built.** The settled shape is:
+  Stripe's UI follows the customer (`locale`), but line-item names are FIXED
+  bilingual single strings ("付费座位 Paid seats" etc.) with the event name from
+  `title_zh`, because a receipt is a financial record and must not change shape
+  because someone toggled the language. Batch 5.5 shipped **Chinese-only** names
+  and passes no `locale`; the bilingual conversion is a batch 6 item.
+- **Itemised Stripe summary + the cent check.** `createCheckout` builds one line
+  per real component (paid tickets `unit × qty`, free tickets at 0, lunch, SST
+  with the percentage derived from `sstRate`). A 0-amount line IS accepted by
+  Stripe when the session total is > 0 — verified 2026-07-29 against the sandbox
+  API with a throwaway probe function (`cs_test_…`, expired immediately), so
+  nobody needs to test that again. The itemised lines are only used if they add
+  up to `Math.round(total * 100)`; otherwise we log and charge the OLD lumped
+  shape. At today's prices (397 / 39.99, whole cents) the check can never
+  trigger — it exists for a future price with sub-cent decimals (RM33.333/seat:
+  `round(3333.3) × 3 ≠ round(9999.9)`). **The fallback is SILENT** — the customer
+  just sees the old two-line layout, the total is still right, and nothing
+  errors, so no one will notice on their own. See the ops reminder below.
 - **Permanent-delete tier A/B uses an inverted test** — tier B (weak confirm) only
   when we can PROVE the booking never touched money; anything else gets tier A.
   `status === 'confirmed'` alone is wrong: a paid-then-cancelled booking reads
@@ -696,9 +744,38 @@ start/end_time) · 1.5 (title_zh/title_en) · 2 (structured event form) · 3a
 (customer card: real title, generated date, theme tag) · 3b (snapshot fields take
 title_zh) · 4 (roomier rows, per-row archive, date filter, orphan sentinel).
 
-**To do:** 5 (archive modal, permanent delete moves inside it) · 5.5 (Stripe
-order summary + the card's "另加 8% SST" label) · 6 (10-min release + Stripe
-session expire + cron) · 7 (credit ledger — the big one) · 8 (polish).
+**5.5 — code DONE (b52f96a itemised Stripe summary, 5c08fdf card hint + page
+summary), deployed, scenarios A and B verified anonymously. Scenario C (free +
+paid mix) is NOT verified yet** — it needs the temporary `free_seats` raise, and
+the agent doing the work had no privileged DB path (no service-role key locally,
+CLI credentials live in the Windows credential manager, no arbitrary-SQL CLI
+subcommand). Owner action required: run steps 0/2 → C → 4/5/6 of the ordering
+trap above from the Admin Portal, or hand over a way to run the exact SQL.
+
+Verified 2026-07-29 (anonymous, no admin session):
+| Scenario | Stripe lines | Σ cents | `oe_bookings.total` |
+|---|---|---|---|
+| A — 1 paid seat | 门票 397.00 · SST 8% 31.76 | 42876 | 428.76 ✓ |
+| B — 2 seats + 2 lunch | 门票 2×397.00 · 午餐 2×39.99 · SST 8% 69.92 | 94390 | 943.90 ✓ |
+
+Both matched `Math.round(total * 100)` exactly, and the itemised (not lumped)
+layout on the Stripe page is itself proof the cent check did not fall back.
+**Anonymity trap:** the Claude browser pane persists a logged-in Supabase
+session in `localStorage` across sessions, so "a fresh browser" is NOT anonymous
+— check for the `sb-<ref>-auth-token` key and stash it before any customer-side
+verification, or an admin bypass will be mistaken for a working gate.
+
+**To do:** 5 (archive modal, permanent delete moves inside it) · 6 (10-min
+release + Stripe session expire + cron) · 7 (credit ledger — the big one) ·
+8 (polish).
+
+**Batch 6 backlog:**
+- `stripe.checkout.sessions.expire()` whenever a booking is cancelled or its
+  seats are released. Today the session outlives the cancellation by ~32 min, so
+  a customer who returns to that tab and pays produces "booking cancelled but the
+  money arrived". `sweepStalePending` and the admin cancel path both need it.
+- `createCheckout` should pass Stripe `locale` and switch line-item names to the
+  fixed bilingual single strings (the deferred receipt-language decision above).
 
 **Batch 8 backlog:** the change-date warning; and `deleteEvent` still permits
 deleting an event whose bookings are all cancelled, which orphans them via
