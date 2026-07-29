@@ -972,21 +972,67 @@ deleting an event whose bookings are all cancelled, which orphans them via
 `ON DELETE SET NULL` — the sturdier fix is to forbid deleting any event with
 bookings at all and archive events instead.
 
-### Remaining before launch (owner's list)
+### Launch order (owner's list, REVISED 2026-07-29 — follow the numbers)
 
+1. [ ] **Batch 6 commits 2–5** (sweepAll + secret, cron migration, capacity,
+       the 10-minute notice on the payment tab).
+2. [ ] **Batch 7b** — the credit/allowance ledger (read its backlog above first).
+3. [ ] **Batch 8** — polish + the change-date warning + the `deleteEvent` orphan fix
+       + the `seats_unavailable` error-code split.
+4. [ ] **H** — customer navbar → icons + hover labels (also eases the half-screen crush).
+5. [ ] **Clear ALL test data — genuinely delete it.** Every row in `oe_bookings`
+       today is test data (19 cancelled + batch 6's own). Archiving is NOT enough
+       and cancelling is NOT enough: `oe_bookings` AND `oe_booked_seats` must both
+       come out empty. Use the Admin bulk actions (archive → 已归档 modal → bulk
+       delete); do NOT type booking codes 19 times — the tier-A typed-code gate
+       exists for real paid orders, not for clearing test data. Keep the Notion KB.
+6. [ ] **Confirm the Copywriter works before merging** — reachable from the nav,
+       and actually functional (not a 404, not a blank screen, not a missing env
+       var). It merges to `main` TOGETHER with Offline Event, not in a second pass.
+7. [ ] **Merge to `main`** + deploy `playbook.qiai.tech`.
+8. [ ] **GHL menu links → the real domain** (still only for the test sub-account).
+9. [ ] **Run one complete payment on the real domain, still in TEST mode.**
+10. [ ] 🔴 **Stripe Sandbox → Live** — see the checklist below. A step of its own;
+        do not fold it into any other cleanup.
+11. [ ] **Open it to everyone** + 「全部开启」.
+
+Still open, slot in where convenient (not gating):
 - [ ] **C** — make the Admin Portal 归档 entry obvious (owner archived one item and
-      couldn't find it, thought it was broken).
+      couldn't find it, thought it was broken). Partly addressed by batch 5's
+      「已归档（N）」button; re-check with the owner.
 - [ ] **G** — customer "设为默认页": show the current default + allow clear/change.
-- [ ] **H** — customer navbar → icons + hover labels (also eases the half-screen crush).
-- [ ] **J** — clear test data (list → owner confirms → delete). Keep the Notion KB.
-      ⚠️ one archived order RM1,715 `BK-1QUH` is to be deleted.
 - [ ] **K** — full Notion sync (currently 53/1200) → `planVideoSteps` +
       `runVideoStepsBatch` (batch_size 2–3, never 5 — 150s edge limit; re-runs skip
       already-converted videos).
 - [ ] **B (partial)** — the 挂件品牌 placeholder is already gone (6e4aa97); still sweep
       for other 即将上线/TODO placeholders. The copywriter one is INTENTIONAL — leave it.
-- [ ] **Merge to `main`** + Vercel deploy, then GHL menu links for the test sub-account,
-      then "全部开启" = full launch.
+
+### 🔴 Stripe Sandbox → Live checklist (step 10; owner runs it with a consultant)
+
+**Do not switch this unprompted.** The owner will confirm with a consultant first.
+
+- [ ] a. All test data cleared (step 5 above) — a Live switch on top of test rows
+      means real money reconciling against junk.
+- [ ] b. Live keys set in **Supabase Edge secrets only** (`STRIPE_SECRET_KEY_LIVE`,
+      `STRIPE_WEBHOOK_SECRET_LIVE`). Never in `.env`, never in the frontend.
+- [ ] c. Know exactly what flips: keys are **platform-level** (one Stripe account,
+      one test/live pair shared by every tool), but each TOOL has its own mode
+      switch. Offline Event's is `oe_settings.stripe_payment_mode`
+      (`sandbox` | `live`), read live on every charge by `resolveOeStripe`, and
+      changed through the Admin Portal's mode switch (which refuses `live` unless
+      the live key is configured, and writes an audit row). Flipping it does not
+      touch any other tool.
+- [ ] d. Webhook endpoint pointed at Live if one is in use. Note: `oe-stripe-webhook`
+      is deployed but DORMANT — the money path today is the return page's
+      `confirmBooking` plus `sweepStalePending`, both of which verify against
+      Stripe with the secret key. If it stays dormant, say so explicitly rather
+      than assuming it covers anything.
+- [ ] e. First Live charge is a REAL card on a minimum-amount event (e.g. a
+      temporary RM1 event); confirm the money actually arrives.
+- [ ] f. Refund that charge in the Stripe dashboard and confirm the refund landed.
+      ⚠️ The app has no refund flow (that is batch 7b's territory), so the refund
+      happens in Stripe and the booking must be cancelled in the Admin separately.
+- [ ] Only after (f) succeeds: open it to everyone (step 11).
 
 ## oe_ table map (old → new; built in P1)
 `event_dates`→`oe_events` (+ per-event price) · `floor_plans`→`oe_floor_plans`
