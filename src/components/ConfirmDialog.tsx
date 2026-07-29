@@ -33,6 +33,10 @@ export type ConfirmDialogProps = {
   inputLabel?: string;
   inputDefaultValue?: string;
   inputPlaceholder?: string;
+  /** Present = the confirm button stays DISABLED until the field matches this
+   *  string (trimmed, case-insensitive). Used by the permanent-delete tier A
+   *  gate, where clicking "confirm" must not be possible by reflex. */
+  requireInputValue?: string;
   onConfirm: (inputValue: string) => void;
   onCancel: () => void;
 };
@@ -48,10 +52,14 @@ export default function ConfirmDialog({
   inputLabel,
   inputDefaultValue = "",
   inputPlaceholder,
+  requireInputValue,
   onConfirm,
   onCancel,
 }: ConfirmDialogProps) {
   const [value, setValue] = useState(inputDefaultValue);
+  const locked =
+    requireInputValue !== undefined &&
+    value.trim().toUpperCase() !== requireInputValue.trim().toUpperCase();
 
   // Reset the field each time the dialog opens, so a previous edit never leaks
   // into the next confirmation.
@@ -107,7 +115,7 @@ export default function ConfirmDialog({
               onChange={(e) => setValue(e.target.value)}
               placeholder={inputPlaceholder}
               onKeyDown={(e) => {
-                if (e.key === "Enter" && !busy) onConfirm(value);
+                if (e.key === "Enter" && !busy && !locked) onConfirm(value);
               }}
               className="mt-1 w-full h-10 rounded-xl border-2 border-[#141414]/30 bg-white px-3 text-sm outline-none focus:border-[#141414]"
             />
@@ -126,7 +134,7 @@ export default function ConfirmDialog({
           <button
             type="button"
             onClick={() => onConfirm(value)}
-            disabled={busy}
+            disabled={busy || locked}
             className={`flex-1 h-10 rounded-xl text-sm font-bold inline-flex items-center justify-center gap-1.5 disabled:opacity-60 ${
               danger
                 ? "bg-[#141414] text-[#fed50a]"
