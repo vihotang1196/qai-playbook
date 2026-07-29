@@ -40,6 +40,28 @@ import {
 } from "@/lib/offlineEvent";
 
 /**
+ * Extra bottom gap under the floating confirm bar WHEN FRAMED (GHL).
+ *
+ * The GHL desktop iframe is sized a little taller than the parent window's
+ * visible area, so `position: fixed` — which pins to the iframe's own viewport,
+ * not the parent's — puts the bar slightly below the fold. **This cannot be
+ * measured from inside**: the parent is cross-origin, so the iframe has no way to
+ * learn where the visible area actually ends. The value is therefore tuned by
+ * observation on a real device, not derived.
+ *
+ * Observed 2026-07-29 (owner, real GHL desktop): at a 20px gap the bar showed
+ * about HALF of its 125px height, so the shortfall is roughly 60–80px.
+ *
+ * Standalone desktop is NOT affected and keeps the 1.25rem gap — measured there
+ * at 1440×900 and 1920×1080, the confirm button already clears the viewport
+ * bottom by 34px. Do not "fix" the unframed case with this value.
+ *
+ * If the owner reports it is still short (or now overshoots), THIS LINE is the
+ * one to change.
+ */
+const IFRAME_BAR_BOTTOM_OFFSET = "6rem";
+
+/**
  * Offline Event — CUSTOMER booking page (`/events`).
  *
  * Identity = GHL location_id (trust-the-URL; resolveLocationId, same as Helpdesk).
@@ -443,6 +465,12 @@ function EventBooking({
   // dependency).
   const barRef = useRef<HTMLDivElement>(null);
   const [barHeight, setBarHeight] = useState(0);
+  // Framed or not never changes for the life of the page, so resolve it once
+  // rather than on every render (same pattern as `embeddedCancel` above).
+  const [framedBar] = useState(inIframe);
+  const barBottomGap = `calc(env(safe-area-inset-bottom, 0px) + ${
+    framedBar ? IFRAME_BAR_BOTTOM_OFFSET : "1.25rem"
+  })`;
   // No dependency array on purpose: this runs after EVERY render, which covers
   // every content-driven height change (the pill appearing, seat labels growing,
   // a language switch). The window listener covers the other cause — a viewport
@@ -478,15 +506,20 @@ function EventBooking({
   // hides (seats cleared / step change / booked) or this card unmounts.
   // The fixed bar renders in every context again (see the render below), so its
   // height must be reserved again in every context too.
+  //
+  // MEASURED, like the seat-area reservation below — this used to be a hardcoded
+  // 132px, which disagreed with the measured figure by 17px and, worse, could not
+  // follow the bar when the framed gap made it taller. One bar, one height, read
+  // from the same place.
   const barActive = phase === "selecting" && seatCount > 0 && !done;
   useEffect(() => {
     if (!barActive) return;
     const prev = document.body.style.paddingBottom;
-    document.body.style.paddingBottom = "132px";
+    document.body.style.paddingBottom = `${barHeight + 24}px`;
     return () => {
       document.body.style.paddingBottom = prev;
     };
-  }, [barActive]);
+  }, [barActive, barHeight]);
 
   // ── Paid-in-a-new-tab state (iframe only) ────────────────────────────────
   // Checkout runs in another tab, so this one must not sit frozen on "正在打开
@@ -919,25 +952,36 @@ function EventBooking({
           {/* Padding is MEASURED from the bar, not guessed. The bar is 1 or 2 rows
               depending on whether the free-ticket pill shows, and its text wraps
               on narrow screens — a fixed pb-32 was under the real height in the
-              two-row case, so the bar sat on top of the last row of seats. */}
+              two-row case, so the bar sat on top of the last row of seats.
+
+              ⚠️ `barHeight` is the outer div's offsetHeight, which ALREADY INCLUDES
+              its padding-bottom — so the framed gap is reserved here automatically
+              (measured 125px unframed → ~201px framed). Do NOT add
+              IFRAME_BAR_BOTTOM_OFFSET on top of this: that double-counts it and
+              opens a second gap the size of the first. */}
           <div style={{ paddingBottom: seatCount > 0 ? barHeight + 24 : 0 }}>{seatArea(true)}</div>
 
-          {/* Floating bar, portalled to <body>. SETTLED BY OBSERVATION in the
-              real GHL frame: this one IS visible there, so the iframe scrolls
-              internally and `fixed` correctly pins to the iframe's own viewport.
-              An inline bar was tried and removed — it landed below the tall
-              91-seat map, out of view. Portalled because the event card is
-              overflow-hidden and would clip a fixed child.
+          {/* Floating bar, portalled to <body>. An inline bar was tried and removed
+              — it landed below the tall 91-seat map, out of view (see PROGRESS; do
+              not revisit). Portalled because the event card is overflow-hidden and
+              would clip a fixed child.
 
-              The bottom gap is env(safe-area-inset-bottom) + 1.25rem: pb-4 alone
-              left the bar flush against the viewport edge, where a phone's home
-              indicator / browser chrome ate the bottom half of it and the confirm
-              button could not be tapped. */}
+              The bottom gap: env(safe-area-inset-bottom) + 1.25rem, because pb-4
+              alone left the bar flush against the viewport edge where a phone's
+              home indicator ate half of it.
+
+              FRAMED IS DIFFERENT (corrected 2026-07-29). The earlier note here said
+              the GHL frame scrolls internally so `fixed` pins correctly — that held
+              on mobile, where it was observed, but not on desktop: the desktop GHL
+              iframe runs slightly taller than the parent's visible area, so `fixed`
+              pins to a viewport bottom that sits just below the fold and the bar
+              shows about half. Hence IFRAME_BAR_BOTTOM_OFFSET, applied ONLY when
+              framed — standalone desktop measures fine and must not be touched. */}
           {seatCount > 0 && createPortal(
             <div
               ref={barRef}
               className="fixed bottom-0 left-0 right-0 z-40 px-3 sm:px-4 pointer-events-none"
-              style={{ paddingBottom: "calc(env(safe-area-inset-bottom, 0px) + 1.25rem)" }}
+              style={{ paddingBottom: barBottomGap }}
             >
               <div className="max-w-4xl mx-auto pointer-events-auto">{barInner}</div>
             </div>,
