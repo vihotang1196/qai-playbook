@@ -461,6 +461,9 @@ serve(async (req) => {
         const status = String(body?.status || "").trim();
         const locId = String(body?.locationId || "").trim();
         const includeArchived = body?.includeArchived === true;
+        // ONLY the archived ones — what the archive modal (batch 5) lists.
+        // Distinct from includeArchived, which means "both".
+        const archivedOnly = body?.archivedOnly === true;
         const limit = Math.min(500, Math.max(1, Math.floor(Number(body?.limit) || 200)));
         // Sanitize search so it can't break the PostgREST or() filter syntax.
         const search = String(body?.search || "").replace(/[^a-zA-Z0-9@._\- ]/g, "").trim();
@@ -468,10 +471,16 @@ serve(async (req) => {
         let q = sb
           .from("oe_bookings")
           .select(
-            "booking_id, email, phone, event_id, event_label, free_seats, addon_seats, lunch_qty, subtotal, sst_amount, total, status, payment_note, receipt_url, day1_status, day2_status, day1_checked_in_at, day2_checked_in_at, ghl_location_id, is_archived, created_at",
+            // payment_intent_id / stripe_session_id / archived_at are needed by
+            // requiresHardDeleteGate + the archive modal. The gate is an INVERTED
+            // test (tier B only when we can prove no money was involved), so a
+            // field missing here would silently downgrade the confirmation —
+            // never drop one without checking that function.
+            "booking_id, email, phone, event_id, event_label, free_seats, addon_seats, lunch_qty, subtotal, sst_amount, total, status, payment_note, payment_intent_id, stripe_session_id, receipt_url, day1_status, day2_status, day1_checked_in_at, day2_checked_in_at, ghl_location_id, is_archived, archived_at, created_at, oe_events(start_date, end_date)",
             { count: "exact" },
           );
-        if (!includeArchived) q = q.eq("is_archived", false);
+        if (archivedOnly) q = q.eq("is_archived", true);
+        else if (!includeArchived) q = q.eq("is_archived", false);
         // THREE distinct states, deliberately not two:
         //   ""          → no event filter at all. The default view MUST include
         //                 orphans (event_id IS NULL); that, not the dropdown
@@ -492,21 +501,30 @@ serve(async (req) => {
         const { data, error, count } = await q;
         if (error) throw error;
         // deno-lint-ignore no-explicit-any
-        const bookings = (data ?? []).map((b: any) => ({
-          ...b,
-          seats: [...((b.free_seats as string[]) ?? []), ...((b.addon_seats as string[]) ?? [])],
-        }));
+        const bookings = (data ?? []).map((b: any) => {
+          // Dates come from the LIVE event, never parsed out of event_label —
+          // event_label is the frozen snapshot NAME (batch 3a/3b). Orphaned rows
+          // (event_id IS NULL after a deleted event) simply have no dates.
+          const ev = b.oe_events ?? null;
+          const { oe_events: _drop, ...rest } = b;
+          return {
+            ...rest,
+            seats: [...((b.free_seats as string[]) ?? []), ...((b.addon_seats as string[]) ?? [])],
+            event_start_date: ev?.start_date ?? null,
+            event_end_date: ev?.end_date ?? null,
+          };
+        });
 
-        // How many bookings the ARCHIVE is currently hiding, under the same
-        // filters. Without this the list can only say "no results" when
-        // everything matching happens to be archived — which reads as broken
-        // (the owner archived a booking, couldn't find it, assumed a bug).
-        let aq = sb.from("oe_bookings").select("id", { count: "exact", head: true }).eq("is_archived", true);
-        if (eventId) aq = aq.eq("event_id", eventId);
-        if (status) aq = aq.eq("status", status);
-        if (locId) aq = aq.eq("ghl_location_id", locId);
-        if (search) aq = aq.or(`booking_id.ilike.%${search}%,email.ilike.%${search}%`);
-        const { count: archivedCount } = await aq;
+        // How many bookings are in the archive ALTOGETHER — the number on the
+        // 「已归档（N）」button, which opens a modal listing the whole archive.
+        // Deliberately NOT filtered by the list's event/status/search: the button
+        // is not describing this list, it is describing the archive, and a count
+        // that shrank with an unrelated filter would read as "my bookings are
+        // disappearing" (the owner archived one, couldn't find it, assumed a bug).
+        const { count: archivedCount } = await sb
+          .from("oe_bookings")
+          .select("id", { count: "exact", head: true })
+          .eq("is_archived", true);
 
         // So the UI can render the "未关联活动" option ONLY when such rows exist —
         // a permanent "0" option is noise, but a hidden one means an orphan could

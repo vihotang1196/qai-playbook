@@ -137,6 +137,10 @@ export type OeBookingRow = {
   total: number;
   status: OeBookingStatus;
   payment_note: string | null;
+  /** Payment traces — read by requiresHardDeleteGate (offlineEventDelete.ts).
+   *  Don't stop selecting these server-side without checking that gate. */
+  payment_intent_id: string | null;
+  stripe_session_id: string | null;
   receipt_url: string | null;
   day1_status: OeDayStatus;
   day2_status: OeDayStatus;
@@ -144,7 +148,12 @@ export type OeBookingRow = {
   day2_checked_in_at: string | null;
   ghl_location_id: string | null;
   is_archived: boolean;
+  archived_at: string | null;
   created_at: string;
+  /** From the LIVE event (null for orphans) — never parsed out of event_label,
+   *  which is the frozen snapshot name. */
+  event_start_date: string | null;
+  event_end_date: string | null;
 };
 
 /** Sentinel for the "未关联活动" filter — mirrors ORPHAN_EVENT in the
@@ -158,6 +167,9 @@ export type ListBookingsParams = {
   locationId?: string;
   search?: string;
   includeArchived?: boolean;
+  /** Archived rows ONLY — what the archive modal lists. Takes precedence over
+   *  includeArchived, which means "both". */
+  archivedOnly?: boolean;
   limit?: number;
 };
 
