@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { requiresHardDeleteGate, hasPaymentTrace, hasAttendance } from "@/lib/offlineEventDelete";
+import { requiresHardDeleteGate, hasPaymentTrace, hasAttendance, blocksArchive } from "@/lib/offlineEventDelete";
 
 /**
  * The gate is INVERTED: tier B (weak confirm) only when the booking is provably
@@ -45,5 +45,28 @@ describe("requiresHardDeleteGate", () => {
   it("survives a missing/undefined optional field without downgrading the tier", () => {
     expect(requiresHardDeleteGate({ total: 397 })).toBe(true);
     expect(requiresHardDeleteGate({ total: 0 })).toBe(false);
+  });
+});
+
+describe("blocksArchive", () => {
+  it("blocks a live booking that took money — archiving would free the seat with no refund", () => {
+    expect(blocksArchive({ ...clean, total: 428.76, status: "confirmed" })).toBe(true);
+    expect(blocksArchive({ ...clean, stripe_session_id: "cs_test_1", status: "pending" })).toBe(true);
+  });
+
+  it("allows a CANCELLED booking that took money — seats already free, money settled", () => {
+    // This is the ordinary cleanup path (cancel the junk, then archive it away).
+    // Blocking it would make the archive useless for anything that touched Stripe.
+    expect(blocksArchive({ ...clean, total: 1715.04, status: "cancelled" })).toBe(false);
+    expect(blocksArchive({ ...clean, receipt_url: "https://stripe.com/r/1", status: "cancelled" })).toBe(false);
+  });
+
+  it("allows a free booking in any live state", () => {
+    expect(blocksArchive({ ...clean, status: "confirmed" })).toBe(false);
+    expect(blocksArchive({ ...clean, status: "pending" })).toBe(false);
+  });
+
+  it("blocks when status is missing rather than assuming it is cancelled", () => {
+    expect(blocksArchive({ total: 397 })).toBe(true);
   });
 });

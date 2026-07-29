@@ -44,6 +44,25 @@ export function hasPaymentTrace(b: HardDeleteSubject): boolean {
   return !clean;
 }
 
+/**
+ * TRUE → this booking must NOT be archived (batch 7a).
+ *
+ * Since 7a, archiving RELEASES the seats. For a booking that took money and is
+ * still live that combination is the worst of all worlds: the seat is gone, the
+ * customer can't get in (batch 0 makes check-in refuse archived bookings), and
+ * no refund or credit exists yet (batch 7b). The customer would simply have paid
+ * for nothing. Cancel it instead — that at least states plainly what happened.
+ *
+ * `cancelled` is EXCLUDED on purpose: such a booking already released its seats
+ * and its money question is already settled, so archiving it is pure hiding and
+ * carries none of that damage. Without this exclusion the ordinary cleanup path
+ * (cancel the junk, then archive it out of sight) would be blocked for every
+ * booking that ever touched Stripe — which is most of them.
+ */
+export function blocksArchive(b: HardDeleteSubject & { status?: string | null }): boolean {
+  return hasPaymentTrace(b) && b.status !== "cancelled";
+}
+
 /** TRUE if either day was actually attended — an attendance record is evidence
  *  that outlives the booking, so deleting it deserves the strong gate. */
 export function hasAttendance(b: HardDeleteSubject): boolean {
