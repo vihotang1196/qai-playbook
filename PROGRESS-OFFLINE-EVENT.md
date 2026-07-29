@@ -661,16 +661,45 @@ release seats or delete anything (that is batch 7a). The free-seat *allowance*
 did read as freed, because `freeSeatsUsedFor` excludes archived rows — which is
 exactly why the archive looked like a delete from the outside.
 
-Current test data (all on event `74753c55`, all in the archive unless noted):
-- the original 11 + `BK-DVJP-62825Y`, `BK-FZFO-RWMWEX`, `BK-ASHP-O75KRS`
-  (batch 5.5's A/B runs — `BK-ASHP` is the run whose code was missing, now known).
-- `BK-Q6KW-JQ67GC` — scenario C, **NOT archived**, pending, holds G10 Seat 1–3.
-- `BK-OKFM-8AE7F8` — batch 5 test data (free manual add, G3 Seat 2–3), archived.
-- `BK-OJKF-YH6BFL` — batch 5 test data, **deleted** while verifying the tier-B
-  delete path end to end (the only row batch 5 removed).
+> **归档 ≠ 删除 ≠ 释放座位。** 归档只是隐藏（并挡住签到）；座位只有**取消**或
+> **永久删除**才会释放。这是批 7a 之前的语义。
 
-To actually clear test data + free seats, delete them (archive modal → tier A/B)
-or cancel them; archiving alone leaves the seats locked.
+**EVERY booking in `oe_bookings` right now is TEST DATA.** (An earlier note here
+claimed the opposite — that anything still present was real. It was wrong, and it
+is the kind of wrong that gets real data deleted.) Read 2026-07-29, all on event
+`74753c55`:
+
+**15 archived — all test data.** 9 are `confirmed` and still hold **25 seats**
+between them; 6 are `cancelled` and hold none.
+
+| Code | Status | Total | Seats held |
+|---|---|---|---|
+| `BK-AYZT-Z6Q44Y` | confirmed | RM1715.04 | 4 |
+| `BK-8YC1-KNVYK8` | confirmed | RM1715.04 | 4 |
+| `BK-P34G-G266QR` | confirmed | RM1887.80 | 4 |
+| `BK-M9LE-S4IXQF` | confirmed | RM1030.28 | 4 |
+| `BK-NOC3-W5VZTN` | confirmed | RM857.52 | 2 |
+| `BK-BNVU-BYX1V5` | confirmed | RM857.52 | 2 |
+| `BK-12B0-3WTICC` | confirmed | 免费 | 2 |
+| `BK-MHZO-IQQK9J` | confirmed | 免费 | 1 |
+| `BK-OKFM-8AE7F8` | confirmed | 免费 | 2 | ← batch 5's own free manual add (G3 Seat 2–3) |
+| `BK-FZFO-RWMWEX` | cancelled | RM943.90 | 0 |
+| `BK-DVJP-62825Y` | cancelled | RM428.76 | 0 |
+| `BK-ASHP-O75KRS` | cancelled | RM428.76 | 0 |
+| `BK-O7PA-GESM02` | cancelled | RM428.76 | 0 |
+| `BK-A64O-PZM4MN` | cancelled | RM1715.04 | 0 |
+| `BK-RNZF-05DQ7M` | cancelled | RM857.52 | 0 |
+
+**1 not archived:** `BK-Q6KW-JQ67GC` — batch 5.5 scenario C, RM428.76. The owner
+has since **cancelled** it, so G10 Seat 1–3 are already released and it holds
+nothing. It is still test data.
+
+**Deleted:** `BK-OJKF-YH6BFL` — batch 5's other free manual add, removed while
+verifying the tier-B delete path end to end. The only row batch 5 destroyed.
+
+So `oe_booked_seats` holds **25 rows**, every one of them behind an archived
+`confirmed` test booking. Clearing them means cancelling (or deleting) those 9
+bookings — un-archiving alone changes nothing about the seats.
 
 ### ⚠️ Ordering trap for a temporary allowance change (used in 5.5, reuse in 7b)
 
@@ -802,6 +831,12 @@ archive needs the 15 remaining rows cleared first.
    because archiving that silently keeps seats locked is the more damaging half.
    **Confirmed in the wild during batch 5:** the owner archived 14 test bookings
    believing they were deleted, and 23 seats stayed locked behind them.
+   **Backfill question:** "archive releases the seat" will only apply to NEW
+   archives — it cannot retroactively free what existing archived rows hold. So
+   7a needs either a pre-cleared table or a one-off backfill. As of this writing
+   25 seats are still held by 9 archived test bookings (see the test-data table
+   above); if that cleanup happens first, 7a needs **no backfill logic** — if it
+   does not, 7a must include one. Check the table before deciding.
 2. **6** — 10-minute pending timeout + `sessions.expire()` + cron.
 3. **7b** — the credit/allowance ledger (the big one), including the two
    ticket-vs-seat problems below.
