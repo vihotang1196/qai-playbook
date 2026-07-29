@@ -191,9 +191,13 @@ const App = () => (
                   Public (no gate). */}
               <Route path="/guides/:slug" element={<GuidePage />} />
 
-              {/* Copywriter — /tools hub + /copywriter. Public. The 小工具 navbar
-                  entry for copywriter stays a Coming-Soon placeholder (NOT exposed)
-                  until it gets identity + rate-limiting, to avoid AI-credit abuse. */}
+              {/* Copywriter — /tools hub + /copywriter. NOT public any more, and the
+                  navbar entry is live again as of 2026-07-29. Both conditions the
+                  old placeholder was waiting on are met: identity (no location_id →
+                  the "open from QAI" gate, not the form) and rate limiting
+                  (generate-copy: 15/hour + 40/day per sub-account, on top of
+                  hasPlaybookAccess). The route itself is still reachable by direct
+                  URL — the gate lives in the page and the edge function, not here. */}
               <Route path="/tools" element={<Tools />} />
               <Route path="/copywriter" element={<Copywriter />} />
 

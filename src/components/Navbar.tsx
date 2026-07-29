@@ -40,11 +40,19 @@ const navLinks: NavItem[] = [
   { label: { en: "Credits", cn: "额度" }, href: "/credits", isRoute: true, noSemibold: true },
   { label: { en: "Upgrade", cn: "升级" }, href: "/upgrade", isRoute: true, noSemibold: true },
   { label: { en: "Affiliate", cn: "伙伴" }, href: "/affiliate", isRoute: true, noSemibold: true },
-  // Tools / 小工具 — entry HIDDEN from the navbar for now so the copywriter
-  // isn't publicly discoverable/abusable (it burns Claude/MiniMax credits)
-  // before GHL usage limits exist. The /tools + /copywriter routes stay live
-  // and reachable by direct URL. Re-enable this line to show the entry again.
-  // { label: { en: "Tools", cn: "小工具" }, href: "/tools", isRoute: true, noSemibold: true },
+  // Tools / 小工具 — deliberately NOT a top-level nav item, and this is not the
+  // old "hide the copywriter" reason (that one is dead: it has an identity gate
+  // and rate limits now, and Copy Generator is a live link in the dropdown below).
+  //
+  // It stays out because the navbar ALREADY shows a 「小工具」 — the dropdown
+  // trigger below (a button, not a link). Enabling this line puts a second entry
+  // with the identical label right next to it, one going to the /tools hub page
+  // and one opening the dropdown. Verified 2026-07-29, desktop and mobile.
+  //
+  // The hub page loses nothing worth having: every tool on it is now a direct
+  // link in the dropdown. If /tools is ever wanted in the navbar, rename one of
+  // the two first.
+  // { label: { en: "Tools", cn: "小工具" }, href: "/tools", isRoute: true, noSemibold: true, withLocation: true },
 ];
 
 type ToolItem = {
@@ -57,14 +65,18 @@ type ToolItem = {
 
 // Product tools grouped under the "小工具 / Tools" dropdown. Only tools that
 // actually exist on THIS branch are real links (they carry the GHL location_id);
-// copywriter / WhatsApp are Coming-Soon placeholders (NO link) until the branches
-// merge to main so nothing dead is publicly clickable. (Offline Event was promoted
-// to the main menu, so it's no longer listed here — one entry only, no duplicate.)
+// anything still listed as Coming-Soon has NO link, so nothing dead is publicly
+// clickable. (Offline Event was promoted to the main menu, so it's no longer
+// listed here — one entry only, no duplicate.)
+//
+// Copy Generator moved from Coming-Soon to a real link on 2026-07-29: it has an
+// identity gate and per-sub-account rate limits now, which were the two things
+// its placeholder was waiting on.
 const toolLinks: ToolItem[] = [
   { label: { en: "Review Boost", cn: "Review Boost" }, base: "/review-boost", withLocationPath: true },
+  { label: { en: "Copy Generator", cn: "文案生成器" }, href: "/copywriter", withLocation: true },
 ];
 const comingSoonTools: { label: { en: string; cn: string } }[] = [
-  { label: { en: "Copy Generator", cn: "文案生成器" } },
   { label: { en: "WhatsApp Copy", cn: "WhatsApp 文案" } },
 ];
 
