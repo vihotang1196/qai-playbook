@@ -627,7 +627,8 @@ serve(async (req) => {
           // ⚠️ MIRROR of blocksArchive() in src/lib/offlineEventDelete.ts — that
           // file carries the full reasoning. The UI disables the button, but the
           // UI is not a gate: a live booking that took money must not lose its
-          // seat while no refund or credit exists (batch 7b).
+          // seat when the app has no refund or credit path at all (batch 7b was
+          // cancelled — refunds happen in the Stripe dashboard, by hand).
           // **Change the rule there and you MUST change it here in the same
           // commit**, or the two disagree and the weaker one decides.
           const traced =

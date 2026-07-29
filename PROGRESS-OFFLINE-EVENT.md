@@ -647,7 +647,7 @@ separate ticket / lunch / SST lines.
 
 | Thing | Value | Note |
 |---|---|---|
-| Test sub-account `gsRRLb2A8IoATd9qWNmh` | `free_tickets=2`, `free_seats=4` | Read 2026-07-28T09:17:53Z. **The restore target for batch 7.** The owner changed this during GHL testing — do not assume 1/2. During batch 5.5 it was temporarily `free_tickets=1`, `free_seats=2`; `free_seats` is being restored to 4. Only `free_seats` affects charging — see the batch 7b traps. |
+| Test sub-account `gsRRLb2A8IoATd9qWNmh` | `free_tickets=2`, `free_seats=4` | Read 2026-07-28T09:17:53Z. **The restore target for batch 7.** The owner changed this during GHL testing — do not assume 1/2. During batch 5.5 it was temporarily `free_tickets=1`, `free_seats=2`; `free_seats` is being restored to 4. Only `free_seats` affects charging — see the 票/座 traps in the batch 8 backlog. |
 | Global defaults | `default_free_tickets=1`, `default_free_seats=1` | Set by the allowance reset. **Leave alone.** |
 | `oe_settings.sst_rate` | `0.08` | Stored as a STRING decimal → `Number(x)*100` for display, and skip the label when 0. |
 | `oe_settings.lunch_price` | `39.99` | |
@@ -664,7 +664,8 @@ exactly why the archive looked like a delete from the outside.
 > **SEMANTICS CHANGED IN BATCH 7a (2026-07-29).** Archiving now RELEASES the
 > seats as well as hiding the booking and blocking its check-in; un-archiving has
 > to claim seats again and may have to pick different ones. A booking that took
-> money and is not cancelled CANNOT be archived at all until batch 7b.
+> money and is not cancelled CANNOT be archived at all — permanently, since batch 7b
+> (the credit ledger) was cancelled. Cancel it and refund in Stripe instead.
 >
 > The pre-7a rule, for reading older notes: 归档 ≠ 删除 ≠ 释放座位 — archiving was
 > only hiding, and seats were freed by **取消** or **永久删除** only.
@@ -730,7 +731,7 @@ So `oe_booked_seats` holds **25 rows**, every one of them behind an archived
 `confirmed` test booking. Clearing them means cancelling (or deleting) those 9
 bookings — un-archiving alone changes nothing about the seats.
 
-### ⚠️ Ordering trap for a temporary allowance change (used in 5.5, reuse in 7b)
+### ⚠️ Ordering trap for a temporary allowance change (used in 5.5; reuse whenever the allowance is nudged for a test)
 
 `freeSeatsUsed` is DERIVED (allowance − consumed), and both the customer figure
 and the pricing figure are clamped with `Math.max(0, …)` (`oe/index.ts` :335 and
@@ -909,35 +910,32 @@ cancelled afterwards): archive freed G7 Seat 1 and an anonymous customer saw it
 selectable; un-archive with that seat still free pre-selected and re-claimed it;
 after another booking took it, un-archive said "G7 Seat 1 已被 BK-XPZS-2IS98O
 占用", pre-selected nothing and kept submit disabled until a new seat was picked;
-the paid live row's archive button was disabled with the batch-7b wording, the API
+the paid live row's archive button was disabled (wording has since been updated — 7b was cancelled), the API
 refused it 400, and after cancelling it archived fine. Bulk archive skipped the 1
 paid live row out of 19. Caught while verifying: bulk archive claimed it would free
 43 seats when 2 would be — cancelled bookings keep their seat LABELS while holding
 nothing, so the count now excludes them.
 
 **To do:**
-1. **6** — 10-minute pending timeout + `sessions.expire()` + cron.
-3. **7b** — the credit/allowance ledger (the big one), including the two
-   ticket-vs-seat problems below.
-4. **8** — UI polish + the change-date warning + the `deleteEvent` orphan fix.
+1. **6** — commit 4 (capacity gate) + commit 5 (the 10-minute notice on the
+   payment tab). Commits 1–3 are done.
+2. **8** — see its backlog below; it absorbed 7b's real findings.
 
-**Batch 7b backlog — read these FIRST, they change what the ledger must model.**
+**~~7b — CANCELLED 2026-07-29 (owner's decision, not an unfinished item).~~**
+The credit/allowance ledger will NOT be built. Reason: there are no real
+customers yet, so there is nothing to design the "paid, then withdrew" flow
+against — its frequency and the right handling are both unknown, and guessing
+would bake a guess into the money path. The existing **手动加票** covers the rare
+case: the owner issues a ticket by hand. Refunds happen in the Stripe dashboard.
+If this starts happening often, revisit it then, with real cases to look at.
+Consequences that are now PERMANENT, not temporary:
+- there is no in-app refund and no credit anywhere;
+- `blocksArchive` keeps refusing to archive a live paid booking — forever, not
+  "until 7b". The user-facing wording says what to do instead (cancel, then
+  refund in Stripe) rather than naming a batch that will never ship.
 
-0. 🔴 **Un-archive can silently overspend the free allowance — a gap batch 7a
-   OPENED.** Archiving now releases the seats AND the free allowance (`free_seats`
-   labels stay on the row, but `freeSeatsUsedFor` excludes archived rows, so the
-   consumption drops). Un-archive protects only one of the two:
-   - seats: `oe_claim_seats` is atomic, a taken seat fails the claim ✅
-   - allowance: **nothing checks it.** If someone else consumed the freed
-     allowance while the booking sat archived, un-archiving writes the same
-     `free_seats` array straight back and the account is over its allowance.
-   - `Math.max(0, …)` then renders the overspend as "0 left", identical to
-     "exactly used up" — invisible, the same clamp trap as batch 5.5's.
-   Before 7a this could not happen (archiving released nothing, so there was no
-   window). The ledger must re-check the remaining allowance at un-archive time
-   and either refuse, or downgrade the excess seats to PAID.
-
-**The two allowance traps found in batch 5.5:**
+**Batch 8 backlog — inherited from the cancelled 7b (these are real defects, the
+decision not to build the ledger does not make them go away):**
 
 1. 🔴 **`free_tickets` (票) and `free_seats` (座) are two fully independent
    inputs with NO conversion between them.** `updateSubaccountSettings` writes
@@ -947,14 +945,29 @@ nothing, so the count now excludes them.
    「票」to 1 left 「座」at 2, so the intended "1 free seat left" was actually 2,
    and a 2-seat booking would have been fully free. An admin can believe they
    changed the allowance while having changed only the box that does not matter.
-   → Batch 7b must either bind the two with an explicit conversion, or mark 票 as
-   display-only AND label on the form which box controls charging.
+   → Either bind the two with an explicit conversion, or mark 票 as display-only
+   AND label on the form which box controls charging.
 2. 🔴 **The customer banner "你还有 N 张免费票" prints `freeSeatsRemaining` — a
    SEAT count under a ticket label.** Today `free_tickets:free_seats` happens to
    be 1:2 for the test account, so the mismatch is invisible on screen; the
    moment the two stop being proportional the number the customer reads is simply
-   wrong. → Settle one unit (almost certainly seats) before the ledger is built,
-   and fix the wording with it.
+   wrong. → Settle one unit (almost certainly seats) and fix the wording with it.
+3. 🟠 **Un-archive can silently overspend the free allowance — a gap batch 7a
+   opened.** Archiving releases the seats AND the free allowance (`free_seats`
+   labels stay on the row, but `freeSeatsUsedFor` excludes archived rows, so
+   consumption drops). Un-archive protects only one of the two:
+   - seats: `oe_claim_seats` is atomic, a taken seat fails the claim ✅
+   - allowance: **nothing checks it.** If someone else consumed the freed
+     allowance while the booking sat archived, un-archiving writes the same
+     `free_seats` array straight back and the account is over its allowance.
+   - `Math.max(0, …)` then renders the overspend as "0 left", identical to
+     "exactly used up" — invisible, the same clamp trap as batch 5.5's.
+   **Downgraded from 🔴 to 🟠 because 7b was cancelled:** with no automatic
+   credit flow, un-archiving is a rare manual act by an admin rather than
+   something the system does on its own, so the window is far less likely to be
+   hit. The defect is unchanged; only its exposure dropped. Fix by re-checking
+   the remaining allowance at un-archive time and either refusing or downgrading
+   the excess seats to PAID.
 
 **Batch 6 backlog:**
 - **`pg_cron` + `pg_net` are ENABLED (owner, 2026-07-29).** ⚠️ `pg_net` lives in
@@ -1000,27 +1013,30 @@ bookings at all and archive events instead.
 
 ### Launch order (owner's list, REVISED 2026-07-29 — follow the numbers)
 
-1. [ ] **Batch 6 commits 2–5** (sweepAll + secret, cron migration, capacity,
-       the 10-minute notice on the payment tab).
-2. [ ] **Batch 7b** — the credit/allowance ledger (read its backlog above first).
-3. [ ] **Batch 8** — polish + the change-date warning + the `deleteEvent` orphan fix
-       + the `seats_unavailable` error-code split.
-4. [ ] **H** — customer navbar → icons + hover labels (also eases the half-screen crush).
-5. [ ] **Clear ALL test data — genuinely delete it.** Every row in `oe_bookings`
+1. [ ] **Batch 6 commit 4** (capacity gate → floor plan) **+ commit 5** (the
+       10-minute notice on the payment tab). Commits 1–3 are done and verified.
+2. [ ] **Batch 8** — polish + change-date warning + `deleteEvent` orphan fix +
+       `seats_unavailable` error-code split + the `verify_jwt` exposure review +
+       the 票/座 unit problems inherited from the cancelled 7b (see its backlog).
+   — ~~**Batch 7b**~~ CANCELLED 2026-07-29; its real findings moved into batch 8.
+   — **H** (navbar icons) is deferred to AFTER launch by the owner's decision.
+3. [ ] **Clear ALL test data — genuinely delete it.** Every row in `oe_bookings`
        today is test data (19 cancelled + batch 6's own). Archiving is NOT enough
        and cancelling is NOT enough: `oe_bookings` AND `oe_booked_seats` must both
        come out empty. Use the Admin bulk actions (archive → 已归档 modal → bulk
        delete); do NOT type booking codes 19 times — the tier-A typed-code gate
        exists for real paid orders, not for clearing test data. Keep the Notion KB.
-6. [ ] **Confirm the Copywriter works before merging** — reachable from the nav,
+4. [ ] **Confirm the Copywriter works before merging** — reachable from the nav,
        and actually functional (not a 404, not a blank screen, not a missing env
        var). It merges to `main` TOGETHER with Offline Event, not in a second pass.
-7. [ ] **Merge to `main`** + deploy `playbook.qiai.tech`.
-8. [ ] **GHL menu links → the real domain** (still only for the test sub-account).
-9. [ ] **Run one complete payment on the real domain, still in TEST mode.**
-10. [ ] 🔴 **Stripe Sandbox → Live** — see the checklist below. A step of its own;
-        do not fold it into any other cleanup.
-11. [ ] **Open it to everyone** + 「全部开启」.
+5. [ ] **Merge to `main`** + deploy `playbook.qiai.tech`.
+6. [ ] **GHL menu links → the real domain** (still only for the test sub-account).
+7. [ ] **Run one complete payment on the real domain, still in TEST mode.**
+8. [ ] 🔴 **Stripe Sandbox → Live** — see the checklist below. A step of its own;
+       do not fold it into any other cleanup. **Owner confirms with a consultant
+       before this runs — do not switch it unprompted.**
+9. [ ] **Open it to everyone** + 「全部开启」.
+10. [ ] **H** — customer navbar → icons + hover labels. Deferred to after launch.
 
 Still open, slot in where convenient (not gating):
 - [ ] **C** — make the Admin Portal 归档 entry obvious (owner archived one item and
@@ -1056,7 +1072,7 @@ Still open, slot in where convenient (not gating):
 - [ ] e. First Live charge is a REAL card on a minimum-amount event (e.g. a
       temporary RM1 event); confirm the money actually arrives.
 - [ ] f. Refund that charge in the Stripe dashboard and confirm the refund landed.
-      ⚠️ The app has no refund flow (that is batch 7b's territory), so the refund
+      ⚠️ The app has no refund flow AND never will (batch 7b cancelled), so the refund
       happens in Stripe and the booking must be cancelled in the Admin separately.
 - [ ] Only after (f) succeeds: open it to everyone (step 11).
 

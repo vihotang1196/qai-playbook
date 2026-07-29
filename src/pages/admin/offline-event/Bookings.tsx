@@ -227,7 +227,7 @@ export default function OfflineEventBookings() {
       if (ok) toast.success(`已归档 ${ok} 笔`);
       if (bulkSkipped.length) {
         toast.info(
-          `其中 ${bulkSkipped.length} 笔已收款或仍有付款痕迹，已跳过（需等批 7b 额度系统上线）`,
+          `其中 ${bulkSkipped.length} 笔已收款或仍有付款痕迹，已跳过 — 请先取消订单，并在 Stripe 后台退款`,
           { duration: 9000 },
         );
       }
@@ -440,7 +440,7 @@ export default function OfflineEventBookings() {
                         disabled={blocksArchive(b)}
                         title={
                           blocksArchive(b)
-                            ? "此单已收款，退款/额度功能尚未上线（批 7b），暂不可归档。如需处理请先取消订单。"
+                            ? "此单已收款，如需处理请先取消订单，并在 Stripe 后台退款。"
                             : "归档（座位会被释放）"
                         }
                         aria-label={`归档 ${b.booking_id}`}
@@ -579,7 +579,7 @@ export default function OfflineEventBookings() {
                       disabled={busy || blocksArchive(detail.booking)}
                       title={
                         blocksArchive(detail.booking)
-                          ? "此单已收款，退款/额度功能尚未上线（批 7b），暂不可归档。如需处理请先取消订单。"
+                          ? "此单已收款，如需处理请先取消订单，并在 Stripe 后台退款。"
                           : undefined
                       }
                       onClick={() => setConfirmArchive(detail.booking)}
@@ -617,7 +617,8 @@ export default function OfflineEventBookings() {
           dialog has to say that — "hidden from the list" is no longer the whole
           story, and the seat can be gone by the time anyone un-archives. Bookings
           that took money can't get here at all (blocksArchive disables the
-          button); credit/refund on archive is still batch 7b. */}
+          button); there is no in-app refund at all — batch 7b was cancelled, so
+          money is handled in the Stripe dashboard by hand. */}
       <ConfirmDialog
         open={!!confirmArchive}
         danger={!!confirmArchive && confirmArchive.status !== "cancelled" && confirmArchive.seats.length > 0}
@@ -681,7 +682,8 @@ export default function OfflineEventBookings() {
           bulkArchivable.length === 0 ? (
             <>
               已选的 {pickedRows.length} 笔<b className="text-[#141414]">全部已收款且尚未取消</b>，
-              批量归档会跳过它们（需等批 7b 额度系统上线）。请先取消订单，或单独处理。
+              批量归档会跳过它们。请先<b className="text-[#141414]">取消订单</b>
+              （并在 Stripe 后台退款），或单独处理。
             </>
           ) : (
             <>
@@ -698,7 +700,7 @@ export default function OfflineEventBookings() {
                 <>
                   <br />
                   其中 <b className="text-[#141414]">{bulkSkipped.length}</b> 笔已收款且尚未取消，
-                  <b className="text-[#141414]">将被跳过</b>（需等批 7b 额度系统上线）。
+                  <b className="text-[#141414]">将被跳过</b> —— 请先取消订单，并在 Stripe 后台退款。
                 </>
               )}
             </>

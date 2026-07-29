@@ -50,8 +50,13 @@ export function hasPaymentTrace(b: HardDeleteSubject): boolean {
  * Since 7a, archiving RELEASES the seats. For a booking that took money and is
  * still live that combination is the worst of all worlds: the seat is gone, the
  * customer can't get in (batch 0 makes check-in refuse archived bookings), and
- * no refund or credit exists yet (batch 7b). The customer would simply have paid
- * for nothing. Cancel it instead — that at least states plainly what happened.
+ * the app has NO refund or credit path at all. (Batch 7b, the credit ledger, was
+ * CANCELLED by the owner on 2026-07-29: with no real customers yet there is
+ * nothing to design the "paid, then withdrew" flow against, and a manual ticket
+ * covers the rare case. So this is the permanent state, not a gap waiting to be
+ * filled.) Archiving such a booking would mean the customer paid for nothing.
+ * Cancel it instead and refund in the Stripe dashboard — that at least states
+ * plainly what happened.
  *
  * `cancelled` is EXCLUDED on purpose: such a booking already released its seats
  * and its money question is already settled, so archiving it is pure hiding and
