@@ -58,6 +58,13 @@ export function hasPaymentTrace(b: HardDeleteSubject): boolean {
  * carries none of that damage. Without this exclusion the ordinary cleanup path
  * (cancel the junk, then archive it out of sight) would be blocked for every
  * booking that ever touched Stripe — which is most of them.
+ *
+ * ⚠️ THIS RULE EXISTS TWICE. The `archiveBooking` action in
+ * `supabase/functions/offline-event-admin/index.ts` re-implements it, because the
+ * server cannot trust a disabled button — the UI is a courtesy, the server is the
+ * gate. **Change the rule here and you MUST change it there in the same commit**,
+ * or the two will disagree and the weaker one decides. Each side's comment points
+ * at the other.
  */
 export function blocksArchive(b: HardDeleteSubject & { status?: string | null }): boolean {
   return hasPaymentTrace(b) && b.status !== "cancelled";

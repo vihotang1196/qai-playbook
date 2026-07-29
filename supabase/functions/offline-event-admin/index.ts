@@ -624,9 +624,12 @@ serve(async (req) => {
         const nowIso = new Date().toISOString();
 
         if (archived) {
-          // MIRROR of src/lib/offlineEventDelete.ts blocksArchive. The UI disables
-          // the button, but the UI is not a gate — a live booking that took money
-          // must not lose its seat while no refund or credit exists (batch 7b).
+          // ⚠️ MIRROR of blocksArchive() in src/lib/offlineEventDelete.ts — that
+          // file carries the full reasoning. The UI disables the button, but the
+          // UI is not a gate: a live booking that took money must not lose its
+          // seat while no refund or credit exists (batch 7b).
+          // **Change the rule there and you MUST change it here in the same
+          // commit**, or the two disagree and the weaker one decides.
           const traced =
             Number(b.total ?? 0) !== 0 || !!b.payment_intent_id || !!b.stripe_session_id || !!b.receipt_url;
           if (traced && b.status !== "cancelled") {

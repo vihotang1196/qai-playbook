@@ -797,6 +797,12 @@ Correct order — do NOT restore the allowance first:
 - **`fmt12h` exists twice** (client `offlineEventFormat.ts`, server
   `offline-event-admin`). Changing the format means changing BOTH; each has a
   comment pointing at the other.
+- **`blocksArchive` exists twice, and has to** (client `offlineEventDelete.ts`,
+  server `archiveBooking`). The server cannot trust a disabled button, so it
+  re-implements the rule. This project has been bitten by duplicated logic before,
+  so both sides carry a comment pointing at the other plus "change one → change
+  the other in the SAME commit". If they ever disagree, the weaker one decides —
+  which is the whole failure mode.
 
 ### Batch progress
 
@@ -889,8 +895,23 @@ nothing, so the count now excludes them.
    ticket-vs-seat problems below.
 4. **8** — UI polish + the change-date warning + the `deleteEvent` orphan fix.
 
-**Batch 7b backlog — the two allowance traps found in batch 5.5 (read these
-FIRST, they change what the ledger must model):**
+**Batch 7b backlog — read these FIRST, they change what the ledger must model.**
+
+0. 🔴 **Un-archive can silently overspend the free allowance — a gap batch 7a
+   OPENED.** Archiving now releases the seats AND the free allowance (`free_seats`
+   labels stay on the row, but `freeSeatsUsedFor` excludes archived rows, so the
+   consumption drops). Un-archive protects only one of the two:
+   - seats: `oe_claim_seats` is atomic, a taken seat fails the claim ✅
+   - allowance: **nothing checks it.** If someone else consumed the freed
+     allowance while the booking sat archived, un-archiving writes the same
+     `free_seats` array straight back and the account is over its allowance.
+   - `Math.max(0, …)` then renders the overspend as "0 left", identical to
+     "exactly used up" — invisible, the same clamp trap as batch 5.5's.
+   Before 7a this could not happen (archiving released nothing, so there was no
+   window). The ledger must re-check the remaining allowance at un-archive time
+   and either refuse, or downgrade the excess seats to PAID.
+
+**The two allowance traps found in batch 5.5:**
 
 1. 🔴 **`free_tickets` (票) and `free_seats` (座) are two fully independent
    inputs with NO conversion between them.** `updateSubaccountSettings` writes
