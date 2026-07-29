@@ -205,9 +205,20 @@ export async function cancelBooking(bookingId: string): Promise<{ ok: boolean; a
   return await callOeAdmin<{ ok: boolean; alreadyCancelled?: boolean }>("cancelBooking", { bookingId });
 }
 
-/** Archive / un-archive (hide from the active list). */
-export async function archiveBooking(bookingId: string, archived = true): Promise<{ ok: boolean; archived: boolean }> {
-  return await callOeAdmin<{ ok: boolean; archived: boolean }>("archiveBooking", { bookingId, archived });
+/**
+ * Archive / un-archive. Since batch 7a archiving RELEASES the booking's seats and
+ * un-archiving CLAIMS seats again, so this is no longer a flag flip:
+ *  - archiving a live booking that took money is REFUSED (`archive_blocked_paid`);
+ *  - un-archiving takes optional `seats` (the picker's choice). Omit them to try
+ *    the booking's ORIGINAL seats — which fails with `seats_unavailable` if they
+ *    have been sold since, leaving the booking archived and untouched.
+ */
+export async function archiveBooking(
+  bookingId: string,
+  archived = true,
+  seats?: string[],
+): Promise<{ ok: boolean; archived: boolean; seatsReleased?: string[]; seatsClaimed?: string[] }> {
+  return await callOeAdmin("archiveBooking", { bookingId, archived, ...(seats ? { seats } : {}) });
 }
 
 // ── P7a-2 manual add-ticket + change-seat + change-date ─────────────────────
@@ -240,7 +251,13 @@ export type OeSeatmapEvent = {
 export async function getEventSeatmap(
   eventId: string,
   excludeBookingId?: string,
-): Promise<{ event: OeSeatmapEvent; layout: unknown; bookedLabels: string[] }> {
+): Promise<{
+  event: OeSeatmapEvent;
+  layout: unknown;
+  bookedLabels: string[];
+  /** seat label → the booking CODE holding it. Un-archive names the holder. */
+  bookedBy?: Record<string, string>;
+}> {
   return await callOeAdmin("getEventSeatmap", { eventId, excludeBookingId });
 }
 

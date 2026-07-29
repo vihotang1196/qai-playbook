@@ -595,21 +595,103 @@ serve(async (req) => {
       }
 
       // ── Archive / un-archive a booking (hide from the active list) ───────
+      // Batch 7a: archiving RELEASES the seats, and un-archiving has to CLAIM
+      // seats again — they may well have been sold in the meantime.
       case "archiveBooking": {
         const code = String(body?.bookingId || "").trim();
         const archived = body?.archived !== false; // default true
+        // Un-archive only: explicit seat labels from the picker. Omitted → try the
+        // booking's own original seats (what bulk un-archive does).
+        const wantSeats: string[] = Array.isArray(body?.seats)
+          ? [...new Set(body.seats.map((s: unknown) => String(s).trim()).filter(Boolean))]
+          : [];
         if (!code) return json({ error: "booking_required" }, 400);
-        const nowIso = new Date().toISOString();
-        const { data, error } = await sb
+
+        const { data: b, error: readErr } = await sb
           .from("oe_bookings")
-          .update({ is_archived: archived, archived_at: archived ? nowIso : null, updated_at: nowIso })
+          .select(
+            "id, status, total, payment_intent_id, stripe_session_id, receipt_url, event_id, free_seats, addon_seats, ghl_location_id",
+          )
           .eq("booking_id", code)
-          .select("id, ghl_location_id")
           .maybeSingle();
-        if (error) throw error;
-        if (!data) return json({ error: "not_found" }, 404);
-        await logAudit(sb, admin, "oe_archive_booking", { booking_id: code, archived }, data.ghl_location_id);
-        return json({ ok: true, archived });
+        if (readErr) throw readErr;
+        if (!b) return json({ error: "not_found" }, 404);
+
+        const ownLabels = [...((b.free_seats as string[]) ?? []), ...((b.addon_seats as string[]) ?? [])];
+        // A cancelled booking holds no seats by design, so neither direction
+        // touches oe_booked_seats for it.
+        const holdsSeats = b.status !== "cancelled" && !!b.event_id && ownLabels.length > 0;
+        const nowIso = new Date().toISOString();
+
+        if (archived) {
+          // MIRROR of src/lib/offlineEventDelete.ts blocksArchive. The UI disables
+          // the button, but the UI is not a gate — a live booking that took money
+          // must not lose its seat while no refund or credit exists (batch 7b).
+          const traced =
+            Number(b.total ?? 0) !== 0 || !!b.payment_intent_id || !!b.stripe_session_id || !!b.receipt_url;
+          if (traced && b.status !== "cancelled") {
+            return json({ error: "archive_blocked_paid" }, 400);
+          }
+          // Same one-liner cancelBooking uses (see :584) — one way to free seats.
+          if (holdsSeats) await sb.from("oe_booked_seats").delete().eq("booking_id", b.id);
+          const { error } = await sb
+            .from("oe_bookings")
+            .update({ is_archived: true, archived_at: nowIso, updated_at: nowIso })
+            .eq("id", b.id);
+          if (error) throw error;
+          await logAudit(
+            sb,
+            admin,
+            "oe_archive_booking",
+            { booking_id: code, archived: true, seats_released: holdsSeats ? ownLabels : [] },
+            b.ghl_location_id,
+          );
+          return json({ ok: true, archived: true, seatsReleased: holdsSeats ? ownLabels : [] });
+        }
+
+        // ── Un-archive ────────────────────────────────────────────────────────
+        // Claim BEFORE flipping the flag: if the seats are gone the booking stays
+        // archived, rather than becoming live while holding nothing.
+        let claimedLabels: string[] = [];
+        if (holdsSeats) {
+          const target = wantSeats.length > 0 ? wantSeats : ownLabels;
+          if (target.length !== ownLabels.length) {
+            return json({ error: "seat_count_mismatch", required: ownLabels.length }, 400);
+          }
+          const { data: ok, error: rpcErr } = await sb.rpc("oe_claim_seats", {
+            p_event_id: b.event_id,
+            p_booking_id: b.id,
+            p_seats: target,
+          });
+          if (rpcErr) throw rpcErr;
+          if (ok !== true) return json({ error: "seats_unavailable" }, 409);
+          claimedLabels = target;
+        }
+
+        const patch: Record<string, unknown> = { is_archived: false, archived_at: null, updated_at: nowIso };
+        // Seats may have MOVED (the original was taken, the admin picked others).
+        // Relabel while preserving the free/paid split SIZES, exactly as
+        // changeSeats does, so free-allowance accounting stays stable.
+        if (claimedLabels.length > 0) {
+          const freeCount = ((b.free_seats as string[]) ?? []).length;
+          patch.free_seats = claimedLabels.slice(0, freeCount);
+          patch.addon_seats = claimedLabels.slice(freeCount);
+        }
+        const { error: upErr } = await sb.from("oe_bookings").update(patch).eq("id", b.id);
+        if (upErr) {
+          // The claim already happened; leaving it would lock seats for a booking
+          // that is still archived.
+          if (claimedLabels.length > 0) await sb.from("oe_booked_seats").delete().eq("booking_id", b.id);
+          throw upErr;
+        }
+        await logAudit(
+          sb,
+          admin,
+          "oe_archive_booking",
+          { booking_id: code, archived: false, seats_claimed: claimedLabels },
+          b.ghl_location_id,
+        );
+        return json({ ok: true, archived: false, seatsClaimed: claimedLabels });
       }
 
       // ═══ P7a-2 — Manual add-ticket + change-seat + change-date ═════════════
@@ -652,12 +734,27 @@ serve(async (req) => {
           const { data: bk } = await sb.from("oe_bookings").select("id").eq("booking_id", excludeBookingId).maybeSingle();
           ownUuid = (bk?.id as string) ?? null;
         }
-        const { data: claimed } = await sb.from("oe_booked_seats").select("seat_label, booking_id").eq("event_id", eventId);
+        // The embedded booking_id is the human CODE — un-archive (batch 7a) has to
+        // say WHO took the seat you used to have, not just that it's gone.
+        const { data: claimed } = await sb
+          .from("oe_booked_seats")
+          .select("seat_label, booking_id, oe_bookings(booking_id)")
+          .eq("event_id", eventId);
+        const mine = (r: { booking_id: string }) => !!ownUuid && r.booking_id === ownUuid;
         const bookedLabels = (claimed ?? [])
-          .filter((r) => !ownUuid || r.booking_id !== ownUuid)
-          .map((r) => r.seat_label as string);
+          // deno-lint-ignore no-explicit-any
+          .filter((r: any) => !mine(r))
+          // deno-lint-ignore no-explicit-any
+          .map((r: any) => r.seat_label as string);
+        const bookedBy: Record<string, string> = {};
+        // deno-lint-ignore no-explicit-any
+        for (const r of (claimed ?? []) as any[]) {
+          if (mine(r)) continue;
+          const code = r.oe_bookings?.booking_id;
+          if (code) bookedBy[r.seat_label as string] = code as string;
+        }
 
-        return json({ event: ev, layout, bookedLabels });
+        return json({ event: ev, layout, bookedLabels, bookedBy });
       }
 
       // ── Manual add-ticket (3rd-party / offline payment) ──────────────────
