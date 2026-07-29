@@ -824,6 +824,17 @@ Correct order — do NOT restore the allowance first:
   what the function did with it. A Vault/Edge secret mismatch produces a silent
   401 every two minutes while this table keeps reporting `succeeded`. The only
   end-to-end proof is watching a real pending booking clean itself up.
+- **Capacity belongs to the FLOOR PLAN, not the event.** Two events sharing one
+  plan share one headcount, so shrinking it for a second run silently changes the
+  first — which may already be selling. There is no per-event override any more
+  (batch 6 removed the capacity box). The way to give two events different numbers
+  is to DUPLICATE the plan and bind the copy. The editor warns when a plan has more
+  than one event and offers Duplicate; batch 8a added that, but the underlying
+  model is unchanged, so keep it in mind whenever a second event appears.
+- **"Keep first N seats" recomputes from the layout as OPENED**, never from its own
+  output — otherwise applying the same N twice keeps eating the hall, and the
+  second click looks like it worked. Same reason it will not re-enable seats that
+  were already deliberately disabled (G24-G28 in the default hall).
 - **`blocksArchive` exists twice, and has to** (client `offlineEventDelete.ts`,
   server `archiveBooking`). The server cannot trust a disabled button, so it
   re-implements the rule. This project has been bitten by duplicated logic before,
@@ -1060,9 +1071,9 @@ bookings at all and archive events instead.
        retrieve→expire→release, sweepAll behind a shared secret with an overlap
        lock, the 2-minute cron, the capacity source rules, and the pay-within-N
        notice (N read from HOLD_STALE_MINUTES, never a literal).~~
-2. [ ] **Batch 8a — the only batch-8 item that gates launch:** bulk seat disable
-       in the floor-plan editor. Everything else moves to **8b (after launch)** —
-       see the 8a/8b split below.
+2. [x] ~~**Batch 8a — DONE** (fba501e): 「只启用前 N 个座位」in the floor-plan
+       editor, plus the shared-plan warning. Everything else is **8b (after
+       launch)** — see the 8a/8b split below.~~
    — ~~**Batch 7b**~~ CANCELLED 2026-07-29; its real findings moved into batch 8.
    — **H** (navbar icons) is deferred to AFTER launch by the owner's decision.
 3. [ ] **Clear ALL test data — genuinely delete it.** Every row in `oe_bookings`
