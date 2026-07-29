@@ -161,6 +161,59 @@ const SWEEP_LIMIT = 50;
 
 export type SweepResult = { scanned: number; confirmed: number; released: number; skipped: number };
 
+// ── sweepAll's shared secret + overlap lock (batch 6) ───────────────────────
+
+/** Constant-time compare, so a wrong secret can't be narrowed down byte by byte.
+ *  Length is compared up front and therefore leaks — over HTTP that is noise, and
+ *  the alternative (padding) buys nothing real. */
+function secretsMatch(a: string, b: string): boolean {
+  if (a.length !== b.length) return false;
+  let diff = 0;
+  for (let i = 0; i < a.length; i++) diff |= a.charCodeAt(i) ^ b.charCodeAt(i);
+  return diff === 0;
+}
+
+const SWEEP_LOCK_KEY = "sweep_lock";
+// Longer than any plausible round (50 rows × ~2 Stripe calls) so a live run is
+// never stolen, short enough that a CRASHED run unblocks itself without anyone
+// noticing there was a lock at all.
+const SWEEP_LOCK_TTL_MS = 5 * 60 * 1000;
+
+/**
+ * One-row optimistic lock in `oe_settings`. Postgres advisory locks are NOT usable
+ * here: they are session-scoped, and these queries go through the pooler where the
+ * next statement may land on a different connection — the lock would be dropped
+ * without anyone noticing. A conditional UPDATE is honest about what it does.
+ *
+ * The value is an ISO-8601 UTC timestamp compared as TEXT, which sorts
+ * chronologically only because the format is fixed-width and always `Z`. Don't
+ * write a different format into this row.
+ */
+async function acquireSweepLock(sb: SB): Promise<boolean> {
+  const nowIso = new Date().toISOString();
+  const staleBefore = new Date(Date.now() - SWEEP_LOCK_TTL_MS).toISOString();
+  // The row won't exist on a fresh database; create it already expired.
+  await sb
+    .from("oe_settings")
+    .upsert({ key: SWEEP_LOCK_KEY, value: new Date(0).toISOString() }, { onConflict: "key", ignoreDuplicates: true });
+  const { data } = await sb
+    .from("oe_settings")
+    .update({ value: nowIso, updated_at: nowIso })
+    .eq("key", SWEEP_LOCK_KEY)
+    .lt("value", staleBefore)
+    .select("key");
+  return (data ?? []).length > 0;
+}
+
+/** Hand the lock back immediately rather than waiting out the TTL, so a 5-second
+ *  round doesn't block the next cron tick two minutes later. */
+async function releaseSweepLock(sb: SB): Promise<void> {
+  await sb
+    .from("oe_settings")
+    .update({ value: new Date(0).toISOString(), updated_at: new Date().toISOString() })
+    .eq("key", SWEEP_LOCK_KEY);
+}
+
 // deno-lint-ignore no-explicit-any
 async function sweepStalePending(
   sb: SB,
@@ -220,6 +273,15 @@ async function sweepStalePending(
       }
       // Kill the session BEFORE the seats go back on sale. An already-expired
       // session needs no call — expiring it again just errors.
+      //
+      // ⚠️ THE LOCK WE DIDN'T WRITE. Between the retrieve above and this line the
+      // customer can pay. Nothing on our side prevents that; what saves us is that
+      // STRIPE REFUSES TO EXPIRE A SESSION THAT IS NO LONGER OPEN — the call
+      // throws, we fall into the catch, and the seats are never released. Every
+      // other guard here is ours; this one is Stripe's, it is invisible in the
+      // code, and it would fail SILENTLY if Stripe ever softened that behaviour
+      // (an expire that "succeeds" on a paid session = seats resold under a paying
+      // customer). If you touch this ordering, re-verify that property first.
       if (s?.status !== "expired") {
         await stripe.checkout.sessions.expire(r.stripe_session_id);
       }
@@ -343,6 +405,40 @@ serve(async (req) => {
     const action = String(body?.action || "");
     const locationId = String(body?.location_id || body?.locationId || "").trim();
     const sb = serviceClient();
+
+    // ── sweepAll: the CRON entry point (batch 6) ─────────────────────────────
+    // Handled before the location guard on purpose: it sweeps EVERY location, so
+    // it has no location_id to be scoped by — which also means it cannot lean on
+    // the location/tool-access checks the other actions use. Its only gate is the
+    // shared secret below.
+    if (action === "sweepAll") {
+      const expected = Deno.env.get("OE_CRON_SECRET") ?? "";
+      const provided = req.headers.get("x-oe-cron-secret") ?? "";
+      // A missing secret, a wrong secret and an unconfigured server all return the
+      // EXACT same 401 body. Telling a caller which one it was tells them how to
+      // get closer. The server log says which — the log is ours, the body is theirs.
+      if (!expected) {
+        console.error("oe.sweepAll: OE_CRON_SECRET is not configured — refusing every call");
+        return json({ error: "unauthorized" }, 401);
+      }
+      if (!secretsMatch(provided, expected)) return json({ error: "unauthorized" }, 401);
+
+      // Overlap guard. pg_net is fire-and-forget, so a round that outlives the
+      // 2-minute cron tick would have the next one pile on top of it. Nothing
+      // would CORRUPT (every write is guarded by .eq("status","pending") and the
+      // seat delete is idempotent) but the counters would double-count and we
+      // would pay for duplicate Stripe calls — and those counters are the only
+      // way anyone watches this job.
+      if (!(await acquireSweepLock(sb))) {
+        return json({ ok: true, scanned: 0, confirmed: 0, released: 0, skipped: "locked" });
+      }
+      try {
+        const result = await sweepStalePending(sb, {});
+        return json({ ok: true, ...result });
+      } finally {
+        await releaseSweepLock(sb);
+      }
+    }
 
     if (!locationId) return json({ error: "location_required" }, 400);
 
