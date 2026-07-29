@@ -677,7 +677,49 @@ the charge stays correct, so nothing else will ever tell you. A quicker read of
 the same signal: the Stripe page shows ONE "活动名 — N seat(s)" line instead of
 separate ticket / lunch / SST lines.
 
-### Test-data baseline
+### 🟢 TEST DATA IS GONE (2026-07-29) — the baseline below is historical
+
+`oe_bookings` and `oe_booked_seats` are **empty**. All 24 test bookings and their
+3 seats were deleted after the owner reviewed a row-by-row export. Full evidence
+and execution log: [`docs/cleanup/2026-07-29-oe-bookings-preclean.md`](docs/cleanup/2026-07-29-oe-bookings-preclean.md).
+
+**Done as CLI SQL (`supabase db query --linked`), NOT through the admin UI — so
+`admin_audit_log` has no entry for it.** The export file committed beforehand is
+the record, and it holds more than an audit row would: the contents of what was
+removed, not just the fact.
+
+**Why no bulk-clear button was added.** 17 of the 24 were tier A (payment traces),
+and `ArchiveModal` refuses a bulk permanent-delete containing *any* tier-A row on
+purpose — a batch that carries one through is a way around the gate, which is the
+entire reason the gate exists. The options were: type 17 booking codes by hand, or
+add a one-time bypass. Both were rejected. A "one-time" bypass in a codebase about
+to merge to `main` is permanent, and it would weaken a money-safety gate the week
+of launch to save ten minutes. **The tier-A gate is untouched by this cleanup.**
+
+Also settled here, and it is the general rule: the gate protects *real* money.
+`stripe_payment_mode` was `sandbox`, so every payment trace in those 24 rows was a
+Stripe test record — the gate was guarding nothing in this particular case. That
+reasoning does **not** transfer to live mode.
+
+Two counts corrected in the process, both by running the real predicate instead of
+reading the rows by eye:
+- **17 tier A, not 15.** `BK-XQOU-YSTLLS` had no Stripe reference at all but
+  `total = 500.00`, and `hasPaymentTrace` is true on the amount alone.
+- **`BK-JE8N-4TX8W2` was tier B, not tier A.** The only `confirmed` row and the
+  holder of all 3 seats, but `total = 0.00` with no Stripe references — provably
+  money-free, so `blocksArchive` was false and it was archivable all along.
+
+**Consequence to be aware of:** `freeSeatsUsedFor` is derived, so wiping the
+bookings reset consumption to 0. The test sub-account `gsRRLb2A8IoATd9qWNmh` went
+from 1 free seat remaining to **4** (its own row is `free_tickets=2, free_seats=4`).
+Left as-is — owner's call, and it is the internal test account.
+
+**Global defaults are now `0/0`** (`default_free_tickets`, `default_free_seats`,
+set 2026-07-29 before the wipe). A new sub-account inherits nothing. Owner's rule:
+payment runs through his own Stripe, so one free seat is RM 397 not collected —
+giving a free ticket must be a deliberate admin action, never inheritance.
+
+### Test-data baseline (historical — see above, this data no longer exists)
 
 | Thing | Value | Note |
 |---|---|---|
@@ -721,16 +763,20 @@ seats is one `oe_subaccount_settings` row away, and that row records the decisio
 **If an eighth surface ever needs this number it reads one of these — it does not
 add another `??`.**
 
-> ### ⚠️ STILL OPEN: a new sub-account inherits 1 free seat
+> ### ✅ CLOSED 2026-07-29: a new sub-account now inherits nothing
 >
-> Commit B changed only the fallbacks. `resolveContext` auto-registers a new
-> sub-account with the **stored** default, and the store says `1`. So every
-> sub-account that syncs in after launch still gets one free seat.
+> Commit B changed only the fallbacks; `resolveContext` reads the **stored**
+> default, which was `1`. Both `oe_settings` rows were therefore set to `0` (owner
+> approved with the numbers in hand), read back to confirm, immediately before the
+> test-data wipe — that order matters, since the wipe resets consumption and a
+> non-zero default would have left a fresh free seat waiting in between.
 >
-> The 910 existing `0/0` rows are unaffected — this is only about new arrivals.
+> The 910 existing `0/0` rows were never affected either way.
 >
-> Closing it means setting both `oe_settings` rows to `0`, which is a data change,
-> not a code change. **Not done yet — awaiting the owner's go-ahead.**
+> Owner's rule, recorded because it governs future changes here: payment runs
+> through his own Stripe, so **one free seat = RM 397 not collected**. Granting a
+> free ticket is a deliberate admin action, never something a sub-account inherits
+> by existing.
 
 **Setting them for real still works, and always did:** `updateSettings` upserts
 with `onConflict: "key"` and `oe_settings.key` is the PK, so saving the admin

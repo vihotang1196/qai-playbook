@@ -134,4 +134,95 @@ decision from this cleanup.
 
 ## Execution log
 
-_Appended after the SQL runs._
+**Executed 2026-07-29 via `supabase db query --linked`** (CLI against production),
+after the owner reviewed the rows above and confirmed the scope.
+
+### 0. Global free-allowance defaults set to 0 first
+
+Done *before* the delete, deliberately: the wipe zeroes consumption, so any
+sub-account inheriting a non-zero default would have had a fresh free seat waiting
+in the window between the two steps.
+
+```sql
+update oe_settings set value='0', updated_at=now()
+ where key in ('default_free_tickets','default_free_seats');
+```
+
+Read back — both `0`, and the other five keys untouched:
+
+| key | value |
+|---|---|
+| `default_free_seats` | **0** |
+| `default_free_tickets` | **0** |
+| `lunch_price` | 39.99 |
+| `max_seats_per_booking` | 4 |
+| `sst_rate` | 0.08 |
+| `stripe_payment_mode` | sandbox |
+| `sweep_lock` | 1970-01-01T00:00:00.000Z |
+
+Owner's reasoning, recorded because it is the rule going forward: payment runs
+through the owner's own Stripe, so **one free seat = RM 397 not collected**.
+Giving a free ticket must be a deliberate act (adding it in the admin), never
+something a new sub-account inherits by existing.
+
+### 1. Pre-delete count — matched
+
+```sql
+select (select count(*) from oe_bookings) as bookings,
+       (select count(*) from oe_booked_seats) as seats;
+-- bookings = 24, seats = 3   ✅ matches this snapshot
+```
+
+### 2. Delete — seats first, then bookings
+
+```sql
+delete from oe_booked_seats;
+delete from oe_bookings;
+```
+
+### 3. Post-delete verification — all expected
+
+| table | after | expected |
+|---|---|---|
+| `oe_bookings` | **0** | 0 ✅ |
+| `oe_booked_seats` | **0** | 0 ✅ |
+| `oe_events` | 1 | 1 ✅ |
+| `oe_floor_plans` | 1 | 1 ✅ |
+| `oe_settings` | 7 | 7 ✅ |
+| `oe_subaccount_settings` | 911 | 911 ✅ |
+| └ of which `0/0` rows | 910 | 910 ✅ |
+
+### 4. Free allowance after the wipe — as predicted
+
+`resolveContext` for `gsRRLb2A8IoATd9qWNmh`:
+
+```json
+{"enabled":true,"businessName":"AJ | QiAi Demo🔥","freeTickets":2,
+ "freeSeats":4,"freeSeatsUsed":0,"freeSeatsRemaining":4}
+```
+
+Consumption dropped 3 → 0, so the test account went from **1 free seat remaining
+to 4**. Its own row (`free_tickets=2, free_seats=4`) is untouched and the new
+`0/0` global default does not reach it. **Left as-is pending the owner's
+decision** — this is the internal test account, not a customer.
+
+### 5. Customer-side check (anonymous, no admin session)
+
+`/events?location_id=gsRRLb2A8IoATd9qWNmh`:
+
+- 「剩 91 座」 — seat map reports **91 of 91 selectable, 0 disabled**
+- 「你还有 4 张免费票（最多 4 人/单）」 — matches `freeSeatsRemaining: 4`
+- event, price (RM 397), SST label all render; **no console errors**
+
+### 6. Not verified
+
+The admin 报名列表 and 归档弹窗 were **not** checked in the UI — that needs a
+signed-in admin session. The data layer is confirmed empty (0 rows in both
+tables), so both lists must come back empty; what remains unchecked is only
+whether the empty state itself renders cleanly. Owner to glance.
+
+### 7. No audit-log entry
+
+As designed for this path: the delete ran as CLI SQL, so `admin_audit_log` has no
+row for it. This file is the record.
+
