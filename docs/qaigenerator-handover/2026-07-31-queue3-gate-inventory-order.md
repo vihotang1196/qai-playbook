@@ -11,6 +11,69 @@
 
 **这一单的成功标准不是"确认六个表单"，是"证明不存在第七个"。**
 
+## 零、第一交付物：模板 → 表单 → AI 面板 映射表（9 行，一个不漏）
+
+**验收按模板，不按组件。** 市场里有 9 个模板（持有人截图确认）：
+
+1. All-Industry (Lazy Pack) 2. All-Industry (Detailed) 3. Seeding
+4. Person + Scene + Service + Product 5. AI Influencer Selling 6. AIDA Ad
+7. Product Branding 8. Unboxing ASMR 9. AIDA + AI Character
+
+已知的表单组件只有 7 个（`LazyPackForm` / `InfluencerForm` / `AidaPersonForm` /
+`AidaStoryboardForm` / `AidaCharacterForm` / `ProductBrandingForm` / `SeedingForm`）。
+**9 对 7 = 有共用，也可能有漏。** 三个明确对不上的先答：
+
+- **Unboxing ASMR** 走哪个表单？（LLM 侧有 `unboxingAsmr.ts`，表单侧没有对应件）
+- **Person + Scene + Service + Product** 走哪个表单？
+- **All-Industry (Detailed)** 走哪个表单？（LLM 侧有 `detailedAdpack.ts`，表单侧没列）
+
+### 追踪路径（别靠翻组件目录猜）
+
+从 **LLM / prompt 模块**倒推最可靠，因为它是一对一的：
+`unboxingAsmr.ts` / `detailedAdpack.ts` → 谁 import 它 → 哪个表单渲染那条流程 →
+哪个模板 id 路由到这个表单。三条线都走通，9 行就齐了。
+
+### 表格列（每行必填，不许留空）
+
+| 列 | 说明 |
+|---|---|
+| 模板名 | 上面 9 个之一 |
+| 模板 id / 路由值 | 代码里的真实标识符 |
+| 表单组件 | `file:line` |
+| LLM / prompt 模块 | `file` |
+| **该模板下**渲染的「AI 生成后需确认」面板 | 逐个列，带字段名 |
+| 每个面板的 active 条件 | 照 `previewUrl !== null` / `result !== null` 的形式 |
+| 挂载即非空？ | 见原第二节的 ⚠️ |
+| 已在范围 / **漏了** | |
+| dim 标记数 | |
+| 共用表单？ | 若与别的模板共用，**注明该模板下的字段差异** |
+
+### ⚠️ 最后那一列是关键，别当附注
+
+同一个表单组件在不同模板下**可能渲染不同字段**。所以「表单接了 gate」**不等于**
+「该模板下的 AI 面板都接了」。共用表单的每个模板都要独立核一遍它渲染出哪些面板 ——
+否则会出现「组件清单 100% 覆盖，但某个模板照样没保护」。
+
+### 验收标准（改成按模板）
+
+**9 个模板逐个点 AI generate，都必须有 gate。** 「六个组件都接了」不算完。
+
+责任划分：
+- **CC 交代码层验收** —— 9 行每行的 AI 面板都能指到已接入的 gate id
+- **持有人交点击层验收** —— 正式站逐个模板实测（CC 进不了正式站）
+
+### "AI theme" / "AI topic" 在这张表里定位
+
+持有人明确点名这两个。它们大概率是其中某个模板的字段。
+**要求给出所在行 + 真实字段名/标识符 + 是否已在范围**，三选一的明确结论，不要模糊。
+
+### ⚠️ 禁区提醒
+
+市场 9 模板的 seedance（`lazypackProduce.ts` 的 `VIDEO_T2V_MODEL`）在禁区里。
+盘点时会读到相关代码 —— **只读，一字不动。**
+
+---
+
 ## 一、发现方法：从机制搜，不从名字搜
 
 不要以现有的六个表单为起点去核对。反过来：把所有"AI 产出 → 用户要拍板"的点全捞出来，
