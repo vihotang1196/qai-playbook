@@ -1,0 +1,93 @@
+<!doctype html>
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<style>
+  * { box-sizing: border-box; margin: 0; }
+  body { font: 13px/1.4 system-ui; }
+  #tabbar { position: fixed; top: 0; left: 0; right: 0; height: var(--nav-h, 66px);
+            background: #1e293b; color: #fff; z-index: 30; }
+  #shell { display: grid; grid-template-columns: 1fr 260px; height: 100vh; }
+  #col { overflow-y: auto; height: 100vh; padding: 12px; }
+  body[data-variant="B"] #col { height: calc(100vh - var(--nav-h, 66px)); margin-top: var(--nav-h, 66px); }
+  #right { background: #f8fafc; border-left: 1px solid #cbd5e1; }
+  .filler { background: #eef2f7; border: 1px dashed #94a3b8; margin-bottom: 12px; }
+  #panel { border: 2px solid #dc2626; border-radius: 8px; background: #fff7ed; }
+  #body { overflow-y: auto; overscroll-behavior: contain; }
+  #btnrow { height: 44px; border-top: 1px solid #fdba74; }
+</style>
+<div id="tabbar"></div>
+<div id="shell">
+  <div id="col">
+    <div class="filler" id="above"></div>
+    <div id="panel"><div id="body"></div><div id="btnrow"></div></div>
+    <div class="filler" id="below"></div>
+  </div>
+  <div id="right"></div>
+</div>
+<script>
+const $ = id => document.getElementById(id);
+
+window.setup = ({ variant, navH, panelH, boundBody, aboveH = 900, belowH = 1400 }) => {
+  document.body.dataset.variant = variant;
+  document.documentElement.style.setProperty('--nav-h', navH + 'px');
+  $('above').style.height = aboveH + 'px';
+  $('below').style.height = belowH + 'px';
+  // 面板总高 = body + 按钮行(44) + 上下边框(4)
+  $('body').style.height = (panelH - 48) + 'px';
+  // boundBody=true 模拟 ③ 的 max-h-[40vh]：body 内容溢出时自己滚，不撑高面板
+  $('body').style.maxHeight = boundBody ? '40vh' : 'none';
+  $('col').scrollTop = 0;
+};
+
+const band = () => {
+  const sc = $('col').getBoundingClientRect();
+  const navB = $('tabbar').getBoundingClientRect().bottom;
+  const top = Math.max(sc.top, navB), bottom = Math.min(sc.bottom, innerHeight);
+  return { top, bottom, h: bottom - top, center: (top + bottom) / 2, navB };
+};
+
+// ---- 落点策略 ----
+window.strategies = {
+  // 现状级别1
+  center:  () => $('panel').scrollIntoView({ block: 'center', behavior: 'instant' }),
+  // 现状级别2
+  nearest: () => $('panel').scrollIntoView({ block: 'nearest', behavior: 'instant' }),
+  // 你提的：超过视口比例 R 就顶部对齐（扣导航高 + 留边距），否则居中
+  ratio: (R = 0.5, margin = 24) => {
+    const b = band(), r = $('panel').getBoundingClientRect();
+    const tall = r.height / innerHeight > R;          // 注意：分母是视口，按你的原话
+    $('col').scrollTop += tall
+      ? (r.top - (b.top + margin))
+      : ((r.top + r.height / 2) - b.center);
+  },
+  // 我建议的：恒顶部对齐，边距从导航条实测下沿算，无阈值无分支
+  topAlways: (margin = 24) => {
+    const b = band(), r = $('panel').getBoundingClientRect();
+    $('col').scrollTop += (r.top - (b.top + margin));
+  },
+};
+
+window.measure = () => {
+  const b = band(), r = $('panel').getBoundingClientRect(), bd = $('body');
+  return {
+    navBottom: Math.round(b.navB),
+    bandTop: Math.round(b.top), bandBottom: Math.round(b.bottom),
+    bandH: Math.round(b.h), bandCenter: Math.round(b.center),
+    panelTop: Math.round(r.top), panelBottom: Math.round(r.bottom),
+    panelH: Math.round(r.height), panelCenter: Math.round(r.top + r.height / 2),
+    gapAbove: Math.round(r.top - b.top),
+    gapBelow: Math.round(b.bottom - r.bottom),
+    hiddenUnderNav: Math.max(0, Math.round(b.navB - r.top)),
+    buttonsOffscreen: Math.max(0, Math.round(r.bottom - b.bottom)),
+    pctOfViewport: Math.round(100 * r.height / innerHeight),
+    bodyScrolls: bd.scrollHeight > bd.clientHeight + 1,   // 有界滚动区是否真的在滚
+    bodyMaxH: getComputedStyle(bd).maxHeight,
+  };
+};
+
+// 假设验证：滚动发生在面板长高之前（建议列表后渲染），面板随后向下长
+window.scrollThenGrow = (fromH, toH) => {
+  $('body').style.height = (fromH - 48) + 'px';
+  $('panel').scrollIntoView({ block: 'center', behavior: 'instant' });
+  $('body').style.height = (toH - 48) + 'px';   // 面板长高，不再重新定位
+};
+</script>
