@@ -1,0 +1,119 @@
+<!doctype html>
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<style>
+  *{box-sizing:border-box;margin:0}
+  body{font:12px system-ui;background:#0f172a;color:#fff}
+  #root{zoom:var(--z,1)}
+  #grid{display:flex;flex-wrap:wrap;gap:10px;padding:10px}
+  .frame{position:relative;background:#1e293b;display:grid;place-items:center;color:#94a3b8}
+
+  /* ---- 实现 A：#679 现状 —— @property 角度动画驱动 conic-gradient ---- */
+  @property --qai-scan-angle { syntax: "<angle>"; inherits: false; initial-value: 0deg; }
+  .qai-scan-band{
+    position:absolute; inset:0; border-radius:inherit; padding:var(--band-w,3px);
+    background:conic-gradient(from var(--qai-scan-angle),transparent 0deg,#fbbf24 40deg,transparent 90deg);
+    -webkit-mask:linear-gradient(#000 0 0) content-box,linear-gradient(#000 0 0);
+    -webkit-mask-composite:xor;
+    mask:linear-gradient(#000 0 0) content-box,linear-gradient(#000 0 0);
+    mask-composite:exclude;
+    animation:qaiScanSpin 2s linear infinite;
+    pointer-events:none;
+  }
+  @keyframes qaiScanSpin { to { --qai-scan-angle:360deg } }
+
+  /* ---- 实现 B：transform 旋转伪元素（合成器友好），mask 相同 ---- */
+  .band-b{
+    position:absolute; inset:0; border-radius:inherit; padding:var(--band-w,3px);
+    overflow:hidden;
+    -webkit-mask:linear-gradient(#000 0 0) content-box,linear-gradient(#000 0 0);
+    -webkit-mask-composite:xor;
+    mask:linear-gradient(#000 0 0) content-box,linear-gradient(#000 0 0);
+    mask-composite:exclude;
+    pointer-events:none;
+  }
+  .band-b::before{
+    content:''; position:absolute; left:50%; top:50%;
+    width:250%; aspect-ratio:1; translate:-50% -50%;
+    background:conic-gradient(transparent 0deg,#fbbf24 40deg,transparent 90deg);
+    animation:spinB 2s linear infinite;
+    will-change:transform;
+  }
+  @keyframes spinB { to { rotate:360deg } }
+
+  @media (prefers-reduced-motion:reduce){
+    .qai-scan-band,.band-b::before{animation:none}
+  }
+</style>
+<div id="root"><div id="grid"></div></div>
+<script>
+// 混合尺寸与圆角，模拟真实场景：分段 IMAGE 框小、VIDEO 框大、语音框窄
+const SHAPES = [
+  { w:200, h:120, r:8  },
+  { w:480, h:270, r:24 },
+  { w:320, h:180, r:12 },
+  { w:260, h:64,  r:32 },   // 窄条（语音）
+];
+
+window.build = ({ n, impl, bandW }) => {
+  const g = document.getElementById('grid');
+  g.innerHTML = '';
+  for (let i = 0; i < n; i++) {
+    const s = SHAPES[i % SHAPES.length];
+    const f = document.createElement('div');
+    f.className = 'frame';
+    f.style.width = s.w + 'px';
+    f.style.height = s.h + 'px';
+    f.style.borderRadius = s.r + 'px';
+    f.textContent = 'Generating…';
+    if (impl !== 'none') {
+      const b = document.createElement('div');
+      b.className = impl === 'A' ? 'qai-scan-band' : 'band-b';
+      if (bandW) b.style.setProperty('--band-w', bandW);
+      f.appendChild(b);
+    }
+    g.appendChild(f);
+  }
+  return document.querySelectorAll('.frame').length;
+};
+
+// rAF 帧间隔采样
+window.sampleFrames = (ms) => new Promise(res => {
+  const d = []; let last = performance.now(); const t0 = last;
+  const tick = now => {
+    d.push(now - last); last = now;
+    if (now - t0 < ms) requestAnimationFrame(tick);
+    else {
+      const s = d.slice(1).sort((a,b)=>a-b);          // 丢掉第一帧
+      const sum = s.reduce((a,b)=>a+b,0);
+      res({
+        frames: s.length,
+        avgMs:  +(sum/s.length).toFixed(2),
+        p50:    +s[Math.floor(s.length*0.5)].toFixed(2),
+        p95:    +s[Math.floor(s.length*0.95)].toFixed(2),
+        worst:  +s[s.length-1].toFixed(2),
+        fps:    +(1000/(sum/s.length)).toFixed(1),
+        janky:  s.filter(x => x > 20).length,          // >20ms 视作掉帧
+      });
+    }
+  };
+  requestAnimationFrame(tick);
+});
+
+// mask 自适应验证：光带盒子是否与宿主框严格同尺寸同圆角，厚度是否等于 padding
+window.checkMask = () => [...document.querySelectorAll('.frame')].map(f => {
+  const b = f.firstElementChild?.classList.contains('frame') ? null : f.querySelector('.qai-scan-band,.band-b');
+  if (!b) return null;
+  const fr = f.getBoundingClientRect(), br = b.getBoundingClientRect();
+  const cs = getComputedStyle(b), fcs = getComputedStyle(f);
+  return {
+    hostW: Math.round(fr.width), hostH: Math.round(fr.height),
+    bandW: Math.round(br.width), bandH: Math.round(br.height),
+    sizeMatch: Math.abs(fr.width-br.width) < 0.5 && Math.abs(fr.height-br.height) < 0.5,
+    hostRadius: fcs.borderTopLeftRadius,
+    bandRadius: cs.borderTopLeftRadius,
+    radiusMatch: fcs.borderTopLeftRadius === cs.borderTopLeftRadius,
+    padLocal: cs.paddingTop,                                   // 局部 px
+    padVisual: +(parseFloat(cs.paddingTop) * (br.height / b.offsetHeight)).toFixed(2), // 视觉 px
+  };
+}).filter(Boolean);
+</script>
