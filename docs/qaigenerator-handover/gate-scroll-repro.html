@@ -1,0 +1,133 @@
+<!doctype html>
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<style>
+  * { box-sizing: border-box; margin: 0; }
+  body { font: 13px/1.4 system-ui; }
+
+  /* TabBar: 浮层，z-30，scrollIntoView 看不见它 */
+  #tabbar {
+    position: fixed; top: 0; left: 0; right: 0; height: var(--nav-h, 56px);
+    background: #1e293b; color: #fff; z-index: 30;
+    display: flex; align-items: center; padding: 0 12px;
+  }
+
+  /* 两栏布局；右栏是内层 overflow-y-auto 滚动容器 */
+  #shell { display: grid; grid-template-columns: 220px 1fr; height: 100vh; }
+  #left  { background: #f1f5f9; border-right: 1px solid #cbd5e1; }
+
+  /* 变体 A：滚动容器从 top:0 起，导航条盖在它上面 */
+  /* 变体 B：滚动容器让开导航条高度 */
+  #col {
+    overflow-y: auto; height: 100vh; padding: 12px;
+  }
+  body[data-variant="B"] #col { height: calc(100vh - var(--nav-h, 56px)); margin-top: var(--nav-h, 56px); }
+
+  .filler { background: #e2e8f0; border: 1px dashed #94a3b8; margin-bottom: 12px; padding: 8px; }
+
+  /* 被 gate 包住的核心卖点面板 */
+  #panel {
+    border: 2px solid #dc2626; border-radius: 8px; padding: 12px;
+    background: #fff7ed; margin-bottom: 12px;
+  }
+  /* ③ 的配套改动：建议文本变成有界滚动区，按钮行留在滚动区外面 */
+  #suggest {
+    max-height: 40vh; overflow-y: auto; overscroll-behavior: contain;
+    background: #fff; border: 1px solid #fdba74; padding: 8px;
+  }
+  #btnrow { display: flex; gap: 8px; padding-top: 10px; }
+  #btnrow button { padding: 6px 14px; }
+</style>
+
+<div id="tabbar">TabBar (fixed, z-30)</div>
+<div id="shell">
+  <div id="left">side</div>
+  <div id="col">
+    <div class="filler" id="above"></div>
+    <div id="panel">
+      <strong>核心卖点（Q2）</strong>
+      <div id="suggest"></div>
+      <div id="btnrow"><button>确认采用</button><button>我要改</button></div>
+    </div>
+    <div class="filler" id="below"></div>
+  </div>
+</div>
+
+<script>
+  // 由测试脚本注入：面板内建议文本行数、上下填充高度、变体
+  window.setup = ({ variant, navH, suggestLines, aboveH, belowH, extraUnboundedH = 0 }) => {
+    document.body.dataset.variant = variant;
+    document.documentElement.style.setProperty('--nav-h', navH + 'px');
+    document.getElementById('above').style.height = aboveH + 'px';
+    document.getElementById('below').style.height = belowH + 'px';
+    // 面板里除了有界建议区之外的、没被 max-h 约束的内容（真面板里可能有别的字段）
+    let extra = document.getElementById('extra');
+    if (!extra) {
+      extra = document.createElement('div');
+      extra.id = 'extra';
+      extra.style.background = '#fde68a';
+      document.getElementById('panel').insertBefore(extra, document.getElementById('btnrow'));
+    }
+    extra.style.height = extraUnboundedH + 'px';
+    const s = document.getElementById('suggest');
+    s.innerHTML = '';
+    for (let i = 0; i < suggestLines; i++) {
+      const p = document.createElement('p');
+      p.textContent = '建议第 ' + (i + 1) + ' 条：把卖点写得更具体一点，别用形容词堆砌。';
+      s.appendChild(p);
+    }
+  };
+
+  // ---- 被测代码：#678 的 ② 现状 ----
+  window.currentImpl = (level) => {
+    const panel = document.getElementById('panel');
+    panel.scrollIntoView({ block: level === 1 ? 'center' : 'nearest', behavior: 'instant' });
+  };
+
+  // ---- 候选修正：按「未被浮层遮挡的可视带」算，不用 scrollIntoView ----
+  window.proposedImpl = (level) => {
+    const el = document.getElementById('panel');
+    const sc = document.getElementById('col');           // 最近的滚动祖先
+    const nav = document.getElementById('tabbar');
+
+    const scR  = sc.getBoundingClientRect();
+    const navB = nav.getBoundingClientRect().bottom;      // 浮层实测下沿，不写死常量
+    const bandTop    = Math.max(scR.top, navB);
+    const bandBottom = Math.min(scR.bottom, innerHeight);
+    const bandH      = bandBottom - bandTop;
+
+    const elR = el.getBoundingClientRect();
+    // 面板高于可视带 → 居中会把顶部推到带外，改成顶部贴齐带顶
+    const delta = (elR.height > bandH)
+      ? (elR.top - bandTop)
+      : ((elR.top + elR.height / 2) - (bandTop + bandH / 2));
+    sc.scrollTop += delta;
+  };
+
+  // ---- 量尺 ----
+  window.measure = () => {
+    const panel = document.getElementById('panel');
+    const sc = document.getElementById('col');
+    const nav = document.getElementById('tabbar');
+    const scR = sc.getBoundingClientRect();
+    const navB = nav.getBoundingClientRect().bottom;
+    const bandTop = Math.max(scR.top, navB);
+    const bandBottom = Math.min(scR.bottom, innerHeight);
+    const p = panel.getBoundingClientRect();
+    return {
+      viewportH: innerHeight,
+      navBottom: Math.round(navB),
+      bandTop: Math.round(bandTop),
+      bandBottom: Math.round(bandBottom),
+      bandH: Math.round(bandBottom - bandTop),
+      bandCenter: Math.round((bandTop + bandBottom) / 2),
+      panelTop: Math.round(p.top),
+      panelH: Math.round(p.height),
+      panelCenter: Math.round(p.top + p.height / 2),
+      // 正数 = 面板中心落在可视带中心「下方」；负数 = 偏高
+      deltaFromBandCenter: Math.round((p.top + p.height / 2) - (bandTop + bandBottom) / 2),
+      // 面板顶部被导航条盖住多少
+      hiddenUnderNav: Math.max(0, Math.round(navB - p.top)),
+      tallerThanBand: p.height > (bandBottom - bandTop),
+    };
+  };
+</script>
