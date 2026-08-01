@@ -1,0 +1,89 @@
+<!doctype html><html lang="zh"><meta charset="utf-8">
+<title>光带候选 · 动效对比</title>
+<style>
+ :root{--primary:50 98% 52%;--ink:0 0% 8%}
+ *{box-sizing:border-box;margin:0}
+ body{background:#fff;background-image:radial-gradient(circle,rgba(20,20,20,.10) 1.5px,transparent 1.5px);
+      background-size:26px 26px;font:13px/1.5 system-ui,-apple-system,"Noto Sans SC",sans-serif}
+ #root{zoom:.75;padding:28px;max-width:1500px;margin:0 auto}
+ h1{font-size:20px;margin-bottom:4px} .note{color:#59595f;margin-bottom:20px;font-size:13px}
+ .grid{display:grid;grid-template-columns:repeat(2,1fr);gap:26px}
+ .cap{font-weight:700;color:#141414} .sub{color:#59595f;font-size:12px;margin:2px 0 8px}
+ .warn{color:#b45309;font-size:12px;margin:2px 0 8px}
+ @property --qai-scan-angle{syntax:"<angle>";inherits:false;initial-value:0deg}
+ @keyframes spin{to{--qai-scan-angle:360deg}}
+
+ .frame{position:relative;border-radius:.5rem;border:2px solid hsl(var(--ink));background:#f9fafb;
+   overflow:hidden;aspect-ratio:16/9;display:flex;align-items:center;justify-content:center;color:#59595f}
+ .band{position:absolute;inset:0;border-radius:inherit;pointer-events:none;
+   -webkit-mask:linear-gradient(#000 0 0) content-box,linear-gradient(#000 0 0);-webkit-mask-composite:xor;
+   mask:linear-gradient(#000 0 0) content-box,linear-gradient(#000 0 0);mask-composite:exclude;
+   animation:spin var(--dur,1.4s) linear infinite}
+
+ /* 现状（main 上已合并的 #681） */
+ .cur{padding:4px;background:conic-gradient(from var(--qai-scan-angle,0deg),
+   transparent 0deg,hsl(var(--primary)) 40deg,hsl(var(--primary)/.35) 90deg,transparent 160deg)}
+ /* 档2：8px 宽实心头，画在黑边内侧 */
+ .p2{padding:8px;background:conic-gradient(from var(--qai-scan-angle,0deg),
+   transparent 0deg,hsl(var(--primary)) 20deg,hsl(var(--primary)) 110deg,
+   hsl(var(--primary)/.6) 160deg,hsl(var(--primary)/0) 240deg,transparent 360deg)}
+
+ /* 档3-真：光带是被裁盒子的【兄弟】，挂在 wrapper 上 → 不被 overflow-hidden 裁 */
+ .wrap{position:relative;border-radius:.5rem}
+ .wrap .frame{border-radius:inherit}
+ .wrap .band{inset:0;border-radius:inherit;padding:8px}
+ .p3{background:conic-gradient(from var(--qai-scan-angle,0deg),
+   transparent 0deg,hsl(var(--primary)) 20deg,hsl(var(--primary)) 110deg,
+   hsl(var(--primary)/.6) 160deg,hsl(var(--primary)/0) 240deg,transparent 360deg)}
+ /* 档3-窄头：同样覆盖黑边，但用现状那种窄亮区，看扇区宽度的差别 */
+ .p3n{background:conic-gradient(from var(--qai-scan-angle,0deg),
+   transparent 0deg,hsl(var(--primary)) 40deg,hsl(var(--primary)/.35) 90deg,transparent 160deg)}
+
+ .sr{margin-top:26px;padding-top:18px;border-top:2px solid hsl(var(--ink))}
+ .static .band{animation:none}
+ .s-old{padding:4px;background:hsl(var(--primary)/.6)}
+ .s-new{padding:8px;background:hsl(var(--primary)/.95)}
+ .ctl{margin:14px 0 20px;display:flex;gap:14px;align-items:center;flex-wrap:wrap}
+ label{font-size:13px}
+</style>
+<div id="root">
+ <h1>环绕光带 · 动效对比</h1>
+ <p class="note">按真实环境渲染：<code>zoom:.75</code>、<code>#fed50a</code> / <code>#141414</code>、真实 SlotPanel 盒子（<code>border-2 border-ink</code> + <code>overflow-hidden</code> + <code>bg-gray-50</code>）。转速与线上一致 1.4s/圈。</p>
+
+ <div class="ctl">
+   <label>转速 <input type="range" id="dur" min="6" max="40" value="14"> <span id="durv">1.4s</span> / 圈</label>
+ </div>
+
+ <div class="grid">
+  <div><div class="cap">现状（#681 已合并，线上应为此）</div><div class="sub">4px · 窄亮区 160° · 画在黑边内侧</div>
+    <div class="frame"><span class="band cur"></span><span>Generating video…</span></div></div>
+
+  <div><div class="cap">档2 · 保留黑边</div><div class="sub">8px · 宽实心头 110° · 画在黑边内侧</div>
+    <div class="frame"><span class="band p2"></span><span>Generating video…</span></div></div>
+
+  <div><div class="cap">档3-真 · 覆盖黑边 ← 你选的那个（已修正实现）</div>
+    <div class="sub">8px · 宽实心头 110° · 光带是被裁盒子的<b>兄弟</b>，不被 overflow-hidden 裁</div>
+    <div class="wrap"><div class="frame"><span>Generating video…</span></div><span class="band p3"></span></div></div>
+
+  <div><div class="cap">档3-窄头 · 覆盖黑边但用现状的窄亮区</div>
+    <div class="warn">对比这格和上一格，就能看出「宽实心头」值不值得一起用</div>
+    <div class="wrap"><div class="frame"><span>Generating video…</span></div><span class="band p3n"></span></div></div>
+ </div>
+
+ <div class="sr">
+  <h1 style="font-size:16px">reduced-motion 静态降级</h1>
+  <p class="note">设了「减少动态效果」的用户看到的是这个。静态下也必须看得见，否则这类用户完全拿不到「在跑」这个信息。</p>
+  <div class="grid static">
+   <div><div class="cap">现状</div><div class="sub">4px · 不透明度 .6</div>
+     <div class="frame"><span class="band s-old"></span><span>Generating video…</span></div></div>
+   <div><div class="cap">建议（跟档3 一起做）</div><div class="sub">8px · 不透明度 .95 · 同样覆盖黑边</div>
+     <div class="wrap"><div class="frame"><span>Generating video…</span></div><span class="band s-new"></span></div></div>
+  </div>
+ </div>
+</div>
+<script>
+ const r=document.getElementById('dur'),v=document.getElementById('durv');
+ r.addEventListener('input',()=>{const s=(r.value/10).toFixed(1);v.textContent=s+'s';
+   document.documentElement.style.setProperty('--dur',s+'s');
+   document.querySelectorAll('.band').forEach(b=>b.style.setProperty('--dur',s+'s'));});
+</script></html>
