@@ -238,12 +238,87 @@ const [open, setOpen] = useState(false);
 
 ---
 
-## 八、还没填满的
+## 八、dim 标记计数 ——**实际约 63 处，比 ~41 的估计多一半**
 
-- 每处的 dim 标记数（对齐 ~41 这个估计）—— 需要逐个数 JSX 节点
-- 合并（merge）进度框的确切位置
-- 光带候选里「按钮 spinner vs 框」的逐个判定
-- `AidaStoryboardForm` / `AidaCharacterForm` 的 USP 个数（是不是也各 3 个）
+### 计数方法：`fieldLabel(` 是可靠基数
+
+LazyPackForm 已完成的标记数是 **9**，它的 `fieldLabel(` 出现次数也是 **9** —— 1:1。
+用它作估算基数。
+
+| 表单 / Pack | `fieldLabel(` | 其它单位 | dim 标记（估） | 状态 |
+|---|---|---|---|---|
+| LazyPackForm | 9 | | **9** | ✅ 已完成 |
+| AidaPersonForm | 10 | | ~10 | |
+| ProductBrandingForm | 9 | | ~9 | |
+| InfluencerForm | 6 | | ~6 | |
+| AidaStoryboardForm | 6 | | ~6 | |
+| AidaCharacterForm | 6 | | ~6 | |
+| **SeedingForm** | 12 | QLabel 9 | **~12** | |
+| **DetailedAdPack**（内联） | 9 | **FormGroup 10** | **~10** | |
+| **UnboxingAsmrPack**（内联） | 4 | | **~4** | |
+| | | | **待做合计 ≈ 63** | |
+
+### ⚠️ 为什么比估计多
+
+`~41` 这个数来自「六个表单」的框架：
+`AidaPerson 10 + ProductBranding 9 + Influencer 6 + AidaStoryboard 6 + AidaCharacter 6 = 37`，
+接近 41。**它把 SeedingForm（12）和两个内联模板（14）整个漏在外面** ——
+正是「按组件盘」漏掉的那部分。按模板验收之后，实际工作量约 **1.5 倍**。
+
+⚠️ `fieldLabel` 是估算基数不是精确值：LazyPackForm 的 9 处里有一处（第 389 行
+`space-y-6 lg:pr-1`）标在整列包装器上而不是字段上。实施时按实际结构放，
+最后用**计数断言**核对（工作单已有这条）。
+
+---
+
+## 九、USP 个数：四个表单**各 3 个字段，但只有 1 个面板**
+
+`AidaPersonForm` / `AidaStoryboardForm` / `AidaCharacterForm` / `InfluencerForm`
+的 `UspKey` 都是 `"usp_1" | "usp_2" | "usp_3"` —— **各 3 个 AI generate 按钮**。
+
+但它们共用**单个** `uspAi` 状态（`{ key, text } | null`），
+所以**同一时刻只有一个面板**。3 个触发点 → 1 个 gate。
+
+→ 这四个表单：**每个 1 个 gate，不是 3 个。**
+
+---
+
+## 十、光带：框 vs 按钮 spinner 的判定
+
+### 判据（从代码实测出来的尺寸规律）
+
+| 尺寸 | 归类 |
+|---|---|
+| `w-6 h-6` 及以上，或 `relative w-12 h-12` 的绝对定位圆环 | **框级**，接光带 |
+| `w-3 h-3` / `w-3.5 h-3.5` / `w-4 h-4` | **按钮内**，不接（按钮态用 spinner 是对的） |
+
+### 三个确定的接入点（都缺 `relative`，都要补）
+
+| 位置 | 说明 |
+|---|---|
+| `LazyPackStepwise.tsx:2035` `SlotPanel` | **IMAGE + VIDEO 共用一个组件**，接一处覆盖两种框。生成中分支在 `status === "running"` |
+| `LazyPackStepwise.tsx:1818` 合并进度框 | `mergeStatus === "running"`。盒子形状与 SlotPanel 相同：`rounded-card border-2 border-ink bg-gray-50 overflow-hidden … max-h-[60vh]`，**同样没有 `relative`** |
+| `studio/TemplateGeneratePanel.tsx` | **3 个框级**：第 1464 行（`w-6 h-6` + 说明文字）、第 1553–1558 行（`relative w-12 h-12` 双圆环）、第 1700 行（`w-6 h-6` + 两行说明）。另有 5 个按钮内 spinner（1274 / 1604 / 1643 / 1764）不接 |
+
+⚠️ **三处的宿主都缺 `position: relative`。** 补的时候注意它们都有 `overflow-hidden` ——
+加 `relative` 不改变裁剪行为（`overflow` 的裁剪基于 border-box，与定位上下文无关），
+但光带是 `inset-0` 铺满 border-box，会被同一个圆角裁剪，这正是想要的效果。
+
+---
+
+## 十一、⑥ 方案 A 的实施要求（已拍板）
+
+给 `AiPromptButton` 加「一次一个」协调，让模板 2 与其余六个一致。四条：
+
+1. **不要用全局单例变量** —— 用 context 或模块级 registry，
+   并确认**卸载时清理干净**（否则切模板会残留一个永远关不掉的"当前打开 id"）
+2. ⚠️ **顶掉上一个面板必须是「丢弃」不是「确认」** —— 和其余六个表单一致
+   （换字段生成就顶掉，不落值）。别让用户以为顶掉 = 采用了。
+   现有 `AiPromptButton` 的 Replace 是显式按钮，顶掉走的应该是等价于 × 的路径
+3. **hero 槽位有 N 个**，用户连点两个 AI generate 时第一个面板会消失 ——
+   **这是新行为，PR 描述里要写明**
+4. `AiPromptButton` 跨模板共享，改完要**确认另外几个使用点没退化**
+   （`DetailedAdPack` 字段级第 755 行、hero 第 948 行；其余模板的使用点一并过）
 
 ## 九、已关闭 / 已定案
 
