@@ -16,10 +16,10 @@
 | 3 | Seeding | `section-3` | `seeding` | SeedingEntry | SeedingForm | **`series_theme`（AI theme）**、**`specified_topics`（AI topic）** | ❌ |
 | 4 | Person+Scene+Service+Product | `section-4` | `aida-person` | AidaPersonPack | AidaPersonForm | **USP 1 / 2 / 3 各一个**（Replace/Regenerate/Dismiss） | ❌ |
 | 5 | AI Influencer Selling | `section-5` | `influencer` | InfluencerPack | InfluencerForm | USP AI assist（同 PR-A 模式） | ❌ |
-| 6 | AIDA Ad | `section-6` | `aida-storyboard` | AidaStoryboardPack | AidaStoryboardForm | 待填 | ❌ |
-| 7 | Product Branding | `section-7` | `product-branding` | ProductBrandingPack | ProductBrandingForm | 特色 / 材质 AI-polish（一次一个 active suggestion） | ❌ |
+| 6 | AIDA Ad | `section-6` | `aida-storyboard` | AidaStoryboardPack | AidaStoryboardForm | USP AI assist（`uspAi`，第 148 行） | ❌ |
+| 7 | Product Branding | `section-7` | `product-branding` | ProductBrandingPack | ProductBrandingForm | 特色 / 材质 AI-polish（`fieldAi`，第 147 行） | ❌ |
 | 8 | Unboxing ASMR | `section-8` | `unboxing-asmr` | UnboxingAsmrPack | ⚠️ **无 Form，内联** | `AiAutofillButton`（带 fields override） | ❌ |
-| 9 | AIDA + AI Character | `section-9` | `aida-character` | AidaCharacterPack | AidaCharacterForm | 待填 | ❌ |
+| 9 | AIDA + AI Character | `section-9` | `aida-character` | AidaCharacterPack | AidaCharacterForm | USP AI assist（`uspAi`，第 151 行） | ❌ |
 
 **现状覆盖：9 个模板里只有 1 个接了 gate。**
 （全仓 `useConfirmGate` 只出现在 `LazyPackForm` + `RealEstateLazyPack`；
@@ -131,7 +131,79 @@ rounded-lg border-2 border-ink bg-gray-50 overflow-hidden flex items-center just
 
 ---
 
-## 五、顺带产出：F 节 `vh` / `vw` 清单（只报告）
+## 五、⑤「挂载即非空」——**七个表单全部安全，这条风险不存在**
+
+逐个查了建议状态的初始化和**全部** setter 调用点：
+
+| 表单 | 建议状态 | 初值 | setter 调用点 | 挂载即非空？ |
+|---|---|---|---|---|
+| LazyPackForm | `spAI` (82) | `null` | 生成 handler(94) / ×(224) / Replace(255) | **否** |
+| AidaPersonForm | `uspAi` (146) | `null` | 172 / 241 / 264 | **否** |
+| InfluencerForm | `uspAi` (143) | `null` | 176 / 257 / 269 | **否** |
+| ProductBrandingForm | `fieldAi` (147) | `null` | 169 / 243 / 255 | **否** |
+| AidaStoryboardForm | `uspAi` (148) | `null` | 172 / 252 / 264 | **否** |
+| AidaCharacterForm | `uspAi` (151) | `null` | 同上模式 | **否** |
+| SeedingForm | `themeCands` / `topicCands` (260/261) | `null` | 270 / 282 + 弹窗 onOpenChange | **否** |
+
+**规律完全一致：每个状态恰好三个写入点** —— 一个用户发起的 async 生成 handler、
+面板自己的 Replace、面板自己的 ×。**没有任何 `useEffect`、草稿恢复、记录 tab 回填、
+URL 参数写这些状态**（`grep -A6 useEffect` 逐个确认过）。
+
+→ **B①-1「用户什么都没做就被红闪锁住」这条风险，在这七个表单上不成立。**
+铺开前不需要给任何表单加 result 清零。这条一直排在最高优先级，现在可以关掉。
+
+⚠️ 唯一没覆盖的是 `AiPromptButton`（内联模板用的那个）：它的 `open` 初值也是
+`false`（第 42 行），同样安全。
+
+---
+
+## 六、⑥ hero-text ×N ——**「单面板」前提对模板 2 不成立**
+
+`DetailedAdPack.tsx:944` 是 `answers.hero.map((h, i) => ...)`，
+每个 hero 槽位渲染**自己的一个** `AiPromptButton`（第 948 行）。
+
+而 `AiPromptButton` 的开关状态是**每实例私有的**：
+
+```tsx
+// src/components/studio/AiPromptButton.tsx:42
+const [open, setOpen] = useState(false);
+```
+
+**没有任何跨实例协调。所以模板 2 里可以同时开着多个建议面板。**
+
+### 和其余表单的关键差别
+
+其余六个表单用的是**单个** `uspAi` / `fieldAi` 状态holding `{ key, text }` ——
+换一个字段生成就顶掉上一个，**天然「一次一个」**（文件注释也是这么写的：
+"ONE active suggestion at a time"）。所以它们单 gate 就够。
+
+**只有模板 2（Detailed）会有多面板并存。**
+
+### 后果（两个，都要处理）
+
+1. **N 个 gate 同时激活** → N 次滚动请求、N 个红闪、
+   滚动锁必须是**引用计数**而不是布尔（工作单 A 节已经有这条断言，现在有了真实触发场景）
+2. **dim 会叠加** → 同一片区域被 N 个 gate 各 dim 一次，`opacity` 相乘，
+   正是要防的暗屏
+
+### 建议方案（需要你拍板，因为动的是共享组件）
+
+**方案 A（推荐）：给 `AiPromptButton` 加「一次一个」协调，让模板 2 和其余六个一致。**
+用一个轻量 context（或模块级当前打开 id）在开新面板时关掉旧的。
+好处：单 gate 方案对九个模板统一适用，dim 不可能叠加，
+也不用把 `useConfirmGate` 改成多 allow 元素。
+代价：`AiPromptButton` 是跨模板共享组件，行为变化影响所有用它的地方 ——
+但那正是让它们一致，不是引入差异。
+
+**方案 B：扩展 `useConfirmGate` 支持多个 allow 元素。**
+`allowEl` 现在是单个 ref（`useRef<HTMLElement|null>`），只能白名单一个面板；
+两个面板同开时第二个会被自己的 gate 挡住。改动面比 A 大得多。
+
+⚠️ **不选就铺开的话，模板 2 会同时踩上面两个后果。**
+
+---
+
+## 七、顺带产出：F 节 `vh` / `vw` 清单（只报告）
 
 `#root { zoom: 0.75 }` 下**每一处 `vh` 都渲染成标称值的 75%**。全仓 22 处：
 
@@ -149,15 +221,38 @@ rounded-lg border-2 border-ink bg-gray-50 overflow-hidden flex items-center just
 | `max-h-[48/44vh]` → 36/33vh | `TopUpDialog` |
 | `max-h-[40vh]` → 30vh | `LazyPackForm`（#678 的建议区） |
 
-**系统性偏差：所有弹窗高度上限都比设计值紧 25%。** 不是本单范围，但值得单开一单。
+**系统性偏差：所有 vh 上限都比设计值紧 25%。没有一处是「超出」——全部是「不足」。**
+
+### ③ 分类：哪些是真问题，哪些改了反而不对
+
+| 类 | 判据 | 影响 | 位置 |
+|---|---|---|---|
+| **A · 可滚内容被挤小 —— 真问题** | 容器内是需要滚动的长内容，窗口小了就要多滚 | **可用性下降** | `TopUpDialog`（70/48/44vh）、`HistoryDialog`（70/60vh）、`StarterLibrary`（70/85vh）、`PostDetailModal`（50vh×3 / 90vh）、`SeedingCandidatePicker`（55vh）、`LazyPackForm`（40vh 建议区）、`PublishTab`（60vh）、`LazyPackHistoryDetail`（80vh）、`LazyPackStepwise`（80vh 列表） |
+| **B · 媒体等比缩放 —— 只是留白** | 内容是 `object-contain` 的图/视频，缩小只是四周多留白，不丢信息 | 观感，非可用性 | `ui/ZoomableImage`（85vh）、`ImageEditor`（92/62vh）、`LazyPackStepwise`（60vh 媒体框）、`InfluencerCharacterGenerator`（60vh） |
+
+**A 类才是要修的**（尤其 `PostDetailModal` 的 50vh → 37.5vh，和 `TopUpDialog` 的
+44vh → 33vh —— 三分之一屏放长列表）。
+**B 类改了会让图更大，是改进不是修 bug**，可以在同一单里顺手调，但别当缺陷记。
+
+⚠️ 分类依据是「容器里装的是什么」，由代码推断得出，动手前值得肉眼各开一个确认。
 
 ---
 
-## 六、还没填满的（需要继续）
+## 八、还没填满的
 
-- 模板 6 / 9（AidaStoryboard / AidaCharacter）的 AI 面板逐个列
-- 每个面板的 `active` 条件（`previewUrl !== null` / `result !== null` 形式）
-- **每个面板的「挂载即非空？」** —— 决定各表单要不要各加一道 result 清零
-- 每处的 dim 标记数（对齐 ~41 这个估计）
-- 合并进度框的位置
-- 「按钮 spinner vs 框」的逐个判定
+- 每处的 dim 标记数（对齐 ~41 这个估计）—— 需要逐个数 JSX 节点
+- 合并（merge）进度框的确切位置
+- 光带候选里「按钮 spinner vs 框」的逐个判定
+- `AidaStoryboardForm` / `AidaCharacterForm` 的 USP 个数（是不是也各 3 个）
+
+## 九、已关闭 / 已定案
+
+| 项 | 结论 |
+|---|---|
+| 182px 偏移 | 不是坐标系混用 —— `useConfirmGate` 只有 `scrollIntoView`，且只在**被挡点击**时触发，gate 激活时不滚 |
+| #678 临时诊断日志 | 零。分支内 `789d8d0` 加、`0eb9c8b` 删，合并结果干净 |
+| 「挂载即非空」 | **七个表单全部安全**（本文第五节） |
+| `GATE_COVERAGE` 锚点 | 存在 —— `MarketplaceTab.tsx` 的 `SECTIONS`（9 项） |
+| ②b 结构性守卫 | **可做** —— `AiPromptButton` 是跨模板共享组件 |
+| SeedingCandidatePicker | 不接 gate（Radix Dialog 自带焦点陷阱） |
+| 「第四条继续」截断 | 在上游，不在 picker（该组件纯展示）。**记待办，未查** |
