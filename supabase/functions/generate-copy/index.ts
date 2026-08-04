@@ -688,6 +688,16 @@ Deno.serve(async (req: Request) => {
   // parsing, so quotes / newlines / HTML in the copy can't break anything.
   let parsed: Parsed = {};
   let stopReason = "";
+  // What the call cost, recorded on BOTH outcomes — the failure row to explain a
+  // wasted attempt, the result row so a SUCCESSFUL generation's spend is
+  // auditable too. The first version of this only wrote it on failure, which
+  // left "what does one generation actually cost" answerable only from the
+  // Anthropic console, and only in daily aggregate.
+  let spend: {
+    stopReason: string;
+    inputTokens: number | null;
+    outputTokens: number | null;
+  } = { stopReason: "", inputTokens: null, outputTokens: null };
   try {
     const data = (await res.json()) as {
       content?: Array<{ type?: string; name?: string; input?: unknown }>;
@@ -695,13 +705,16 @@ Deno.serve(async (req: Request) => {
       usage?: { input_tokens?: number; output_tokens?: number };
     };
     stopReason = data.stop_reason ?? "";
-    // What this attempt actually cost. Read for the record even on the happy
-    // path — it is the only place these numbers exist, and comparing a failed
-    // attempt's output_tokens against max_tokens is what separates "the model
-    // was cut off mid-answer" from "the model finished and sent a bad shape".
-    failMeta.stopReason = stopReason;
-    failMeta.inputTokens = data.usage?.input_tokens ?? null;
-    failMeta.outputTokens = data.usage?.output_tokens ?? null;
+    // Read on every path, failed or not. Comparing output_tokens against
+    // max_tokens is what separates "the model was cut off mid-answer" from "the
+    // model finished and sent a bad shape", and on the happy path it is the only
+    // record of what the generation cost.
+    spend = {
+      stopReason,
+      inputTokens: data.usage?.input_tokens ?? null,
+      outputTokens: data.usage?.output_tokens ?? null,
+    };
+    Object.assign(failMeta, spend);
     const block = (data.content ?? []).find(
       (b) => b.type === "tool_use" && b.name === TOOL_NAME,
     );
@@ -839,7 +852,7 @@ Deno.serve(async (req: Request) => {
       tool_key: TOOL_KEY,
       event_type: "generation_result",
       location_id: locationId,
-      meta: { language: lang, requestId, result },
+      meta: { language: lang, requestId, result, ...spend },
     });
   }
 
