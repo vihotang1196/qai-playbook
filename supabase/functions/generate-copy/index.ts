@@ -18,8 +18,10 @@ import { checkRateLimit, locKey, rateLimitMessage, DAY_MS, HOUR_MS } from "../_s
 const MODEL = "claude-sonnet-4-5";
 const ANTHROPIC_URL = "https://api.anthropic.com/v1/messages";
 
-// Cost protection. max_tokens is 16000 here, so ONE generation is roughly
-// US$0.25 — the priciest call in the platform. Owner-approved caps, per
+// Cost protection. The priciest call in the platform: MEASURED at roughly
+// US$0.10 a generation (2026-07-29, 4 calls: ~6.3k input + ~5.7k output tokens
+// each). max_tokens is 16000, so a worst case that ran to the cap would be
+// ~US$0.25 — real generations land nowhere near it. Owner-approved caps, per
 // sub-account; no global cap (one abuser must not lock out everyone).
 const TOOL_KEY = "copywriter";
 const COPY_LIMITS = [
@@ -388,11 +390,12 @@ Deno.serve(async (req: Request) => {
     raw.language === "en" || raw.language === "ms" ? raw.language : "zh";
 
   // ── Identity + access + rate limit (pre-launch cost protection) ─────────
-  // This is the most expensive call in the platform (max_tokens 16000, roughly
-  // US$0.25 a generation) and it used to be completely open: no identity, no
-  // access check, no cap. All three are enforced here, BEFORE any Claude call,
-  // so a refused request costs nothing. `code` is machine-readable so the client
-  // knows these are hard "no"s and must not burn its retry budget on them.
+  // This is the most expensive call in the platform (~US$0.10 a generation,
+  // measured — see the note by COPY_LIMITS) and it used to be completely open:
+  // no identity, no access check, no cap. All three are enforced here, BEFORE
+  // any Claude call, so a refused request costs nothing. `code` is
+  // machine-readable so the client knows these are hard "no"s and must not burn
+  // its retry budget on them.
   const locationId = String((raw.locationId as string) || (raw.location_id as string) || "").trim();
   if (!locationId) {
     return json(
