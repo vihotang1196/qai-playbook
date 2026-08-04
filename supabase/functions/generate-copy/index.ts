@@ -17,31 +17,37 @@ import { hasPlaybookAccess } from "../_shared/access.ts";
 import { logToolUsage } from "../_shared/usage.ts";
 import { checkRateLimit, locKey, rateLimitMessage, DAY_MS, HOUR_MS } from "../_shared/ratelimit.ts";
 
-// ROLLBACK POINT. Sonnet 5 is here for one reason: `strict: true` is only
-// honoured on Sonnet 5 / Opus 4.8+ / Haiku 4.5, and enforcement is what stops a
-// field declared as an array from coming back as a string. The strict schema
-// itself is harmless on 4-5 — accepted and ignored rather than rejected.
+// Chosen for its copy tone, not its mechanics. Sonnet 5 was trialled on
+// 2026-08-04 and measured better on every number — one attempt instead of three,
+// $0.07 instead of $0.21, 69s instead of ~100s — because `strict: true` is
+// honoured there and stops a field declared as an array from arriving as a
+// string. The owner still chose 4-5, because the copy came back in a different
+// voice: emoji 26 -> 4 in the caption, the 📍/✔️ bullet lists and the trailing
+// hashtags gone, prose where the original had scannable blocks. That formatting
+// is what the audience recognises, and no prompt tuning was worth risking it.
 //
-// To roll back, set this to "claude-sonnet-4-5". If that 400s, the cause is the
-// `thinking: { type: "disabled" }` line in the request body: 4-5 predates that
-// parameter and it is untested there, so drop it in the same edit. Nothing else
-// in this file is Sonnet-5-specific.
+// The cost of that choice is accepted and known: three attempts per click at the
+// old failure rate, and an hourly cap of 15 that is really 5 generations.
 //
-// Copy tone is what to re-check after any change here; the owner signs off on
-// zh/en/ms output before this is considered good.
-const MODEL = "claude-sonnet-5";
+// TO RE-EVALUATE: change this one line back to "claude-sonnet-5". The strict
+// schema is already written (see COPY_TOOL) and needs `strict: true` restored
+// plus `thinking: {type: "disabled"}` on the request — Sonnet 5 thinks by
+// default and thinking tokens share the max_tokens budget with the answer. Both
+// were removed here rather than left in: whether 4-5 rejects them or ignores
+// them is undocumented and was never tested, and an untested parameter on a live
+// paid endpoint is not worth the bet.
+const MODEL = "claude-sonnet-4-5";
 const ANTHROPIC_URL = "https://api.anthropic.com/v1/messages";
 
-// Cost protection. The priciest call in the platform. Measured on
-// claude-sonnet-4-5: ~US$0.10 a generation (2026-07-29, 4 calls, ~6.3k input +
-// ~5.7k output tokens each). Sonnet 5 tokenizes the same text into roughly 30%
-// more tokens, so expect ~US$0.09 while its introductory rate holds (through
-// 2026-08-31) and ~US$0.14 after — RE-MEASURE rather than trusting that
-// estimate. Cheaper either way than one 4-5 generation plus the two retries a
-// malformed shape used to cost. max_tokens is 16000, so a worst case that ran
-// to the cap would be ~US$0.25 — real generations land nowhere near it.
-// Owner-approved caps, per sub-account; no global cap (one abuser must not lock
-// out everyone).
+// Cost protection. The priciest call in the platform: ~US$0.10 per ATTEMPT,
+// measured (2026-07-29, 4 calls, ~6.3k input + ~5.7k output tokens each). Read
+// that as ~US$0.21 per customer CLICK — at the observed failure rate a malformed
+// shape costs two discarded attempts before one lands, and every attempt is
+// metered here whether or not it produced anything usable. That is the accepted
+// price of keeping this model's copy tone; the Sonnet 5 trial that removed it is
+// documented by MODEL. max_tokens is 16000, so a worst case that ran to the cap
+// would be ~US$0.25 — real generations land nowhere near it. Owner-approved
+// caps, per sub-account; no global cap (one abuser must not lock out everyone).
 const TOOL_KEY = "copywriter";
 const COPY_LIMITS = [
   { windowMs: HOUR_MS, max: 15, label: "hour" },
@@ -337,14 +343,13 @@ const emailItemSchema = {
 const COPY_TOOL = {
   name: TOOL_NAME,
   description: "Return the generated ad script, ad caption, funnel copy and automation messages as structured data.",
-  // The whole point of the model change. Without this the schema is advice the
-  // model usually follows: `funnel` came back as a JSON *string* often enough
-  // that the client retries three times and the reparse fallback below exists
-  // purely to rescue it. With it, the API validates `input` against the schema
-  // before returning, so a declared array cannot arrive as a string at all.
-  // Honoured on Sonnet 5 and Opus 4.8+ only — on claude-sonnet-4-5 it is
-  // accepted and ignored, which is why MODEL and this flag move together.
-  strict: true,
+  // NOTE: `strict: true` belongs here, as a sibling of `name` — that is what
+  // makes the API validate `input` against the schema before returning, so a
+  // field declared as an array cannot arrive as a string. It is deliberately
+  // absent while MODEL is claude-sonnet-4-5: strict mode is honoured only on
+  // Sonnet 5 / Opus 4.8+ / Haiku 4.5, and whether an older model rejects the
+  // flag or ignores it is undocumented and untested. Restore it together with
+  // the model — see the note by MODEL.
   input_schema: {
     type: "object",
     properties: {
@@ -648,13 +653,6 @@ Deno.serve(async (req: Request) => {
       body: JSON.stringify({
         model: MODEL,
         max_tokens: 16000,
-        // Explicitly off, and it has to be explicit: Sonnet 5 thinks by default
-        // where claude-sonnet-4-5 did not, and thinking tokens share the
-        // max_tokens budget with the answer. Left on, a long deliberation would
-        // eat into the 16000 and truncate the copy — turning the model change
-        // into a NEW truncation bug while fixing the malformed-shape one. This
-        // is a copy generator following a fixed template, not a reasoning task.
-        thinking: { type: "disabled" },
         system,
         messages: [{ role: "user", content: user }],
         tools: [COPY_TOOL],
