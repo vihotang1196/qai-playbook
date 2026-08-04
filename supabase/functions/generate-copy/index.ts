@@ -5,7 +5,9 @@
 // the old code hit the Lovable gateway (Gemini, OpenAI-style JSON mode), this
 // calls the Claude Messages API directly (matching the NurtureOS claude-chat
 // pattern): api.anthropic.com/v1/messages, x-api-key, anthropic-version
-// 2023-06-01, model claude-sonnet-4-5, non-streaming, regex-extract JSON.
+// 2023-06-01, non-streaming. Output arrives through a forced, strict tool call
+// rather than the regex-extracted JSON this was ported with — see COPY_TOOL.
+// The model is the MODEL constant below, which is also the rollback point.
 //
 // Secret required (set by the project owner, never in the frontend):
 //   supabase secrets set ANTHROPIC_API_KEY=sk-ant-...
@@ -15,14 +17,31 @@ import { hasPlaybookAccess } from "../_shared/access.ts";
 import { logToolUsage } from "../_shared/usage.ts";
 import { checkRateLimit, locKey, rateLimitMessage, DAY_MS, HOUR_MS } from "../_shared/ratelimit.ts";
 
-const MODEL = "claude-sonnet-4-5";
+// ROLLBACK POINT. Sonnet 5 is here for one reason: `strict: true` is only
+// honoured on Sonnet 5 / Opus 4.8+ / Haiku 4.5, and enforcement is what stops a
+// field declared as an array from coming back as a string. The strict schema
+// itself is harmless on 4-5 — accepted and ignored rather than rejected.
+//
+// To roll back, set this to "claude-sonnet-4-5". If that 400s, the cause is the
+// `thinking: { type: "disabled" }` line in the request body: 4-5 predates that
+// parameter and it is untested there, so drop it in the same edit. Nothing else
+// in this file is Sonnet-5-specific.
+//
+// Copy tone is what to re-check after any change here; the owner signs off on
+// zh/en/ms output before this is considered good.
+const MODEL = "claude-sonnet-5";
 const ANTHROPIC_URL = "https://api.anthropic.com/v1/messages";
 
-// Cost protection. The priciest call in the platform: MEASURED at roughly
-// US$0.10 a generation (2026-07-29, 4 calls: ~6.3k input + ~5.7k output tokens
-// each). max_tokens is 16000, so a worst case that ran to the cap would be
-// ~US$0.25 — real generations land nowhere near it. Owner-approved caps, per
-// sub-account; no global cap (one abuser must not lock out everyone).
+// Cost protection. The priciest call in the platform. Measured on
+// claude-sonnet-4-5: ~US$0.10 a generation (2026-07-29, 4 calls, ~6.3k input +
+// ~5.7k output tokens each). Sonnet 5 tokenizes the same text into roughly 30%
+// more tokens, so expect ~US$0.09 while its introductory rate holds (through
+// 2026-08-31) and ~US$0.14 after — RE-MEASURE rather than trusting that
+// estimate. Cheaper either way than one 4-5 generation plus the two retries a
+// malformed shape used to cost. max_tokens is 16000, so a worst case that ran
+// to the cap would be ~US$0.25 — real generations land nowhere near it.
+// Owner-approved caps, per sub-account; no global cap (one abuser must not lock
+// out everyone).
 const TOOL_KEY = "copywriter";
 const COPY_LIMITS = [
   { windowMs: HOUR_MS, max: 15, label: "hour" },
@@ -302,15 +321,30 @@ function sanitizeJsonControlChars(s: string): string {
 // fences, unescaped quotes, newlines or stray HTML can break it.
 const TOOL_NAME = "emit_copy";
 
+// `additionalProperties: false` appears on EVERY object below, including the
+// nested ones — that is a hard precondition of `strict: true`, not a style
+// choice, and a single object missing it makes the whole tool definition
+// invalid. Same for `required`, which was already complete. If a field is added
+// here later, it needs an entry in `required` and its own
+// `additionalProperties: false` if it is an object.
 const emailItemSchema = {
   type: "object",
   properties: { subject: { type: "string" }, body: { type: "string" } },
   required: ["subject", "body"],
+  additionalProperties: false,
 };
 
 const COPY_TOOL = {
   name: TOOL_NAME,
   description: "Return the generated ad script, ad caption, funnel copy and automation messages as structured data.",
+  // The whole point of the model change. Without this the schema is advice the
+  // model usually follows: `funnel` came back as a JSON *string* often enough
+  // that the client retries three times and the reparse fallback below exists
+  // purely to rescue it. With it, the API validates `input` against the schema
+  // before returning, so a declared array cannot arrive as a string at all.
+  // Honoured on Sonnet 5 and Opus 4.8+ only — on claude-sonnet-4-5 it is
+  // accepted and ignored, which is why MODEL and this flag move together.
+  strict: true,
   input_schema: {
     type: "object",
     properties: {
@@ -323,10 +357,12 @@ const COPY_TOOL = {
               type: "object",
               properties: { stage: { type: "string" }, content: { type: "string" } },
               required: ["stage", "content"],
+              additionalProperties: false,
             },
           },
         },
         required: ["segments"],
+        additionalProperties: false,
       },
       adCopy: { type: "string" },
       funnel: {
@@ -335,6 +371,7 @@ const COPY_TOOL = {
           type: "object",
           properties: { section: { type: "string" }, content: { type: "string" } },
           required: ["section", "content"],
+          additionalProperties: false,
         },
       },
       automationMessages: {
@@ -348,6 +385,7 @@ const COPY_TOOL = {
               currentDay: { type: "string" },
             },
             required: ["greeting", "dayBefore", "currentDay"],
+            additionalProperties: false,
           },
           email: {
             type: "object",
@@ -357,12 +395,15 @@ const COPY_TOOL = {
               currentDay: emailItemSchema,
             },
             required: ["greeting", "dayBefore", "currentDay"],
+            additionalProperties: false,
           },
         },
         required: ["whatsapp", "email"],
+        additionalProperties: false,
       },
     },
     required: ["adScript", "adCopy", "funnel", "automationMessages"],
+    additionalProperties: false,
   },
 };
 
@@ -390,8 +431,8 @@ Deno.serve(async (req: Request) => {
     raw.language === "en" || raw.language === "ms" ? raw.language : "zh";
 
   // ── Identity + access + rate limit (pre-launch cost protection) ─────────
-  // This is the most expensive call in the platform (~US$0.10 a generation,
-  // measured — see the note by COPY_LIMITS) and it used to be completely open:
+  // This is the most expensive call in the platform (~US$0.10-0.14 a
+  // generation — see the note by COPY_LIMITS) and it used to be completely open:
   // no identity, no access check, no cap. All three are enforced here, BEFORE
   // any Claude call, so a refused request costs nothing. `code` is
   // machine-readable so the client knows these are hard "no"s and must not burn
@@ -607,6 +648,13 @@ Deno.serve(async (req: Request) => {
       body: JSON.stringify({
         model: MODEL,
         max_tokens: 16000,
+        // Explicitly off, and it has to be explicit: Sonnet 5 thinks by default
+        // where claude-sonnet-4-5 did not, and thinking tokens share the
+        // max_tokens budget with the answer. Left on, a long deliberation would
+        // eat into the 16000 and truncate the copy — turning the model change
+        // into a NEW truncation bug while fixing the malformed-shape one. This
+        // is a copy generator following a fixed template, not a reasoning task.
+        thinking: { type: "disabled" },
         system,
         messages: [{ role: "user", content: user }],
         tools: [COPY_TOOL],
