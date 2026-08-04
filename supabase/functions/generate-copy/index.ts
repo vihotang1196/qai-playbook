@@ -565,6 +565,36 @@ Deno.serve(async (req: Request) => {
   const shapeOf = (v: unknown): string =>
     Array.isArray(v) ? `array(${v.length})` : v === null ? "null" : typeof v;
 
+  /** One step deeper than shapeOf: "array(9) of object" vs "array(2) of string"
+   *  is what tells a missing field apart from a wrongly-shaped one. */
+  const describeItems = (v: unknown): string => {
+    if (!Array.isArray(v)) return shapeOf(v);
+    if (v.length === 0) return "array(0)";
+    return `array(${v.length}) of ${[...new Set(v.map(shapeOf))].join("|")}`;
+  };
+
+  /** Every item is an object carrying a non-empty string at each of `keys`.
+   *
+   *  Checking Array.isArray alone was not enough. A shape like
+   *  ["Section one", "Section two"] — a real array, wrong items — passed the
+   *  coercion above, passed validation, was billed in full, and then rendered as
+   *  blank cards, because Results reads `.section` / `.content` off each item.
+   *  An empty array behaved the same way. The customer saw an empty page rather
+   *  than an error, which is the worst of the three outcomes: they can't tell it
+   *  failed, so they don't press Regenerate, and the spend buys nothing.
+   *
+   *  Empty strings count as missing for the same reason — a section whose content
+   *  is "" renders as nothing, so accepting it would preserve exactly the silent
+   *  blank this check exists to remove. */
+  const itemsHaveKeys = (v: unknown, keys: string[]): boolean =>
+    Array.isArray(v) &&
+    v.length > 0 &&
+    v.every((item) => {
+      if (!item || typeof item !== "object" || Array.isArray(item)) return false;
+      const o = item as Record<string, unknown>;
+      return keys.every((k) => typeof o[k] === "string" && (o[k] as string).trim() !== "");
+    });
+
   let res: Response;
   try {
     res = await fetch(ANTHROPIC_URL, {
@@ -680,12 +710,25 @@ Deno.serve(async (req: Request) => {
     },
   };
 
-  if (!parsed.adScript?.segments || !Array.isArray(parsed.funnel)) {
+  // Shape, not just type — see itemsHaveKeys. Results renders `stage`/`content`
+  // per segment and `section`/`content` per funnel row, so anything else is a
+  // blank page for the customer; failing here converts that silent blank into
+  // the normal "please tap Regenerate" path, which the meter also records.
+  const segmentsOk = itemsHaveKeys(parsed.adScript?.segments, ["stage", "content"]);
+  const funnelOk = itemsHaveKeys(parsed.funnel, ["section", "content"]);
+
+  if (!segmentsOk || !funnelOk) {
     const cutOff = stopReason === "max_tokens";
     failMeta.missing = [
-      !parsed.adScript?.segments ? "adScript.segments" : null,
-      !Array.isArray(parsed.funnel) ? "funnel" : null,
+      !segmentsOk ? "adScript.segments" : null,
+      !funnelOk ? "funnel" : null,
     ].filter(Boolean);
+    // Which of the two it was: a field that never arrived, or one that arrived
+    // with the wrong items. Same customer-facing message, different root cause.
+    failMeta.itemShape = {
+      segments: describeItems(parsed.adScript?.segments),
+      funnel: describeItems(parsed.funnel),
+    };
     failMeta.cutOff = cutOff;
     await logFailure("incomplete_output");
     return json(
