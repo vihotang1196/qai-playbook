@@ -99,3 +99,99 @@ Full UI flow on the live edge functions, anonymous, with a real questionnaire
 `event_type` too. So generation (15/h, 40/day) and voice (40/h, 120/day) are
 counted separately, and **a new `event_type` can be added to `tool_usage` without
 disturbing either the limits or the admin stats.**
+
+## Retry / cost investigation, and the Sonnet 5 trial (2026-08-04)
+
+**Symptom.** One customer click ran three Claude calls — 5m03s, roughly $0.30
+instead of $0.10. Every attempt is metered before the model is called, so the
+retries also consume quota: at three attempts per click the hourly cap of 15 is
+really **5 generations an hour**, and the daily 40 is really 13. A throttled
+customer reads that as the tool being broken.
+
+**Ruled out by evidence, not by argument.**
+
+- *Truncation.* The Anthropic console for 2026-07-29 showed 25,213 input and
+  22,724 output tokens over 4 calls — about 5.7k output each, nowhere near the
+  16000 `max_tokens` cap. Nothing was cut off.
+- *"Server succeeded, client discarded it."* Zero duplicate `generation_result`
+  rows, so no paid result was ever thrown away. (`recover` exists for exactly
+  that case and was not being triggered.)
+- *Upstream 429/503.* Each attempt ran 91–108s. A rate-limit refusal returns in
+  under a second.
+
+What is left is a malformed `tool_use` shape — a field declared as an array
+arriving as a JSON string — which matches the Phase 1 finding that English funnel
+output failed this way about two thirds of the time before the prompt was
+tightened. It happens in Chinese too, not only English. Reproduced on
+2026-08-04: attempt 1 failed `incomplete_output` in 74s, attempt 2 succeeded.
+
+**Diagnostics added.** This function had no logging at all and never read the
+response's `usage`, so a failure left no trace. A failed attempt now writes a
+`generation_failed` row carrying `stopReason`, input/output tokens, HTTP status,
+which field was missing, the reparse before/after shapes, and an `itemShape`
+string that separates "the field never arrived" from "it arrived wrongly shaped".
+Successful generations record their token spend on the `generation_result` row.
+`requestId` is on the metering row too, so one click's retries can be grouped.
+Neither `generation_failed` nor `generation_result` touches the quota or the admin
+stats — both are filtered by `event_type` (see the note above).
+
+**Silent-corruption bug found and fixed along the way.** Validation asked
+`Array.isArray(funnel)` and whether `segments` was truthy. A shape like
+`["Section one", "Section two"]` — a real array, wrong items — satisfied both,
+was billed in full, and rendered as blank cards, because Results reads `.stage`
+and `.section`/`.content` off each item. `[]` behaved the same way. Every item is
+now required to be an object with a non-empty string at each key the UI reads.
+This is independent of the model and stays regardless of which one is in use.
+Expect the *observed* failure rate to look higher than before: generations that
+used to slip through and render blank now fail loudly and retry. The spend was
+always happening; it was just invisible.
+
+**Sonnet 5 + strict schema: trialled, measured, rejected on tone.** `strict: true`
+makes the API validate the tool input against the schema before returning, so the
+malformed shape becomes impossible — but it is honoured only on Sonnet 5 /
+Opus 4.8+ / Haiku 4.5. Measured on the same questionnaire, zh:
+
+| | claude-sonnet-4-5 | claude-sonnet-5 + strict |
+|---|---|---|
+| Attempts per click | 3 (2 discarded) | **1** |
+| Cost per click | ~$0.21 | **~$0.07** |
+| Wall clock | 91–108s per attempt | **69s** |
+| Caption emoji | 26 | 4 |
+| Bullet-list icons | 21 | 1 |
+| Trailing hashtags | 5 | 0 |
+
+Better on every number, different in voice. The 📍/✔️ feature lists, the section
+dividers and the hashtags disappeared and the scannable blocks became prose;
+email bodies went from 6–7 emoji each to 0, 0 and 3. The pattern is consistent:
+**countable instructions survived intact** (every "3 items" section still had
+exactly 3; every "<=20 chars" bound held) **while every vague one was discounted
+to its floor** — and the prompt asks for "适量 emoji" and "换行分段方便阅读"
+rather than a number. **Owner chose the older model**: that formatting is what
+this audience recognises, and prompt tuning was not worth risking it. The cost of
+that choice — three attempts per click, 5 generations an hour — is accepted and
+is written down beside `MODEL` and `COPY_LIMITS`.
+
+Two claims from that trial that did **not** survive scrutiny, recorded so they
+are not repeated as fact:
+
+- *The Malaysian particles were never lost.* 2 in the old output, 4 in the new,
+  both inside the 2–4 range that reads as natural. The prompt line naming
+  "lah / boleh / shiok" needs no change.
+- *The 30% length drop cannot be attributed to the model.* The 2026-07-29
+  questionnaire was demonstrably richer — its output cites 8% SST, lunch, the
+  post-course community and 91 seats, none of which were in the trial input. Only
+  the emoji collapse is input-independent.
+
+**To re-evaluate Sonnet 5 later**, change the one `MODEL` line back and restore
+`strict: true` on `COPY_TOOL` plus `thinking: {type: "disabled"}` on the request
+(Sonnet 5 thinks by default, and thinking tokens share the `max_tokens` budget
+with the answer). The strict schema is already written and
+`additionalProperties: false` is already on all eight objects — inert without
+strict mode, required the moment it returns. Both parameters were *removed* rather
+than left in place: whether claude-sonnet-4-5 rejects them or ignores them is
+undocumented and was never tested.
+
+**Still open.** Retry backoff — the loop retries immediately, so a genuine
+upstream 429 is very likely to meet another one, and all three attempts consume
+quota. Worth pairing with a reduction from 3 attempts to 2, but only after the
+failure rate has been observed with the diagnostics in place.
