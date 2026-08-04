@@ -5,6 +5,7 @@ import { toast } from "sonner";
 import { useLang } from "@/i18n/LanguageContext";
 import { RB_PLATFORMS } from "@/lib/review-boost/platforms";
 import { listPlatforms, savePlatformLink, deletePlatformLink } from "@/lib/reviewBoost";
+import ConfirmDialog from "@/components/ConfirmDialog";
 
 /**
  * Platforms page (`/review-boost/location/:locationId/platforms`) — the customer
@@ -243,6 +244,37 @@ export default function LocationPlatforms() {
           })}
         </div>
       )}
+
+      {/* The confirmation `requestRemove` has always been setting state for. It was
+          declared and written to but never rendered, and nothing ever called
+          remove() — so the delete button silently did nothing on a saved link,
+          which is precisely the "looks broken" outcome the comment above
+          requestRemove was written to avoid. */}
+      <ConfirmDialog
+        open={!!confirmDel}
+        danger
+        busy={!!confirmDel && busyKey === confirmDel.row.key}
+        title={label("删除这条评价链接？", "Delete this review link?")}
+        description={
+          <>
+            {/* Name it, so nobody deletes the wrong branch. Falls back to the URL
+                when the link was saved without a name — that is all there is to
+                identify it by. */}
+            <b className="text-[#141414] break-all">
+              {confirmDel?.row.label?.trim() || confirmDel?.row.review_url}
+            </b>
+            <br />
+            {label(
+              "删除后活动里指向它的选项会变成「暂不指定」，需要重新选择。确定删除？",
+              "Campaigns pointing at it will fall back to “none yet” and need re-selecting. Delete it?",
+            )}
+          </>
+        }
+        confirmLabel={label("删除", "Delete")}
+        cancelLabel={label("返回", "Back")}
+        onConfirm={() => confirmDel && remove(confirmDel.pid, confirmDel.row)}
+        onCancel={() => setConfirmDel(null)}
+      />
     </div>
   );
 }
