@@ -503,12 +503,17 @@ Deno.serve(async (req: Request) => {
   // parallel requests to slip past the check above. NOTE the client retries a
   // malformed generation up to 3x, and each retry is metered — deliberate, since
   // each retry is a real Claude call.
+  //
+  // requestId is carried here purely so those retries can be grouped back into
+  // the ONE click that spawned them: the client reuses a single requestId across
+  // its whole retry loop, so without it three rows an hour apart and three rows
+  // from one click look identical in the meter.
   await logToolUsage(sb, {
     tool_key: TOOL_KEY,
     event_type: "generation",
     location_id: locationId,
     client_key: locKey(locationId),
-    meta: { language: lang },
+    meta: { language: lang, requestId: requestId || null },
   });
 
   const system =
@@ -530,6 +535,33 @@ Deno.serve(async (req: Request) => {
     automationMessages?: unknown;
   };
 
+  // ── Diagnostics for a paid-but-failed attempt ───────────────────────────────
+  // Every failure exit from here down has already been metered and has already
+  // paid for a real Claude call, and none of them used to leave a trace: this
+  // function had no logging at all and never read the response's `usage`, so
+  // "why did it fail, and what did that cost" was unanswerable afterwards. That
+  // is what made a customer report of 3 calls per click impossible to diagnose.
+  //
+  // Its own event_type, so it stays out of both the quota and the stats:
+  // checkRateLimit for this tool counts only 'generation' (see the call above),
+  // and the admin overview counts only 'generation' / 'posted'. Carries NO
+  // client_key either — the other dimension the limiter can count on.
+  //
+  // Shapes and types only, never the copy or the customer's product details:
+  // this row exists to explain a failure, not to store content.
+  const failMeta: Record<string, unknown> = {};
+  const logFailure = (reason: string) =>
+    logToolUsage(sb, {
+      tool_key: TOOL_KEY,
+      event_type: "generation_failed",
+      location_id: locationId,
+      meta: { language: lang, requestId: requestId || null, reason, ...failMeta },
+    });
+
+  /** A value's type at a glance, for the before/after reparse record. */
+  const shapeOf = (v: unknown): string =>
+    Array.isArray(v) ? `array(${v.length})` : v === null ? "null" : typeof v;
+
   let res: Response;
   try {
     res = await fetch(ANTHROPIC_URL, {
@@ -550,11 +582,17 @@ Deno.serve(async (req: Request) => {
     });
   } catch (e) {
     const msg = e instanceof Error ? e.message : "network error";
+    failMeta.detail = msg.slice(0, 200);
+    await logFailure("fetch_failed");
     return json({ error: `Failed to reach Claude: ${msg}` }, 502);
   }
 
   if (!res.ok) {
     const detail = (await res.text()).slice(0, 300);
+    // Logged once, before the branching: which status it was is the diagnosis.
+    failMeta.httpStatus = res.status;
+    failMeta.detail = detail;
+    await logFailure("upstream_error");
     if (res.status === 401) return json({ error: "Invalid ANTHROPIC_API_KEY" }, 401);
     if (res.status === 429) {
       return json({ error: lang === "en" ? "AI rate limit, please retry later" : "AI 请求过于频繁，请稍后再试" }, 429);
@@ -573,15 +611,28 @@ Deno.serve(async (req: Request) => {
     const data = (await res.json()) as {
       content?: Array<{ type?: string; name?: string; input?: unknown }>;
       stop_reason?: string;
+      usage?: { input_tokens?: number; output_tokens?: number };
     };
     stopReason = data.stop_reason ?? "";
+    // What this attempt actually cost. Read for the record even on the happy
+    // path — it is the only place these numbers exist, and comparing a failed
+    // attempt's output_tokens against max_tokens is what separates "the model
+    // was cut off mid-answer" from "the model finished and sent a bad shape".
+    failMeta.stopReason = stopReason;
+    failMeta.inputTokens = data.usage?.input_tokens ?? null;
+    failMeta.outputTokens = data.usage?.output_tokens ?? null;
     const block = (data.content ?? []).find(
       (b) => b.type === "tool_use" && b.name === TOOL_NAME,
     );
     if (block?.input && typeof block.input === "object") {
       parsed = block.input as Parsed;
+    } else {
+      // A forced tool_choice makes this near-impossible; record it if it happens.
+      failMeta.toolUseBlock = "missing";
     }
   } catch {
+    failMeta.httpStatus = res.status;
+    await logFailure("unreadable_response");
     return json({ error: lang === "en" ? "AI returned an unreadable response" : "AI 返回无法解析" }, 502);
   }
 
@@ -599,6 +650,16 @@ Deno.serve(async (req: Request) => {
       }
     }
   };
+  // Recorded either side of the coercion: "funnel: string → array(7)" says the
+  // model sent a JSON string and we rescued it; "string → string" says the
+  // rescue failed and names the field that broke the generation.
+  const shapesBefore = {
+    adScript: shapeOf(parsed.adScript),
+    segments: shapeOf(parsed.adScript?.segments),
+    funnel: shapeOf(parsed.funnel),
+    automationMessages: shapeOf(parsed.automationMessages),
+  };
+
   parsed.funnel = reparse(parsed.funnel) as Parsed["funnel"];
   parsed.adScript = reparse(parsed.adScript) as Parsed["adScript"];
   parsed.automationMessages = reparse(parsed.automationMessages);
@@ -606,8 +667,24 @@ Deno.serve(async (req: Request) => {
     parsed.adScript.segments = reparse(parsed.adScript.segments) as Parsed["adScript"]["segments"];
   }
 
+  failMeta.reparse = {
+    before: shapesBefore,
+    after: {
+      adScript: shapeOf(parsed.adScript),
+      segments: shapeOf(parsed.adScript?.segments),
+      funnel: shapeOf(parsed.funnel),
+      automationMessages: shapeOf(parsed.automationMessages),
+    },
+  };
+
   if (!parsed.adScript?.segments || !Array.isArray(parsed.funnel)) {
     const cutOff = stopReason === "max_tokens";
+    failMeta.missing = [
+      !parsed.adScript?.segments ? "adScript.segments" : null,
+      !Array.isArray(parsed.funnel) ? "funnel" : null,
+    ].filter(Boolean);
+    failMeta.cutOff = cutOff;
+    await logFailure("incomplete_output");
     return json(
       {
         error: cutOff
