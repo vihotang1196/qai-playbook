@@ -224,14 +224,14 @@ function BookingBrowser({ lang, locationId, ctx, onRefreshCtx }: { lang: "cn" | 
           <p className="text-sm">
             {lang === "cn" ? (
               freeRemaining > 0 ? (
-                <>你还有 <span className="font-bold text-[#141414] bg-[#fed50a] px-1.5 rounded">{freeRemaining}</span> 张免费票（最多 4 人/单）</>
+                <>你还有 <span className="font-bold text-[#141414] bg-[#fed50a] px-1.5 rounded">{freeRemaining}</span> 个免费名额（最多 4 人/单）</>
               ) : (
-                <>你的免费票已用完，超出部分按活动票价收费（最多 4 人/单）</>
+                <>你的免费名额已用完，超出部分按活动票价收费（最多 4 人/单）</>
               )
             ) : freeRemaining > 0 ? (
-              <>You have <span className="font-bold text-[#141414] bg-[#fed50a] px-1.5 rounded">{freeRemaining}</span> free ticket{freeRemaining === 1 ? "" : "s"} (up to 4 / booking)</>
+              <>You have <span className="font-bold text-[#141414] bg-[#fed50a] px-1.5 rounded">{freeRemaining}</span> free slot{freeRemaining === 1 ? "" : "s"} (up to 4 / booking)</>
             ) : (
-              <>Your free tickets are used up; extra seats are charged at the event price (up to 4 / booking)</>
+              <>Your free slots are used up; extra seats are charged at the event price (up to 4 / booking)</>
             )}
           </p>
         </div>
@@ -267,8 +267,8 @@ function BookingBrowser({ lang, locationId, ctx, onRefreshCtx }: { lang: "cn" | 
 
       <p className="mt-5 text-xs text-muted-foreground">
         {lang === "cn"
-          ? "选座、价格与免费票额度都由后端核算（前端不直连数据表）。收费订单通过 Stripe 安全付款。"
-          : "Seats, pricing and free-ticket allowance are computed server-side (the frontend never touches the tables). Paid orders are charged securely via Stripe."}
+          ? "选座、价格与免费名额都由后端核算（前端不直连数据表）。收费订单通过 Stripe 安全付款。"
+          : "Seats, pricing and the free-slot allowance are computed server-side (the frontend never touches the tables). Paid orders are charged securely via Stripe."}
       </p>
     </Shell>
   );
@@ -885,7 +885,7 @@ function EventBooking({
         <div className="mb-2 flex justify-center">
           <span className="inline-flex items-center gap-1 rounded-full bg-[#fed50a] text-[#141414] text-xs font-bold px-3 py-1 shadow border-2 border-[#141414]">
             <Ticket className="w-3.5 h-3.5" />
-            {lang === "cn" ? `剩余 ${freeRemaining} 张免费门票` : `${freeRemaining} free ticket${freeRemaining === 1 ? "" : "s"} left`}
+            {lang === "cn" ? `剩余 ${freeRemaining} 个免费名额` : `${freeRemaining} free slot${freeRemaining === 1 ? "" : "s"} left`}
           </span>
         </div>
       )}
