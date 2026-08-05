@@ -245,6 +245,11 @@ const HeroSection = () => {
           <Button type="button" variant="outline" size="xl" className="w-full" onClick={() => setTourOpen(true)}>
             <Play size={18} />
             {t.hero.watch[lang]}
+            {/* Trailing arrow on all three: each one takes you somewhere (the
+                tour, Notion, the invoice form), so the arrow is true here too —
+                and three identical boxes where only two carry it reads as a
+                mistake rather than a distinction. */}
+            <ArrowRight size={18} />
           </Button>
 
           <Button
