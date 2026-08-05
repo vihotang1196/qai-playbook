@@ -926,14 +926,42 @@ Deno.serve(async (req: Request) => {
 
   // Claude's tool use occasionally returns a structured field as a JSON *string*
   // (e.g. funnel: "[{...}]") instead of a native array/object. Coerce those back.
-  const reparse = (v: unknown): unknown => {
+  // Why a coercion failed, per field. Both parse attempts are reported, because
+  // the difference between them is the diagnosis: if the raw attempt fails on a
+  // control character and the sanitized attempt fails on something else, the
+  // sanitizer helped but did not go far enough; if both fail at the very end of
+  // the string, the model never finished writing it and no parser can help.
+  const parseFailures: Record<string, unknown> = {};
+
+  const reparse = (v: unknown, name?: string): unknown => {
     if (typeof v !== "string") return v;
     try {
       return JSON.parse(v);
-    } catch {
+    } catch (rawErr) {
       try {
         return JSON.parse(sanitizeJsonControlChars(v));
-      } catch {
+      } catch (sanitizedErr) {
+        if (name) {
+          parseFailures[name] = {
+            brokenLength: v.length,
+            brokenTail: v.slice(-120),
+            parseError: rawErr instanceof Error ? rawErr.message : String(rawErr),
+            parseErrorAfterSanitize:
+              sanitizedErr instanceof Error ? sanitizedErr.message : String(sanitizedErr),
+            // sanitizeJsonControlChars only escapes \n, \r and \t. JSON forbids
+            // every codepoint below U+0020 inside a string, so anything listed
+            // here is a character the sanitizer passes through and the parser
+            // then rejects — a gap that would be free to close.
+            unhandledControlChars: [
+              ...new Set(
+                [...v].filter((c) => {
+                  const code = c.charCodeAt(0);
+                  return code < 0x20 && code !== 9 && code !== 10 && code !== 13;
+                }),
+              ),
+            ].map((c) => `U+${c.charCodeAt(0).toString(16).padStart(4, "0").toUpperCase()}`),
+          };
+        }
         return v;
       }
     }
@@ -948,12 +976,22 @@ Deno.serve(async (req: Request) => {
     automationMessages: shapeOf(parsed.automationMessages),
   };
 
-  parsed.funnel = reparse(parsed.funnel) as Parsed["funnel"];
-  parsed.adScript = reparse(parsed.adScript) as Parsed["adScript"];
-  parsed.automationMessages = reparse(parsed.automationMessages);
+  parsed.funnel = reparse(parsed.funnel, "funnel") as Parsed["funnel"];
+  parsed.adScript = reparse(parsed.adScript, "adScript") as Parsed["adScript"];
+  parsed.automationMessages = reparse(parsed.automationMessages, "automationMessages");
   if (parsed.adScript && typeof parsed.adScript === "object") {
-    parsed.adScript.segments = reparse(parsed.adScript.segments) as Parsed["adScript"]["segments"];
+    parsed.adScript.segments = reparse(
+      parsed.adScript.segments,
+      "segments",
+    ) as Parsed["adScript"]["segments"];
   }
+
+  // Only present when a coercion actually failed, so an empty object never
+  // clutters a row. NOTE automationMessages is named here but is never shape-
+  // checked further down — a parse failure there still reaches the customer as
+  // six blank messages on an otherwise successful generation. Recording it is the
+  // first step to knowing whether that happens.
+  if (Object.keys(parseFailures).length) failMeta.parseFailures = parseFailures;
 
   failMeta.reparse = {
     before: shapesBefore,
