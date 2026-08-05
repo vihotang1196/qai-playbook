@@ -3,7 +3,7 @@ import { Button } from "@/components/ui/button";
 import { ArrowRight, Play, Video, Calendar, Clock, MapPin, CalendarPlus, Rocket, FileText, X } from "lucide-react";
 import { useLang } from "@/i18n/LanguageContext";
 import { t } from "@/i18n/translations";
-import { coachingRecordings, type CoachingRecording } from "@/lib/coaching";
+import { fetchCoachingReplays, type CoachingRecording } from "@/lib/coaching";
 import GuidedTour from "./GuidedTour";
 import {
   Dialog,
@@ -131,6 +131,19 @@ const HeroSection = () => {
   const [activeRecording, setActiveRecording] = useState<CoachingRecording | null>(null);
   const [mayEvents, setMayEvents] = useState(mayInitialEvents);
   const [hiddenUpcoming, setHiddenUpcoming] = useState<number[]>([]);
+  // null = still loading (render placeholder rows so the panel keeps its height
+  // instead of collapsing and snapping back). fetchCoachingReplays never
+  // rejects: on failure it warns to the console and returns the stale snapshot.
+  const [recordings, setRecordings] = useState<CoachingRecording[] | null>(null);
+  useEffect(() => {
+    let alive = true;
+    fetchCoachingReplays().then((r) => {
+      if (alive) setRecordings(r);
+    });
+    return () => {
+      alive = false;
+    };
+  }, []);
   const [, setTick] = useState(0);
   useEffect(() => {
     const id = setInterval(() => setTick((t) => t + 1), 30000);
@@ -427,13 +440,23 @@ const HeroSection = () => {
                 <p className="text-[11px] font-semibold tracking-widest uppercase text-muted-foreground mb-3">
                   {lang === "cn" ? "过往录像" : "Past Replays"}
                 </p>
-                {coachingRecordings.length === 0 ? (
+                {recordings === null ? (
+                  // Same box metrics as a real row, so the panel doesn't jump.
+                  <div className="space-y-2" aria-hidden>
+                    {[0, 1, 2, 3].map((i) => (
+                      <div
+                        key={i}
+                        className="h-[53px] animate-pulse rounded-xl border border-[#141414]/10 bg-[#141414]/[0.04]"
+                      />
+                    ))}
+                  </div>
+                ) : recordings.length === 0 ? (
                   <p className="text-sm text-muted-foreground">
                     {lang === "cn" ? "暂无录像，敬请期待。" : "No recordings yet. Stay tuned."}
                   </p>
                 ) : (
                   <div className="space-y-2">
-                    {coachingRecordings.map((r, i) => (
+                    {recordings.map((r, i) => (
                       <button
                         key={i}
                         type="button"
