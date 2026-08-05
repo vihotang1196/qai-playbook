@@ -14,6 +14,8 @@ import {
   Coins,
   CircleArrowUp,
   Handshake,
+  Boxes,
+  BookOpen,
   type LucideIcon,
 } from "lucide-react";
 import { toast } from "sonner";
@@ -41,6 +43,68 @@ const TOOLTIP_BRUTALIST =
 // is the GUIDES registry in src/pages/guides/guides.tsx). Replaces the old dead
 // hover-popouts, whose content had already been moved to the full pages.
 
+// ════════════════════════════════════════════════════════════════════════
+// NAV OWNERSHIP — which URLs light up which navbar item.
+//
+// ⚠️  ADDING A PAGE? REGISTER ITS PATH HERE.  An unlisted route lights up
+//     nothing, and the navbar quietly stops telling the customer where they
+//     are. Nothing errors, nothing logs — it just goes blank, which is the
+//     kind of bug nobody reports.
+//
+// MATCHING RULES (see pathMatches below):
+//   '/'  → EXACT. Every path starts with '/', so a prefix match would keep
+//          首页 lit on every page forever.
+//   else → the path itself, or any child of it. That is what lets
+//          '/review-boost' cover its 8 sub-routes with one entry.
+//
+// WHY AN EXPLICIT TABLE INSTEAD OF `pathname.startsWith(link.href)`:
+// the Stripe return page is '/checkout/return' — a TOP-LEVEL route, NOT a
+// child of '/events' (see App.tsx). Deriving ownership from each item's own
+// href would blank the whole navbar on the page a customer lands on straight
+// after paying, which is exactly when they most want to see they are still
+// inside the booking flow. Ownership is a decision, so it is written down.
+// ════════════════════════════════════════════════════════════════════════
+
+/** Tools dropdown — every customer-facing tool page wears the navbar (they all
+ *  live inside <Layout>). '/tools' is the hub page: it has no navbar entry of
+ *  its own (see the commented-out line below), but it belongs to this group. */
+const OWNS_TOOLS = ["/copywriter", "/review-boost", "/tools"];
+
+/** Guides dropdown — derived from the GUIDES registry rather than hardcoded,
+ *  so a new guide is covered the moment it is registered there. */
+const OWNS_GUIDES = GUIDES.map((g) => `/guides/${g.slug}`);
+
+/** One owned path vs the current pathname. '/' is exact; everything else
+ *  matches itself or a child, never a same-prefixed sibling ('/help' must not
+ *  claim a future '/helpdesk'). */
+const pathMatches = (owned: string, pathname: string) =>
+  owned === "/" ? pathname === "/" : pathname === owned || pathname.startsWith(`${owned}/`);
+
+const ownsCurrent = (owns: string[] | undefined, pathname: string) =>
+  !!owns?.some((p) => pathMatches(p, pathname));
+
+/** Scheme B current-page marker: a hard yellow bar under the icon. Not a
+ *  filled chip — every item here is an equal link, and only one of them
+ *  wearing a border + fill reads as "this one is a button, the rest aren't".
+ *  Being underneath also keeps it out of the flex flow, so switching pages
+ *  never nudges the row sideways. */
+const ActiveBar = () => (
+  <span aria-hidden="true" className="pointer-events-none absolute inset-x-1 -bottom-3 h-1 bg-[#fed50a]" />
+);
+
+/** Mobile current-page marker: a 3px yellow rule down the left edge plus bold.
+ *  The mobile menu keeps its text, but 12 rows in one column is exactly where
+ *  you lose track of where you are, and touch has no hover to fall back on.
+ *  Not a filled row — Brutalist keeps yellow for accents, and a whole yellow
+ *  row is far more weight than "you are here" deserves. Idle rows carry the
+ *  same transparent border so switching pages never shifts the text sideways.
+ *  `idle` is applied ONLY when inactive: passing both sets of colour classes
+ *  would leave the winner to stylesheet order rather than to intent. */
+const mobileRow = (active: boolean, idle: string) =>
+  `block border-l-[3px] pl-3 text-sm transition-colors ${
+    active ? "border-[#fed50a] font-semibold text-foreground" : `border-transparent ${idle}`
+  }`;
+
 type NavItem = {
   label: { en: string; cn: string };
   href?: string;
@@ -50,29 +114,30 @@ type NavItem = {
   withLocation?: boolean; // append ?location_id= so the tool recognises the sub-account
   /** DESKTOP ONLY. When set, the desktop bar shows this icon instead of the
    *  label, with the label in a tooltip and on aria-label. The mobile menu
-   *  always stays text: touch has no hover, so an icon there would be a riddle.
-   *  The two dropdowns (小工具 / 指南) deliberately have no icon — they are
-   *  HoverCards, and a tooltip on a hover-opened trigger fights the panel. */
+   *  always stays text: touch has no hover, so an icon there would be a riddle. */
   icon?: LucideIcon;
+  /** Which URLs count as "you are here". See the NAV OWNERSHIP block above —
+   *  this is NOT derived from `href`, and a page missing from it lights nothing. */
+  owns?: string[];
 };
 
 const navLinks: NavItem[] = [
-  { label: t.nav.home, href: "#hero", icon: Home },
+  { label: t.nav.home, href: "#hero", icon: Home, owns: ["/"] },
   // Help Center — the internal Helpdesk page (/help). withLocation carries the GHL
   // location_id so the shared help center recognises the sub-account.
-  { label: { en: "Help Center", cn: "帮助中心" }, href: "/help", isRoute: true, noSemibold: true, withLocation: true, icon: LifeBuoy },
+  { label: { en: "Help Center", cn: "帮助中心" }, href: "/help", isRoute: true, noSemibold: true, withLocation: true, icon: LifeBuoy, owns: ["/help"] },
   // Offline Event — promoted from the 小工具 dropdown to the main menu (owner ask).
   // withLocation carries the GHL location_id so the tool recognises the sub-account.
-  { label: { en: "Offline Event", cn: "线下活动报名" }, href: "/events", isRoute: true, noSemibold: true, withLocation: true, icon: CalendarDays },
+  { label: { en: "Offline Event", cn: "线下活动报名" }, href: "/events", isRoute: true, noSemibold: true, withLocation: true, icon: CalendarDays, owns: ["/events", "/checkout/return"] },
   // Wrench for DFY (Done For You) — "someone is doing the work for you". It does
   // not collide with the 小工具 dropdown, which keeps its text label.
-  { label: { en: "DFY", cn: "DFY" }, href: "/dfy", isRoute: true, noSemibold: true, icon: Wrench },
+  { label: { en: "DFY", cn: "DFY" }, href: "/dfy", isRoute: true, noSemibold: true, icon: Wrench, owns: ["/dfy"] },
   // Coins, not Wallet: a wallet reads as "pay something", coins read as "balance
   // of points", which is what this page actually shows.
-  { label: { en: "Credits", cn: "额度" }, href: "/credits", isRoute: true, noSemibold: true, icon: Coins },
+  { label: { en: "Credits", cn: "额度" }, href: "/credits", isRoute: true, noSemibold: true, icon: Coins, owns: ["/credits"] },
   // Circled arrow, not a bare one: a naked up-arrow reads as "back to top".
-  { label: { en: "Upgrade", cn: "升级" }, href: "/upgrade", isRoute: true, noSemibold: true, icon: CircleArrowUp },
-  { label: { en: "Affiliate", cn: "伙伴" }, href: "/affiliate", isRoute: true, noSemibold: true, icon: Handshake },
+  { label: { en: "Upgrade", cn: "升级" }, href: "/upgrade", isRoute: true, noSemibold: true, icon: CircleArrowUp, owns: ["/upgrade"] },
+  { label: { en: "Affiliate", cn: "伙伴" }, href: "/affiliate", isRoute: true, noSemibold: true, icon: Handshake, owns: ["/affiliate"] },
   // Tools / 小工具 — deliberately NOT a top-level nav item, and this is not the
   // old "hide the copywriter" reason (that one is dead: it has an identity gate
   // and rate limits now, and Copy Generator is a live link in the dropdown below).
@@ -185,12 +250,20 @@ const Navbar = () => {
 
   const isCurrentDefault = !!defaultPath && defaultPath === location.pathname;
 
-  /** Desktop link body: the icon when the item has one, else the label. */
+  const here = location.pathname;
+
+  /** Desktop link body: the icon when the item has one, else the label, plus
+   *  the current-page bar. */
   const navBody = (link: NavItem) => {
     const Icon = link.icon;
-    // aria-hidden on the glyph: the accessible name comes from the anchor's
-    // aria-label, so the icon must not announce itself a second time.
-    return Icon ? <Icon size={16} aria-hidden="true" /> : link.label[lang];
+    return (
+      <>
+        {/* aria-hidden on the glyph: the accessible name comes from the anchor's
+            aria-label, so the icon must not announce itself a second time. */}
+        {Icon ? <Icon size={16} aria-hidden="true" /> : link.label[lang]}
+        {ownsCurrent(link.owns, here) && <ActiveBar />}
+      </>
+    );
   };
 
   /** Icon-only links get the label back as a tooltip. Radix opens it on focus
@@ -229,7 +302,8 @@ const Navbar = () => {
                   target="_blank"
                   rel="noreferrer"
                   aria-label={link.icon ? link.label[lang] : undefined}
-                  className={`text-sm text-foreground hover:text-accent-foreground transition-colors duration-300 ${link.icon ? "p-1.5" : ""} ${link.noSemibold ? "" : "font-semibold"}`}
+                  aria-current={ownsCurrent(link.owns, here) ? "page" : undefined}
+                  className={`text-sm text-foreground hover:text-accent-foreground transition-colors duration-300 relative ${link.icon ? "p-1.5" : ""} ${link.noSemibold ? "" : "font-semibold"}`}
                 >
                   {navBody(link)}
                 </a>,
@@ -242,7 +316,8 @@ const Navbar = () => {
                   id={`nav-${link.href?.replace("/", "")}`}
                   href={routeHref(link)}
                   aria-label={link.icon ? link.label[lang] : undefined}
-                  className={`text-sm text-foreground hover:text-accent-foreground transition-colors duration-300 ${link.icon ? "p-1.5" : ""} ${link.noSemibold ? "" : "font-semibold"}`}
+                  aria-current={ownsCurrent(link.owns, here) ? "page" : undefined}
+                  className={`text-sm text-foreground hover:text-accent-foreground transition-colors duration-300 relative ${link.icon ? "p-1.5" : ""} ${link.noSemibold ? "" : "font-semibold"}`}
                 >
                   {navBody(link)}
                 </a>,
@@ -255,10 +330,11 @@ const Navbar = () => {
                   href={isHome ? link.href : "/" + link.href}
                   onClick={(e) => handleNavClick(e, link)}
                   aria-label={link.icon ? link.label[lang] : undefined}
+                  aria-current={ownsCurrent(link.owns, here) ? "page" : undefined}
                   // Iconified anchor-links take the ink colour of the route
                   // links: this branch was muted as a text link, but among six
                   // ink glyphs a lone grey one reads as disabled, not secondary.
-                  className={`text-sm transition-colors duration-300 ${link.icon ? "p-1.5 text-foreground hover:text-accent-foreground" : "text-muted-foreground hover:text-foreground"}`}
+                  className={`text-sm transition-colors duration-300 relative ${link.icon ? "p-1.5 text-foreground hover:text-accent-foreground" : "text-muted-foreground hover:text-foreground"}`}
                 >
                   {navBody(link)}
                 </a>,
@@ -268,9 +344,18 @@ const Navbar = () => {
           {/* Tools dropdown — in the nav row, right after 伙伴; only tools live on this branch link out */}
           <HoverCard openDelay={80} closeDelay={150}>
             <HoverCardTrigger asChild>
-              <button className="flex items-center gap-1 text-sm text-muted-foreground hover:text-foreground transition-colors duration-300 px-1">
-                {lang === "cn" ? "小工具" : "Tools"}
-                <ChevronDown size={14} />
+              {/* Icon trigger with NO tooltip — not because one would clash with
+                  the hover-opened panel, but because it would be worse than the
+                  panel: hovering already lists Review Boost / 文案生成器, which
+                  says far more than a chip reading 「小工具」. Keyboard and screen
+                  readers get the name from aria-label. */}
+              <button
+                aria-label={lang === "cn" ? "小工具" : "Tools"}
+                className="relative flex items-center gap-1 text-sm text-foreground hover:text-accent-foreground transition-colors duration-300 p-1.5"
+              >
+                <Boxes size={16} aria-hidden="true" />
+                <ChevronDown size={14} aria-hidden="true" />
+                {ownsCurrent(OWNS_TOOLS, here) && <ActiveBar />}
               </button>
             </HoverCardTrigger>
             <HoverCardContent align="end" sideOffset={12} className="w-56 p-2">
@@ -302,9 +387,13 @@ const Navbar = () => {
               full page at /guides/:slug (content renders on the page, coral-glass card) */}
           <HoverCard openDelay={80} closeDelay={150}>
             <HoverCardTrigger asChild>
-              <button className="flex items-center gap-1 text-sm text-muted-foreground hover:text-foreground transition-colors duration-300 px-1">
-                {lang === "cn" ? "指南" : "Guides"}
-                <ChevronDown size={14} />
+              <button
+                aria-label={lang === "cn" ? "指南" : "Guides"}
+                className="relative flex items-center gap-1 text-sm text-foreground hover:text-accent-foreground transition-colors duration-300 p-1.5"
+              >
+                <BookOpen size={16} aria-hidden="true" />
+                <ChevronDown size={14} aria-hidden="true" />
+                {ownsCurrent(OWNS_GUIDES, here) && <ActiveBar />}
               </button>
             </HoverCardTrigger>
             <HoverCardContent align="end" sideOffset={12} className="w-60 p-2">
@@ -402,7 +491,7 @@ const Navbar = () => {
                 href={link.external}
                 target="_blank"
                 rel="noreferrer"
-                className="block text-sm text-foreground hover:text-accent-foreground transition-colors"
+                className={mobileRow(false, "text-foreground hover:text-accent-foreground")}
                 onClick={() => setMobileOpen(false)}
               >
                 {link.label[lang]}
@@ -411,7 +500,11 @@ const Navbar = () => {
               <a
                 key={link.label.en}
                 href={link.isRoute ? routeHref(link) : (isHome ? link.href : "/" + link.href)}
-                className={`block text-sm transition-colors ${link.isRoute ? "text-foreground hover:text-accent-foreground" : "text-muted-foreground hover:text-foreground"}`}
+                aria-current={ownsCurrent(link.owns, here) ? "page" : undefined}
+                className={mobileRow(
+                  ownsCurrent(link.owns, here),
+                  link.isRoute ? "text-foreground hover:text-accent-foreground" : "text-muted-foreground hover:text-foreground",
+                )}
                 onClick={(e) => { handleNavClick(e, link); setMobileOpen(false); }}
               >
                 {link.label[lang]}
@@ -424,16 +517,24 @@ const Navbar = () => {
             <p className="text-[11px] font-semibold uppercase tracking-widest text-muted-foreground mb-2">
               {lang === "cn" ? "小工具" : "Tools"}
             </p>
-            {toolLinks.map((tool) => (
-              <a
-                key={tool.label.en}
-                href={toolHref(tool)}
-                className="block text-sm text-muted-foreground hover:text-foreground py-1.5 transition-colors"
-                onClick={() => setMobileOpen(false)}
-              >
-                {tool.label[lang]}
-              </a>
-            ))}
+            {toolLinks.map((tool) => {
+              // Highlight the tool ITSELF, not the group: in the mobile menu the
+              // group is already expanded, so marking the row the customer is on
+              // is the useful signal.
+              const toolPath = tool.base ?? tool.href;
+              const active = !!toolPath && pathMatches(toolPath, here);
+              return (
+                <a
+                  key={tool.label.en}
+                  href={toolHref(tool)}
+                  aria-current={active ? "page" : undefined}
+                  className={`${mobileRow(active, "text-muted-foreground hover:text-foreground")} py-1.5`}
+                  onClick={() => setMobileOpen(false)}
+                >
+                  {tool.label[lang]}
+                </a>
+              );
+            })}
             {comingSoonTools.map((tool) => (
               <div key={tool.label.en} className="flex items-center gap-2 text-sm text-muted-foreground/60 py-1.5">
                 {tool.label[lang]}
@@ -447,16 +548,20 @@ const Navbar = () => {
             <p className="text-[11px] font-semibold uppercase tracking-widest text-muted-foreground mb-2">
               {lang === "cn" ? "指南" : "Guides"}
             </p>
-            {GUIDES.map((g) => (
-              <a
-                key={g.slug}
-                href={`/guides/${g.slug}`}
-                className="block text-sm text-muted-foreground hover:text-foreground py-1.5 transition-colors"
-                onClick={() => setMobileOpen(false)}
-              >
-                {g.title[lang]}
-              </a>
-            ))}
+            {GUIDES.map((g) => {
+              const active = pathMatches(`/guides/${g.slug}`, here);
+              return (
+                <a
+                  key={g.slug}
+                  href={`/guides/${g.slug}`}
+                  aria-current={active ? "page" : undefined}
+                  className={`${mobileRow(active, "text-muted-foreground hover:text-foreground")} py-1.5`}
+                  onClick={() => setMobileOpen(false)}
+                >
+                  {g.title[lang]}
+                </a>
+              );
+            })}
           </div>
 
           {locId && (
