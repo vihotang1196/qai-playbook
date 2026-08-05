@@ -1380,7 +1380,8 @@ against the deployed function.
 
 | Item | Note |
 |---|---|
-| ~~「你的免费票已用完」 is wrong for an account that never had an allowance~~ | ✅ **Verified in production 2026-08-04.** Anonymous load of `/events?location_id=gsRRLb2A8IoATd9qWNmh` (a 0/0 account): the allowance block does not render at all — neither「已用完」nor「还有 0 张」. Checked by walking every text node in `document.body`, not by eye: `免费票` appears exactly once, in the static footer note「选座、价格与免费票额度都由后端核算」, which is not the banner. Event data loaded normally (title, RM 397, 座位充足) so this is a real render, not an error state. Browser pane held no `sb-*` key, so the load was genuinely session-free. **Only the 0/0 state is verified** — "has remaining" and "genuinely exhausted" were not exercised |
+| ~~「你的免费票已用完」 is wrong for an account that never had an allowance~~ | ✅ **Verified in production 2026-08-04.** Anonymous load of `/events?location_id=gsRRLb2A8IoATd9qWNmh` (a 0/0 account): the allowance block does not render at all — neither「已用完」nor「还有 0 张」. Checked by walking every text node in `document.body`, not by eye: `免费票` appears exactly once, in the static footer note「选座、价格与免费票额度都由后端核算」, which is not the banner. Event data loaded normally (title, RM 397, 座位充足) so this is a real render, not an error state. Browser pane held no `sb-*` key, so the load was genuinely session-free. **Only the 0/0 state is verified** — "has remaining" and "genuinely exhausted" were not exercised, and both route through the same new three-state branch. Check them opportunistically the next time an account is given an allowance by hand |
+| ~~票/座 unit mismatch~~ | ✅ **Customer-facing copy fixed 2026-08-04** (`名额` / `slot`, not `票` / `ticket`). `座位` was rejected: an event with `seat_selection_enabled = false` has no real seats, its labels are synthesized per booking. Five strings in two languages — the file has no Malay branch. **Admin side still open, see below.** |
 | 票/座 unit mismatch | Copy says tickets, the number is seats |
 | `seats_unavailable` conflates two errors | "that seat is taken" vs "the event is full" |
 | `deleteEvent` orphan source | Fix where orphans are created, not just the symptom |
@@ -1438,3 +1439,64 @@ RPC: `try_book_seats`→`oe_claim_seats` (seat-level atomic).
 - Owner is non-technical: explain in Chinese, step by step, surface pros/cons for
   decisions, plan → confirm → build → verify in dev → commit+push.
 - AI (Claude) is basically unused here (booking system) unless an obvious use appears.
+
+## `free_tickets` does nothing — audit 2026-08-04
+
+`oe_subaccount_settings.free_tickets` and `oe_settings.default_free_tickets` are
+**write-only**. Traced every reference:
+
+- **Pricing and booking validation read `free_seats` ONLY** (`oe/index.ts` →
+  `priceQuote`): `.select("free_seats")`, `freeAllot = sa?.free_seats ?? 0`,
+  `freeUsedNow = min(seatCount, freeRemaining)`, `paidSeats = seatCount -
+  freeUsedNow`. Usage is counted by `freeSeatsUsedFor()`, which sums
+  `oe_bookings.free_seats`. `free_tickets` enters no arithmetic anywhere.
+- **The customer never sees it.** `resolveContext` returns `freeTickets` in the
+  context object, but `grep "\.freeTickets" src/` is **zero hits** — the field is
+  declared in the client type and never read. Every customer string interpolates
+  `freeSeatsRemaining`.
+- **The only thing it does is render in the admin UI**, `Settings.tsx` →
+  「全局默认（N 票 / N 座）」, describing an allowance that does not exist.
+
+So it is worse than `display_label` was: that at least displayed something real.
+An admin who types "票 = 5" believes they granted five free tickets and granted
+nothing. Fixing only the wording would hide the control instead of removing it.
+
+**Decision: option B** — drop it from the admin form, keep the column marked
+deprecated, same treatment `display_label` got. Explicitly NOT option C
+(make tickets and seats interact): the system has no "ticket" entity at all, only
+seats, so a conversion rule would be inventing a concept to justify a field.
+
+### 🔴 Found while auditing: 7 accounts will each get a free seat
+
+**Do not read a migration file as the current state of the database.** The
+2026-07-29 cleanup zeroed the per-account rows but not the global defaults, and the
+migration's own comments describe intent, not what is stored now. Queried live via
+`supabase db query --linked`:
+
+| | |
+|---|---|
+| `oe_settings.default_free_tickets` | **`1`** (updated 2026-07-29 09:17) |
+| `oe_settings.default_free_seats` | **`1`** (same timestamp) |
+| `oe_subaccount_settings` rows | 911, **all 0/0** — the cleanup did work here |
+| `ghl_locations` | 918 |
+| **Locations with NO settings row** | **7** |
+
+Those 7 have no row, so the first time each one opens the page,
+`resolveContext`'s auto-upsert (`oe/index.ts`, `ignoreDuplicates: true`) creates it
+from the **global default — 1 free seat**. Same for every sub-account synced from
+GHL from now on. At RM 397 that is up to ~RM 2,779 of uncollected revenue across
+the seven, and it only materialises if someone actually books.
+
+Owner's call, not a silent fix. The options are to zero
+`default_free_seats`, to backfill 0/0 rows for the seven, or to leave the one free
+seat as a deliberate welcome gift.
+
+### Still open on the admin side (step 2 of the 票/座 work)
+
+1. Remove `free_tickets` from the `Settings.tsx` sub-account form.
+2. Change「全局默认（N 票 / N 座）」to show the seat allowance only.
+3. `updateSubaccountSettings(locationId, free_tickets, free_seats)` — signature
+   needs a decision; see the options recorded with the commit.
+4. Mark the two DB columns deprecated in a migration comment (no drop — dropping a
+   column with 911 rows of history buys nothing).
+5. Decide `default_free_tickets` alongside the `default_free_seats` question above.
