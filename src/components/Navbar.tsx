@@ -1,7 +1,21 @@
 import { useEffect, useState } from "react";
 import { useLocation, useNavigate } from "react-router-dom";
 import { Button } from "@/components/ui/button";
-import { Menu, X, ChevronDown, ChevronRight, Pin } from "lucide-react";
+import {
+  Menu,
+  X,
+  ChevronDown,
+  ChevronRight,
+  Pin,
+  Home,
+  LifeBuoy,
+  CalendarDays,
+  Wrench,
+  Coins,
+  CircleArrowUp,
+  Handshake,
+  type LucideIcon,
+} from "lucide-react";
 import { toast } from "sonner";
 import { useLang } from "@/i18n/LanguageContext";
 import { t } from "@/i18n/translations";
@@ -13,6 +27,14 @@ import {
   HoverCardContent,
   HoverCardTrigger,
 } from "@/components/ui/hover-card";
+import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
+
+// Brutalist skin for the nav tooltips. The shared shadcn TooltipContent is still
+// on its stock look (1px border, soft shadow), and it has no other consumer, so
+// the override lives here rather than in the shared component — changing that
+// file would restyle anything added later without review.
+const TOOLTIP_BRUTALIST =
+  "border-2 border-[#141414] bg-white text-[#141414] rounded-xl shadow-[4px_4px_0_#141414] px-3 py-1.5 text-sm font-semibold";
 
 // Help/guide links — shown under the navbar "Guides" dropdown. Each entry clicks
 // straight through to its full page at /guides/:slug (the single source of truth
@@ -26,20 +48,31 @@ type NavItem = {
   isRoute?: boolean;
   noSemibold?: boolean;
   withLocation?: boolean; // append ?location_id= so the tool recognises the sub-account
+  /** DESKTOP ONLY. When set, the desktop bar shows this icon instead of the
+   *  label, with the label in a tooltip and on aria-label. The mobile menu
+   *  always stays text: touch has no hover, so an icon there would be a riddle.
+   *  The two dropdowns (小工具 / 指南) deliberately have no icon — they are
+   *  HoverCards, and a tooltip on a hover-opened trigger fights the panel. */
+  icon?: LucideIcon;
 };
 
 const navLinks: NavItem[] = [
-  { label: t.nav.home, href: "#hero" },
+  { label: t.nav.home, href: "#hero", icon: Home },
   // Help Center — the internal Helpdesk page (/help). withLocation carries the GHL
   // location_id so the shared help center recognises the sub-account.
-  { label: { en: "Help Center", cn: "帮助中心" }, href: "/help", isRoute: true, noSemibold: true, withLocation: true },
+  { label: { en: "Help Center", cn: "帮助中心" }, href: "/help", isRoute: true, noSemibold: true, withLocation: true, icon: LifeBuoy },
   // Offline Event — promoted from the 小工具 dropdown to the main menu (owner ask).
   // withLocation carries the GHL location_id so the tool recognises the sub-account.
-  { label: { en: "Offline Event", cn: "线下活动报名" }, href: "/events", isRoute: true, noSemibold: true, withLocation: true },
-  { label: { en: "DFY", cn: "DFY" }, href: "/dfy", isRoute: true, noSemibold: true },
-  { label: { en: "Credits", cn: "额度" }, href: "/credits", isRoute: true, noSemibold: true },
-  { label: { en: "Upgrade", cn: "升级" }, href: "/upgrade", isRoute: true, noSemibold: true },
-  { label: { en: "Affiliate", cn: "伙伴" }, href: "/affiliate", isRoute: true, noSemibold: true },
+  { label: { en: "Offline Event", cn: "线下活动报名" }, href: "/events", isRoute: true, noSemibold: true, withLocation: true, icon: CalendarDays },
+  // Wrench for DFY (Done For You) — "someone is doing the work for you". It does
+  // not collide with the 小工具 dropdown, which keeps its text label.
+  { label: { en: "DFY", cn: "DFY" }, href: "/dfy", isRoute: true, noSemibold: true, icon: Wrench },
+  // Coins, not Wallet: a wallet reads as "pay something", coins read as "balance
+  // of points", which is what this page actually shows.
+  { label: { en: "Credits", cn: "额度" }, href: "/credits", isRoute: true, noSemibold: true, icon: Coins },
+  // Circled arrow, not a bare one: a naked up-arrow reads as "back to top".
+  { label: { en: "Upgrade", cn: "升级" }, href: "/upgrade", isRoute: true, noSemibold: true, icon: CircleArrowUp },
+  { label: { en: "Affiliate", cn: "伙伴" }, href: "/affiliate", isRoute: true, noSemibold: true, icon: Handshake },
   // Tools / 小工具 — deliberately NOT a top-level nav item, and this is not the
   // old "hide the copywriter" reason (that one is dead: it has an identity gate
   // and rate limits now, and Copy Generator is a live link in the dropdown below).
@@ -152,6 +185,28 @@ const Navbar = () => {
 
   const isCurrentDefault = !!defaultPath && defaultPath === location.pathname;
 
+  /** Desktop link body: the icon when the item has one, else the label. */
+  const navBody = (link: NavItem) => {
+    const Icon = link.icon;
+    // aria-hidden on the glyph: the accessible name comes from the anchor's
+    // aria-label, so the icon must not announce itself a second time.
+    return Icon ? <Icon size={16} aria-hidden="true" /> : link.label[lang];
+  };
+
+  /** Icon-only links get the label back as a tooltip. Radix opens it on focus
+   *  as well as hover, which is what keeps the bar usable from the keyboard. */
+  const withTooltip = (link: NavItem, node: React.ReactNode) =>
+    link.icon ? (
+      <Tooltip key={link.label.en}>
+        <TooltipTrigger asChild>{node}</TooltipTrigger>
+        <TooltipContent sideOffset={10} className={TOOLTIP_BRUTALIST}>
+          {link.label[lang]}
+        </TooltipContent>
+      </Tooltip>
+    ) : (
+      node
+    );
+
   return (
     <header className="fixed top-0 left-0 right-0 z-50 glass-nav">
       <div className="max-w-7xl mx-auto px-6 h-16 flex items-center justify-between">
@@ -160,36 +215,54 @@ const Navbar = () => {
         </a>
 
         {/* Desktop nav */}
-        <nav id="navbar-nav" className="hidden lg:flex items-center gap-8">
+        {/* Desktop nav — icon-only (labels move into tooltips); gap tightened
+            from 8 to 6 because 16px glyphs at the old spacing read as unrelated
+            buttons rather than one bar. The two dropdowns keep their text. */}
+        <nav id="navbar-nav" className="hidden lg:flex items-center gap-6">
           {navLinks.map((link) =>
             link.external ? (
-              <a
-                key={link.label.en}
-                href={link.external}
-                target="_blank"
-                rel="noreferrer"
-                className={`text-sm text-foreground hover:text-accent-foreground transition-colors duration-300 ${link.noSemibold ? "" : "font-semibold"}`}
-              >
-                {link.label[lang]}
-              </a>
+              withTooltip(
+                link,
+                <a
+                  key={link.label.en}
+                  href={link.external}
+                  target="_blank"
+                  rel="noreferrer"
+                  aria-label={link.icon ? link.label[lang] : undefined}
+                  className={`text-sm text-foreground hover:text-accent-foreground transition-colors duration-300 ${link.icon ? "p-1.5" : ""} ${link.noSemibold ? "" : "font-semibold"}`}
+                >
+                  {navBody(link)}
+                </a>,
+              )
             ) : link.isRoute ? (
-              <a
-                key={link.label.en}
-                id={`nav-${link.href?.replace("/", "")}`}
-                href={routeHref(link)}
-                className={`text-sm text-foreground hover:text-accent-foreground transition-colors duration-300 ${link.noSemibold ? "" : "font-semibold"}`}
-              >
-                {link.label[lang]}
-              </a>
+              withTooltip(
+                link,
+                <a
+                  key={link.label.en}
+                  id={`nav-${link.href?.replace("/", "")}`}
+                  href={routeHref(link)}
+                  aria-label={link.icon ? link.label[lang] : undefined}
+                  className={`text-sm text-foreground hover:text-accent-foreground transition-colors duration-300 ${link.icon ? "p-1.5" : ""} ${link.noSemibold ? "" : "font-semibold"}`}
+                >
+                  {navBody(link)}
+                </a>,
+              )
             ) : (
-              <a
-                key={link.label.en}
-                href={isHome ? link.href : "/" + link.href}
-                onClick={(e) => handleNavClick(e, link)}
-                className="text-sm text-muted-foreground hover:text-foreground transition-colors duration-300"
-              >
-                {link.label[lang]}
-              </a>
+              withTooltip(
+                link,
+                <a
+                  key={link.label.en}
+                  href={isHome ? link.href : "/" + link.href}
+                  onClick={(e) => handleNavClick(e, link)}
+                  aria-label={link.icon ? link.label[lang] : undefined}
+                  // Iconified anchor-links take the ink colour of the route
+                  // links: this branch was muted as a text link, but among six
+                  // ink glyphs a lone grey one reads as disabled, not secondary.
+                  className={`text-sm transition-colors duration-300 ${link.icon ? "p-1.5 text-foreground hover:text-accent-foreground" : "text-muted-foreground hover:text-foreground"}`}
+                >
+                  {navBody(link)}
+                </a>,
+              )
             ),
           )}
           {/* Tools dropdown — in the nav row, right after 伙伴; only tools live on this branch link out */}
