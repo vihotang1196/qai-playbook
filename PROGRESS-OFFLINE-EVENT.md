@@ -1381,9 +1381,12 @@ against the deployed function.
 | Item | Note |
 |---|---|
 | ~~「你的免费票已用完」 is wrong for an account that never had an allowance~~ | ✅ **Verified in production 2026-08-04.** Anonymous load of `/events?location_id=gsRRLb2A8IoATd9qWNmh` (a 0/0 account): the allowance block does not render at all — neither「已用完」nor「还有 0 张」. Checked by walking every text node in `document.body`, not by eye: `免费票` appears exactly once, in the static footer note「选座、价格与免费票额度都由后端核算」, which is not the banner. Event data loaded normally (title, RM 397, 座位充足) so this is a real render, not an error state. Browser pane held no `sb-*` key, so the load was genuinely session-free. **Only the 0/0 state is verified** — "has remaining" and "genuinely exhausted" were not exercised, and both route through the same new three-state branch. Check them opportunistically the next time an account is given an allowance by hand |
-| ~~票/座 unit mismatch~~ | ✅ **Customer-facing copy fixed 2026-08-04** (`名额` / `slot`, not `票` / `ticket`). `座位` was rejected: an event with `seat_selection_enabled = false` has no real seats, its labels are synthesized per booking. Five strings in two languages — the file has no Malay branch. **Admin side still open, see below.** |
+| ~~票/座 unit mismatch~~ | ✅ **Customer-facing copy fixed 2026-08-04** (`名额` / `slot`, not `票` / `ticket`). `座位` was rejected: an event with `seat_selection_enabled = false` has no real seats, its labels are synthesized per booking. Five strings in two languages — the file has no Malay branch. **Admin side done 2026-08-05** (`名额` throughout, `free_tickets` gone). |
 | 票/座 unit mismatch | Copy says tickets, the number is seats |
 | `seats_unavailable` conflates two errors | "that seat is taken" vs "the event is full" |
+| ~~`free_tickets` is a write-only field~~ | ✅ **Deprecated 2026-08-05.** Audited: it never touched pricing, validation or the customer UI. Removed from the admin form, from both signatures and from the customer API; the column is kept for 918 rows of history and now defaults to 0. |
+| ~~Charge-settings save overwrites the free-allowance defaults~~ | ✅ **Fixed and verified on production 2026-08-05.** `saveCharges` posts only its own three fields, and both `default_free_*` keys are out of the server allow-list so the read-only box is not merely decorative. Proof: **4 consecutive charge saves wrote lunch_price / sst_rate / max_seats_per_booking at 07:43:40 while `default_free_seats` stayed at 07:33:14.** The 2026-07-29 failure was five keys sharing one timestamp; it is now three. |
+| ~~`updateSubaccountSettings` took a dead parameter~~ | ✅ **B1 signature shipped and round-tripped 2026-08-05.** Now `(locationId, free_seats)`. Verified both directions on production — 0→1 then 1→0 — audit payloads `{free_seats, location_id}` with no `free_tickets`, and the 0 boundary clamps correctly. |
 | `deleteEvent` orphan source | Fix where orphans are created, not just the symptom |
 | Change-date warning | Warn that N bookings already exist |
 | `verify_jwt = false` exposure review | |
@@ -1491,15 +1494,49 @@ Owner's call, not a silent fix. The options are to zero
 `default_free_seats`, to backfill 0/0 rows for the seven, or to leave the one free
 seat as a deliberate welcome gift.
 
-### Still open on the admin side (step 2 of the 票/座 work)
+### Admin side of the 票/座 work — DONE 2026-08-05
 
-1. Remove `free_tickets` from the `Settings.tsx` sub-account form.
-2. Change「全局默认（N 票 / N 座）」to show the seat allowance only.
-3. `updateSubaccountSettings(locationId, free_tickets, free_seats)` — signature
-   needs a decision; see the options recorded with the commit.
-4. Mark the two DB columns deprecated in a migration comment (no drop — dropping a
-   column with 911 rows of history buys nothing).
-5. Decide `default_free_tickets` alongside the `default_free_seats` question above.
+All seven planned items shipped in one commit, plus two the plan did not contain:
+
+1. `free_tickets` removed from the settings form.
+2. `default_free_seats` is READ-ONLY, showing the stored value, with copy that states
+   the policy rather than warning about it.
+3. 「全局默认（N 票 / N 座）」→ seats only, and the sub-account list now says out
+   loud that pressing 保存 on an unedited row freezes the inherited default into an
+   override.
+4. `updateSubaccountSettings(locationId, free_seats)` — dropped rather than passed a
+   constant 0, because a parameter accepted and ignored is how the field survived
+   this long.
+5. Migration `20260805070000` marks both columns and sets their defaults to 0 (they
+   were 1 and **2**; any future INSERT omitting them would have granted two free
+   seats). Columns NOT dropped.
+6. **Beyond plan:** both `default_free_*` keys removed from the server allow-list, so
+   the read-only box is not a decorative guard over a writable endpoint — the same
+   shape as the `sst_rate` hole still open elsewhere in this file.
+7. **Beyond plan:** `oe` no longer writes `free_tickets`, no longer returns
+   `freeTickets` to customers, and no longer reads `default_free_tickets`.
+
+Production verification, in order, with the migration applied before the functions:
+
+| Check | Result |
+|---|---|
+| Column defaults | `1` / `2` → **`0` / `0`**, comments present in the database |
+| Customer `resolveContext` | `freeTickets` absent; `freeSeats` chain intact |
+| Frontend build shipped | new strings present in the served bundle, 「默认免费票（张）」 gone |
+| Read-only box | shows the stored value (owner confirmed `2`) |
+| **Overwrite window** | **4 charge saves at 07:43:40; `default_free_seats` still 07:33:14** |
+| Audit payload, settings | 3 fields, no `default_free_*` |
+| Allowance round-trip | 0→1→0 both written; payloads `{free_seats, location_id}` |
+| Column state | 918 rows, zero non-zero seats, zero non-zero tickets |
+
+**Two process lessons, both from this verification rather than the code:**
+
+- The row save button is `disabled={!dirty}` and the charges button is not. A test
+  step of “save without changing anything” is a no-op on the first and real on the
+  second — two verification rounds were spent before that was noticed. Check a
+  button’s disabled condition before writing a test step that depends on clicking it.
+- `updated_at` is the honest witness. “The value is what I expected” could not
+  distinguish “saved and left alone” from “never saved”; the timestamp could.
 
 ## Free-allowance policy — 2 for new customers, 0 for the existing 918
 
