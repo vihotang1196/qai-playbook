@@ -66,6 +66,14 @@ verify_jwt = false
 [functions.helpdesk]
 verify_jwt = false
 
+# Coaching Night PUBLIC read API — the Playbook homepage reads the past-replay
+# list through here. Anon-callable; runs with the service role internally.
+# READ ONLY (listReplays); no writes, no secrets, and no per-location scoping or
+# access gate (Coaching Night is homepage content every sub-account sees).
+# The requireAdmin-gated `admin` fn is the only WRITE path.
+[functions.coaching]
+verify_jwt = false
+
 # Copywriter generation (Claude) + narration (MiniMax TTS). Anon-callable at the
 # gateway like every other customer-facing fn; the REAL gates are inside and
 # server-enforced: a location_id is REQUIRED, hasToolAccess(copywriter) must
