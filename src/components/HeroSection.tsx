@@ -16,7 +16,7 @@ const COMMUNITY_LINK = "https://chat.whatsapp.com/GrVKU7wl9LuDpYeg3ycTFt";
 const ZOOM_LINK = "https://zoom.us/j/6186465988?omn=95854837323";
 const WHATSAPP_LINK = "https://wa.me/601112436811";
 const VIRTUAL_WALKIN_LINK = "https://meet.goto.com/qaivirtual-walkin";
-const COACHING_NIGHT_LINK = "https://meet.goto.com/127055221";
+const COACHING_NIGHT_LINK = "https://support.qiai.tech/coachingnight";
 
 // Get current Malaysia time (UTC+8) as a Date in local TZ representing MYT wall time
 const getMytNow = (): Date => {
