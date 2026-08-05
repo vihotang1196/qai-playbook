@@ -26,8 +26,9 @@ import { checkRateLimit, locKey, rateLimitMessage, DAY_MS, HOUR_MS } from "../_s
 // hashtags gone, prose where the original had scannable blocks. That formatting
 // is what the audience recognises, and no prompt tuning was worth risking it.
 //
-// The cost of that choice is accepted and known: three attempts per click at the
-// old failure rate, and an hourly cap of 15 that is really 5 generations.
+// The cost of that choice was three attempts per click and an hourly cap of 15
+// that was really 5 generations. The server-side repair below is what brings that
+// back down without touching the model or the prompt.
 //
 // TO RE-EVALUATE: change this one line back to "claude-sonnet-5". The strict
 // schema is already written (see COPY_TOOL) and needs `strict: true` restored
@@ -39,15 +40,16 @@ import { checkRateLimit, locKey, rateLimitMessage, DAY_MS, HOUR_MS } from "../_s
 const MODEL = "claude-sonnet-4-5";
 const ANTHROPIC_URL = "https://api.anthropic.com/v1/messages";
 
-// Cost protection. The priciest call in the platform: ~US$0.10 per ATTEMPT,
-// measured (2026-07-29, 4 calls, ~6.3k input + ~5.7k output tokens each). Read
-// that as ~US$0.21 per customer CLICK — at the observed failure rate a malformed
-// shape costs two discarded attempts before one lands, and every attempt is
-// metered here whether or not it produced anything usable. That is the accepted
-// price of keeping this model's copy tone; the Sonnet 5 trial that removed it is
-// documented by MODEL. max_tokens is 16000, so a worst case that ran to the cap
-// would be ~US$0.25 — real generations land nowhere near it. Owner-approved
-// caps, per sub-account; no global cap (one abuser must not lock out everyone).
+// Cost protection. The priciest call in the platform: ~US$0.10 per full
+// generation, measured (2026-07-29, 4 calls, ~6.3k input + ~5.7k output tokens
+// each). A malformed shape used to add another ~$0.10 per discarded attempt, up
+// to ~$0.21 a click; the repair call re-emits only the broken field for roughly a
+// third of that, so a repaired click should land near ~$0.13 — to be measured,
+// not assumed. Only 'generation' rows count against these caps: a repair is
+// metered separately, so a click the server fixed spends ONE slot, not three.
+// max_tokens is 16000, so a worst case that ran to the cap would be ~US$0.25 —
+// real generations land nowhere near it. Owner-approved caps, per sub-account;
+// no global cap (one abuser must not lock out everyone).
 const TOOL_KEY = "copywriter";
 const COPY_LIMITS = [
   { windowMs: HOUR_MS, max: 15, label: "hour" },
@@ -340,6 +342,28 @@ const emailItemSchema = {
   additionalProperties: false,
 };
 
+// Named so the repair tool can reuse the exact same definitions — a repair that
+// asked for a subtly different shape than the original would defeat its purpose.
+const SEGMENTS_SCHEMA = {
+  type: "array",
+  items: {
+    type: "object",
+    properties: { stage: { type: "string" }, content: { type: "string" } },
+    required: ["stage", "content"],
+    additionalProperties: false,
+  },
+};
+
+const FUNNEL_SCHEMA = {
+  type: "array",
+  items: {
+    type: "object",
+    properties: { section: { type: "string" }, content: { type: "string" } },
+    required: ["section", "content"],
+    additionalProperties: false,
+  },
+};
+
 const COPY_TOOL = {
   name: TOOL_NAME,
   description: "Return the generated ad script, ad caption, funnel copy and automation messages as structured data.",
@@ -355,30 +379,12 @@ const COPY_TOOL = {
     properties: {
       adScript: {
         type: "object",
-        properties: {
-          segments: {
-            type: "array",
-            items: {
-              type: "object",
-              properties: { stage: { type: "string" }, content: { type: "string" } },
-              required: ["stage", "content"],
-              additionalProperties: false,
-            },
-          },
-        },
+        properties: { segments: SEGMENTS_SCHEMA },
         required: ["segments"],
         additionalProperties: false,
       },
       adCopy: { type: "string" },
-      funnel: {
-        type: "array",
-        items: {
-          type: "object",
-          properties: { section: { type: "string" }, content: { type: "string" } },
-          required: ["section", "content"],
-          additionalProperties: false,
-        },
-      },
+      funnel: FUNNEL_SCHEMA,
       automationMessages: {
         type: "object",
         properties: {
@@ -413,10 +419,191 @@ const COPY_TOOL = {
 };
 
 // ─────────────────────────────────────────────────────────────────────────────
+// Repair: re-emit one bad field instead of regenerating everything
+// ─────────────────────────────────────────────────────────────────────────────
+// The observed failure is narrow. On 2026-08-04 a real failure had
+// stop_reason "tool_use", 4,484 output tokens, `segments` complete with all 6
+// items, and `funnel` delivered as a plain string the coercion could not rescue.
+// One field out of four, with everything else usable.
+//
+// Returning 502 there threw away a whole paid generation and made the client
+// regenerate from scratch — three attempts a click at the observed rate, ~$0.21,
+// and three quota slots against an hourly cap of 15, so a customer really only
+// got 5 generations an hour and read the lockout as the tool being broken.
+//
+// A repair call asks only for the broken field, passing the copy that DID arrive
+// as context so the voice matches, and costs roughly a third of a full
+// generation. It runs server-side, so a successful repair is invisible to the
+// client: one request, one success, one quota slot.
+//
+// Exactly ONE attempt, deliberately. A retry loop here would re-create the
+// problem this removes, and the client still has its own retries as the last
+// resort if the repair also fails.
+
+const REPAIR_TOOL_NAME = "emit_repair";
+
+// How long the original generation may have taken and still leave room for a
+// repair. Edge Functions cut off around 150s; observed generations run 69-108s
+// and a repair should add 20-40s, so 90s + 40s = 130s is already close.
+//
+// Skipping past this point is NOT a lost opportunity, it avoids a worse outcome.
+// `generation_result` is written AFTER the repair, so a repair killed mid-flight
+// leaves NO row at all — recovery has nothing to hand back, the client sees a
+// dead connection, and it regenerates from scratch. That costs more than never
+// attempting the repair. Over budget, the right move is to fail the way this
+// function failed before repairs existed.
+const REPAIR_TIME_BUDGET_MS = 90_000;
+
+type RepairField = "funnel" | "segments";
+
+/** The same field definitions as COPY_TOOL, narrowed to the unusable ones — a
+ *  repair that asked for a subtly different shape would defeat its own purpose. */
+function buildRepairTool(fields: RepairField[]) {
+  const properties: Record<string, unknown> = {};
+  if (fields.includes("funnel")) properties.funnel = FUNNEL_SCHEMA;
+  if (fields.includes("segments")) properties.segments = SEGMENTS_SCHEMA;
+  return {
+    name: REPAIR_TOOL_NAME,
+    description: "Re-emit only the listed fields, in the correct structure.",
+    input_schema: {
+      type: "object",
+      properties,
+      required: fields,
+      additionalProperties: false,
+    },
+  };
+}
+
+/** Context + instructions for the repair. The ORIGINAL system prompt is reused
+ *  unchanged, so every style rule (emoji, local flavour, section names, tone)
+ *  still applies — this only says which field to re-emit and shows the copy it
+ *  has to sit alongside. Naming the sections is left to the system prompt rather
+ *  than restated here, so the two can't drift apart. */
+function buildRepairPrompt(
+  lang: Language,
+  fields: RepairField[],
+  kept: { adCopy: string; funnel?: unknown; segments?: unknown },
+): string {
+  const wanted = {
+    zh: {
+      funnel: "funnel：9 段，每段 { section, content }。section 名称与顺序必须与系统提示列出的 9 段完全一致。",
+      segments: "segments：6 段，每段 { stage, content }。stage 名称与顺序必须与系统提示列出的 6 段完全一致。",
+      head: "上一次生成的大部分内容是好的，只有以下字段结构不合格，需要你只重新产出这些字段：",
+      ctx: "【已产出的内容 — 语气、emoji 用量、本地口语、行文节奏都要与这些保持一致，但不要照抄句子】",
+      tail: "只通过 emit_repair 工具输出上面列出的字段，不要输出其他字段，也不要任何解释文字。字段必须是真正的数组，绝对不要写成字符串或 JSON 文本。",
+    },
+    en: {
+      funnel: "funnel: 9 entries, each { section, content }. Section names and order must match the 9 listed in the system prompt exactly.",
+      segments: "segments: 6 entries, each { stage, content }. Stage names and order must match the 6 listed in the system prompt exactly.",
+      head: "Most of the previous generation is good. Only these fields came back in an unusable structure — re-emit just these:",
+      ctx: "[Already produced — match its tone, emoji density, local flavour and rhythm, but do not reuse its sentences]",
+      tail: "Return only the listed fields through the emit_repair tool. No other fields, no explanation. They must be real arrays, never strings or JSON text.",
+    },
+    ms: {
+      funnel: "funnel: 9 bahagian, setiap satu { section, content }. Nama dan susunan section mesti sama tepat dengan 9 yang disenaraikan dalam system prompt.",
+      segments: "segments: 6 bahagian, setiap satu { stage, content }. Nama dan susunan stage mesti sama tepat dengan 6 yang disenaraikan dalam system prompt.",
+      head: "Sebahagian besar hasil sebelum ini sudah betul. Hanya medan berikut yang strukturnya tidak sah — hasilkan semula medan ini sahaja:",
+      ctx: "[Sudah dihasilkan — kekalkan nada, kekerapan emoji, laras tempatan dan rentaknya, tetapi jangan salin ayatnya]",
+      tail: "Kembalikan hanya medan yang disenaraikan melalui alat emit_repair. Tiada medan lain, tiada penjelasan. Ia mesti array sebenar, bukan string atau teks JSON.",
+    },
+  }[lang];
+
+  // Only what actually arrived. A truncated generation can leave adCopy empty,
+  // and an empty heading in the context reads as "this field is meant to be
+  // blank" rather than "it is missing".
+  const ctx: string[] = [];
+  if (kept.adCopy) ctx.push(`adCopy:\n${kept.adCopy}`);
+  if (kept.segments) ctx.push(`segments:\n${JSON.stringify(kept.segments, null, 1)}`);
+  if (kept.funnel) ctx.push(`funnel:\n${JSON.stringify(kept.funnel, null, 1)}`);
+
+  return [
+    wanted.head,
+    ...fields.map((f) => `- ${wanted[f]}`),
+    "",
+    wanted.ctx,
+    ...ctx,
+    "",
+    wanted.tail,
+  ].join("\n");
+}
+
+type RepairOutcome = {
+  funnel?: unknown;
+  segments?: unknown;
+  inputTokens: number | null;
+  outputTokens: number | null;
+  stopReason: string;
+};
+
+/** One repair call. Returns null on any failure — a bad HTTP status, an
+ *  unreadable body, or a missing tool_use block. The caller validates the shape
+ *  of whatever comes back, exactly as it validates the original. */
+async function repairFields(
+  apiKey: string,
+  system: string,
+  lang: Language,
+  fields: RepairField[],
+  kept: { adCopy: string; funnel?: unknown; segments?: unknown },
+): Promise<RepairOutcome | null> {
+  let res: Response;
+  try {
+    res = await fetch(ANTHROPIC_URL, {
+      method: "POST",
+      headers: {
+        "content-type": "application/json",
+        "x-api-key": apiKey,
+        "anthropic-version": "2023-06-01",
+      },
+      body: JSON.stringify({
+        model: MODEL,
+        // One or two array fields, not a whole generation. Generous headroom is
+        // free — unused output tokens are not billed.
+        max_tokens: 8000,
+        system,
+        messages: [{ role: "user", content: buildRepairPrompt(lang, fields, kept) }],
+        tools: [buildRepairTool(fields)],
+        tool_choice: { type: "tool", name: REPAIR_TOOL_NAME },
+      }),
+    });
+  } catch {
+    return null;
+  }
+
+  if (!res.ok) return null;
+
+  try {
+    const data = (await res.json()) as {
+      content?: Array<{ type?: string; name?: string; input?: unknown }>;
+      stop_reason?: string;
+      usage?: { input_tokens?: number; output_tokens?: number };
+    };
+    const block = (data.content ?? []).find(
+      (b) => b.type === "tool_use" && b.name === REPAIR_TOOL_NAME,
+    );
+    if (!block?.input || typeof block.input !== "object") return null;
+    const input = block.input as Record<string, unknown>;
+    return {
+      funnel: input.funnel,
+      segments: input.segments,
+      inputTokens: data.usage?.input_tokens ?? null,
+      outputTokens: data.usage?.output_tokens ?? null,
+      stopReason: data.stop_reason ?? "",
+    };
+  } catch {
+    return null;
+  }
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
 // Handler
 // ─────────────────────────────────────────────────────────────────────────────
 
 Deno.serve(async (req: Request) => {
+  // Clock for REPAIR_TIME_BUDGET_MS. Started at the top rather than at the Claude
+  // call because the Edge cut-off applies to the whole invocation, not just the
+  // model request — the access check and the metering write count against it too.
+  const startedAt = Date.now();
+
   if (req.method === "OPTIONS") {
     return new Response("ok", { headers: corsHeaders });
   }
@@ -611,6 +798,15 @@ Deno.serve(async (req: Request) => {
   const shapeOf = (v: unknown): string =>
     Array.isArray(v) ? `array(${v.length})` : v === null ? "null" : typeof v;
 
+  /** The first 120 characters of what actually arrived in a broken field. If a
+   *  failure turns out to be valid JSON wrapped in a ```json fence, or an array
+   *  with a stray prefix, the coercion above can be taught to strip it and the
+   *  repair call becomes unnecessary — the cheapest possible fix. Marketing copy,
+   *  not customer data, and capped so a row cannot grow unbounded. */
+  const previewOf = (v: unknown): string =>
+    (typeof v === "string" ? v : v === undefined ? "(undefined)" : JSON.stringify(v) ?? "(null)")
+      .slice(0, 120);
+
   /** One step deeper than shapeOf: "array(9) of object" vs "array(2) of string"
    *  is what tells a missing field apart from a wrongly-shaped one. */
   const describeItems = (v: unknown): string => {
@@ -778,10 +974,11 @@ Deno.serve(async (req: Request) => {
 
   if (!segmentsOk || !funnelOk) {
     const cutOff = stopReason === "max_tokens";
-    failMeta.missing = [
-      !segmentsOk ? "adScript.segments" : null,
-      !funnelOk ? "funnel" : null,
-    ].filter(Boolean);
+    const broken: RepairField[] = [];
+    if (!funnelOk) broken.push("funnel");
+    if (!segmentsOk) broken.push("segments");
+
+    failMeta.missing = broken.map((f) => (f === "segments" ? "adScript.segments" : f));
     // Which of the two it was: a field that never arrived, or one that arrived
     // with the wrong items. Same customer-facing message, different root cause.
     failMeta.itemShape = {
@@ -789,15 +986,93 @@ Deno.serve(async (req: Request) => {
       funnel: describeItems(parsed.funnel),
     };
     failMeta.cutOff = cutOff;
-    await logFailure("incomplete_output");
-    return json(
-      {
-        error: cutOff
-          ? (lang === "en" ? "AI response was cut off — please tap Regenerate" : "AI 输出被截断，请点「重新生成」")
-          : (lang === "en" ? "AI returned incomplete output — please tap Regenerate" : "AI 返回不完整，请点「重新生成」"),
-      },
-      502,
+    failMeta.brokenPreview = Object.fromEntries(
+      broken.map((f) => [f, previewOf(f === "funnel" ? parsed.funnel : parsed.adScript?.segments)]),
     );
+
+    // ── One repair attempt, server-side ────────────────────────────────────
+    // Only worth trying if something usable arrived to anchor the voice to. If
+    // the whole generation is empty there is nothing to be consistent with, and
+    // a repair would just be a second full generation at a worse prompt.
+    const keptAdCopy = typeof parsed.adCopy === "string" ? parsed.adCopy : "";
+    const elapsedMs = Date.now() - startedAt;
+    // Recorded on every failure, repaired or not — these are the numbers that
+    // calibrate REPAIR_TIME_BUDGET_MS against what generations actually take.
+    failMeta.elapsedMs = elapsedMs;
+
+    const overTimeBudget = elapsedMs > REPAIR_TIME_BUDGET_MS;
+    if (overTimeBudget) failMeta.skipReason = "time_budget";
+
+    let repaired = false;
+
+    if (!overTimeBudget && (keptAdCopy || funnelOk || segmentsOk)) {
+      const repairStartedAt = Date.now();
+      const r = await repairFields(apiKey, system, lang, broken, {
+        adCopy: keptAdCopy,
+        funnel: funnelOk ? parsed.funnel : undefined,
+        segments: segmentsOk ? parsed.adScript?.segments : undefined,
+      });
+      const repairMs = Date.now() - repairStartedAt;
+      failMeta.repairMs = repairMs;
+
+      if (r) {
+        // The repair is held to the same standard as the original — a repair
+        // that came back wrongly shaped is not an improvement.
+        const funnelFixed = funnelOk || itemsHaveKeys(r.funnel, ["section", "content"]);
+        const segmentsFixed = segmentsOk || itemsHaveKeys(r.segments, ["stage", "content"]);
+
+        // Metered under its own event_type so it never touches the customer's
+        // quota or the admin stats — checkRateLimit for this tool counts only
+        // 'generation', the overview counts only 'generation' / 'posted', and
+        // this row carries no client_key. Logged whether or not it worked: the
+        // repair success rate is the number that decides whether this stays.
+        await logToolUsage(sb, {
+          tool_key: TOOL_KEY,
+          event_type: "generation_repair",
+          location_id: locationId,
+          meta: {
+            language: lang,
+            requestId: requestId || null,
+            fields: broken,
+            ok: funnelFixed && segmentsFixed,
+            stopReason: r.stopReason,
+            inputTokens: r.inputTokens,
+            outputTokens: r.outputTokens,
+            // Both clocks: how long the generation had already burned before the
+            // repair started, and what the repair itself added.
+            elapsedMs,
+            repairMs,
+          },
+        });
+
+        if (funnelFixed && segmentsFixed) {
+          if (!funnelOk) parsed.funnel = r.funnel as Parsed["funnel"];
+          // adScript holds nothing but segments, and may itself be the string
+          // that failed — rebuild it rather than assigning into it.
+          if (!segmentsOk) {
+            parsed.adScript = { segments: r.segments as Parsed["adScript"]["segments"] };
+          }
+          repaired = true;
+        }
+      }
+    }
+
+    // Recorded either way. `repaired` is what separates "the model produced an
+    // unusable shape" (the rate worth tracking) from "the customer saw an error"
+    // — without it, a working repair would hide the underlying failure rate.
+    failMeta.repaired = repaired;
+    await logFailure("incomplete_output");
+
+    if (!repaired) {
+      return json(
+        {
+          error: cutOff
+            ? (lang === "en" ? "AI response was cut off — please tap Regenerate" : "AI 输出被截断，请点「重新生成」")
+            : (lang === "en" ? "AI returned incomplete output — please tap Regenerate" : "AI 返回不完整，请点「重新生成」"),
+        },
+        502,
+      );
+    }
   }
 
   if (typeof parsed.adCopy !== "string") {
