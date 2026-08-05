@@ -224,11 +224,32 @@ const HeroSection = () => {
           </p>
         )}
 
-        {/* Primary CTA + quieter secondary actions */}
-        <div className="fade-up fade-up-delay-2 mt-6 flex flex-col items-center gap-4">
+        {/* Three CTAs in one row. Same box, deliberately NOT the same weight:
+            the middle one keeps the yellow fill (the primary action) and the
+            flanks are white outline. Three yellow buttons would leave the eye
+            nowhere to land and dilute the one action that matters.
+
+            EQUAL WIDTH comes from the grid, not from a hardcoded px value:
+            under intrinsic sizing every `1fr` track takes the widest item's
+            width, so 观看介绍 can never end up narrower than 申请 Invoice, in
+            either language, however the labels are later reworded.
+
+            md, not sm: three h-14 px-10 buttons need ~700px, and sm is 640.
+            Below that they stack full-width — order unchanged, 观看介绍 first.
+
+            All three are always clickable; `buttonsDisabled` (holidays) applies
+            only to the two support cards further down, not here. */}
+        <div className="fade-up fade-up-delay-2 mt-6 grid w-full grid-cols-1 gap-3 md:inline-grid md:w-auto md:grid-cols-3">
+          {/* type="button" carried over from the old plain <button>: the shadcn
+              Button sets no default, and a bare <button> is type=submit. */}
+          <Button type="button" variant="outline" size="xl" className="w-full" onClick={() => setTourOpen(true)}>
+            <Play size={18} />
+            {t.hero.watch[lang]}
+          </Button>
+
           <Button
             size="xl"
-            className="px-12"
+            className="w-full"
             onClick={() => window.open("https://qiai.notion.site/qaighlonboarding?v=27528b270a6d813285ac000caaded827&source=copy_link", "_blank")}
           >
             <Rocket size={18} />
@@ -236,26 +257,13 @@ const HeroSection = () => {
             <ArrowRight size={18} />
           </Button>
 
-          <div className="flex flex-wrap items-center justify-center gap-x-6 gap-y-2 text-sm">
-            <button
-              type="button"
-              onClick={() => setTourOpen(true)}
-              className="inline-flex items-center gap-1.5 text-muted-foreground hover:text-foreground transition-colors"
-            >
-              <Play size={14} />
-              {t.hero.watch[lang]}
-            </button>
-            <a
-              href="https://invoice.qiai.tech/submit"
-              target="_blank"
-              rel="noopener noreferrer"
-              className="inline-flex items-center gap-1.5 text-muted-foreground hover:text-foreground transition-colors"
-            >
-              <FileText size={14} />
+          <Button asChild variant="outline" size="xl" className="w-full">
+            <a href="https://invoice.qiai.tech/submit" target="_blank" rel="noopener noreferrer">
+              <FileText size={18} />
               {lang === "cn" ? "申请 Invoice" : "Invoice"}
-              <ArrowRight size={14} />
+              <ArrowRight size={18} />
             </a>
-          </div>
+          </Button>
         </div>
       </div>
 
