@@ -1500,3 +1500,54 @@ seat as a deliberate welcome gift.
 4. Mark the two DB columns deprecated in a migration comment (no drop — dropping a
    column with 911 rows of history buys nothing).
 5. Decide `default_free_tickets` alongside the `default_free_seats` question above.
+
+## Free-allowance policy — 2 for new customers, 0 for the existing 918
+
+**This is the design. It looks like leftover state and is not.** Anyone who finds
+918 sub-account rows at `0 / 0` next to a global default of `2` will be tempted to
+"fix" one of them. Don't.
+
+- **A new sub-account gets 2 free seats** — a welcome gift, applied the first time
+  it opens the page, from `oe_settings.default_free_seats`.
+- **The 918 that existed before 2026-08-05 get 0.** They have already had their
+  free use.
+- Anything beyond that is a deliberate per-account grant in the admin's
+  sub-account list. Never inherited by existing.
+
+RM 794 of uncollected revenue per new sub-account (2 × RM 397), and only if they
+book.
+
+**Why the two halves don't collide:** all 918 accounts hold an *explicit* `0` row,
+so the global default reaches nothing that already exists — it applies only to
+sub-accounts synced from GHL afterwards. That is exactly what backfilling the last
+7 rows bought: before it, 7 accounts had no row and would have inherited whatever
+the default said, silently.
+
+**Changing it is a SQL statement, by design** — both `default_free_*` keys were
+removed from `updateSettings`'s allow-list, and the admin box is read-only. SQL
+writes no `admin_audit_log` row, so every such change is recorded in
+`docs/cleanup/` instead; see `2026-08-05-oe-free-allowance-policy.md` for both
+steps and their read-backs. Before changing it again, check that no
+`ghl_locations` row lacks an `oe_subaccount_settings` row, or an existing account
+will inherit the new number without anyone deciding that.
+
+## Verification rule: static checks do not cover the Edge Functions
+
+Two defects in one change were caught by a repo-wide grep and by nothing else,
+because `supabase/functions/**` has no local typecheck (no `deno` on this machine,
+`tsconfig.app.json` covers `src` only) and the Supabase bundler strips types
+without checking them:
+
+1. **A required field left on a type after its assignment was deleted.** Removing
+   `defaultFreeTickets` from `loadSettings` left it required on `OeSettings`. `tsc`
+   never sees this file, so it would have surfaced as a deploy failure.
+2. **A type that lied.** `updateSettings`'s `Partial` still offered the two
+   `default_free_*` keys after the server stopped accepting them. Worse than a
+   stale comment — a type is trusted more.
+
+**So: after any change touching an Edge Function, grep the whole repo for every
+identifier you removed and account for each surviving hit** (read path, wire-shape
+type, comment). `tsc`, `eslint` and `npm test` passing means nothing about these
+files. The same applies to the deploy-order rule recorded with migration
+`20260805070000`: when code changes to rely on a database default, the migration
+goes first.

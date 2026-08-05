@@ -293,19 +293,19 @@ export default function OfflineEventSettings() {
           <Field label="午餐价 RM/份"><input value={lunchPrice} onChange={(e) => setLunchPrice(e.target.value)} inputMode="decimal" className={inp} /></Field>
           <Field label="每单最多座位"><input value={maxSeats} onChange={(e) => setMaxSeats(e.target.value)} inputMode="numeric" className={inp} /></Field>
         </div>
-        {/* Read-only, deliberately. This one number applies to EVERY sub-account
-            synced from GHL after it changes, with no prompt and no per-account
-            decision — so an editable box here is a way to give away seats by
-            typing. Granting is a per-account act on the list below. Changing this
-            is a SQL statement, which is friction on purpose. */}
-        <p className="font-medium text-sm pt-1">免费额度（全局默认）</p>
+        {/* Read-only, deliberately. This is the new-customer welcome gift, and one
+            number here applies to EVERY sub-account synced from GHL afterwards
+            with no prompt and no per-account decision. An editable box would be a
+            way to change that by typing; it belongs in SQL, where it is a
+            deliberate act. Per-account grants are the list below. */}
+        <p className="font-medium text-sm pt-1">免费额度（全局默认 · 新客户欢迎礼）</p>
         <div className="grid grid-cols-2 gap-3">
           <Field label="默认免费名额（个）">
             <input value={defSeats} readOnly disabled className={`${inp} bg-muted/60 cursor-not-allowed`} />
           </Field>
         </div>
         <p className="text-xs text-muted-foreground">
-          如需发放免费名额，请到下方子账号列表单独设置。此处若设为非 0，会自动发给以后每一个新同步进来的子账号 —— 所以它只读，需要改动时请直接改数据库。
+          新子账号首次使用时自动获得 {defSeats || 0} 个免费名额。此值只能通过 SQL 修改，修改会影响此后所有新同步进来的子账号；已存在的子账号不受影响，要单独调整请用下方列表。
         </p>
         <button onClick={saveCharges} disabled={saving} className="h-10 px-5 rounded-xl text-[#141414] text-sm font-semibold flex items-center gap-1.5 disabled:opacity-40" style={{ background: "#fed50a" }}>
           {saving ? <Loader2 className="w-4 h-4 animate-spin" /> : savedFlag ? <Check className="w-4 h-4" /> : <Save className="w-4 h-4" />}
