@@ -92,6 +92,27 @@ const ActiveBar = () => (
   <span aria-hidden="true" className="pointer-events-none absolute inset-x-1 -bottom-3 h-1 bg-[#fed50a]" />
 );
 
+/** Desktop icon-item classes.
+ *
+ *  HOVER WAS DEAD BEFORE THIS. The old `hover:text-accent-foreground` resolved
+ *  to the SAME colour as the resting state — the Brutalist rebrand set
+ *  --accent-foreground to ink (index.css: both are `0 0% 8%`), so every
+ *  hover:text-accent-foreground in the app is a no-op. Ink → muted is a real
+ *  change, and 100ms keeps it feeling attached to the pointer (the old 300ms
+ *  reads as lag on a bar you sweep across).
+ *
+ *  NOT yellow on hover: yellow means "current page" here, so borrowing it would
+ *  say the pointer had navigated. Works on the current item too — the yellow
+ *  bar is a separate element, so recolouring the glyph never hides it. */
+const NAV_ICON_CLS =
+  "relative p-1.5 text-sm text-foreground hover:text-[#59595f] transition-colors duration-100";
+
+/** Text fallback keeps the old treatment; no navLink ships without an icon today. */
+const navLinkCls = (link: NavItem, textIdle: string) =>
+  link.icon
+    ? NAV_ICON_CLS
+    : `relative text-sm transition-colors duration-300 ${textIdle}${link.noSemibold ? "" : " font-semibold"}`;
+
 /** Mobile current-page marker: a 3px yellow rule down the left edge plus bold.
  *  The mobile menu keeps its text, but 12 rows in one column is exactly where
  *  you lose track of where you are, and touch has no hover to fall back on.
@@ -260,7 +281,7 @@ const Navbar = () => {
       <>
         {/* aria-hidden on the glyph: the accessible name comes from the anchor's
             aria-label, so the icon must not announce itself a second time. */}
-        {Icon ? <Icon size={16} aria-hidden="true" /> : link.label[lang]}
+        {Icon ? <Icon size={18} aria-hidden="true" /> : link.label[lang]}
         {ownsCurrent(link.owns, here) && <ActiveBar />}
       </>
     );
@@ -270,7 +291,7 @@ const Navbar = () => {
    *  as well as hover, which is what keeps the bar usable from the keyboard. */
   const withTooltip = (link: NavItem, node: React.ReactNode) =>
     link.icon ? (
-      <Tooltip key={link.label.en}>
+      <Tooltip key={link.label.en} delayDuration={120}>
         <TooltipTrigger asChild>{node}</TooltipTrigger>
         <TooltipContent sideOffset={10} className={TOOLTIP_BRUTALIST}>
           {link.label[lang]}
@@ -288,9 +309,10 @@ const Navbar = () => {
         </a>
 
         {/* Desktop nav */}
-        {/* Desktop nav — icon-only (labels move into tooltips); gap tightened
-            from 8 to 6 because 16px glyphs at the old spacing read as unrelated
-            buttons rather than one bar. The two dropdowns keep their text. */}
+        {/* Desktop nav — icon-only, labels in tooltips. gap-6 rather than the
+            original gap-8: glyphs at text spacing read as unrelated buttons
+            rather than one bar. Nine items still clear the lg breakpoint with
+            room to spare (measured, not assumed). */}
         <nav id="navbar-nav" className="hidden lg:flex items-center gap-6">
           {navLinks.map((link) =>
             link.external ? (
@@ -303,7 +325,7 @@ const Navbar = () => {
                   rel="noreferrer"
                   aria-label={link.icon ? link.label[lang] : undefined}
                   aria-current={ownsCurrent(link.owns, here) ? "page" : undefined}
-                  className={`text-sm text-foreground hover:text-accent-foreground transition-colors duration-300 relative ${link.icon ? "p-1.5" : ""} ${link.noSemibold ? "" : "font-semibold"}`}
+                  className={navLinkCls(link, "text-foreground hover:text-accent-foreground")}
                 >
                   {navBody(link)}
                 </a>,
@@ -317,7 +339,7 @@ const Navbar = () => {
                   href={routeHref(link)}
                   aria-label={link.icon ? link.label[lang] : undefined}
                   aria-current={ownsCurrent(link.owns, here) ? "page" : undefined}
-                  className={`text-sm text-foreground hover:text-accent-foreground transition-colors duration-300 relative ${link.icon ? "p-1.5" : ""} ${link.noSemibold ? "" : "font-semibold"}`}
+                  className={navLinkCls(link, "text-foreground hover:text-accent-foreground")}
                 >
                   {navBody(link)}
                 </a>,
@@ -334,7 +356,7 @@ const Navbar = () => {
                   // Iconified anchor-links take the ink colour of the route
                   // links: this branch was muted as a text link, but among six
                   // ink glyphs a lone grey one reads as disabled, not secondary.
-                  className={`text-sm transition-colors duration-300 relative ${link.icon ? "p-1.5 text-foreground hover:text-accent-foreground" : "text-muted-foreground hover:text-foreground"}`}
+                  className={navLinkCls(link, "text-muted-foreground hover:text-foreground")}
                 >
                   {navBody(link)}
                 </a>,
@@ -351,9 +373,9 @@ const Navbar = () => {
                   readers get the name from aria-label. */}
               <button
                 aria-label={lang === "cn" ? "小工具" : "Tools"}
-                className="relative flex items-center gap-1 text-sm text-foreground hover:text-accent-foreground transition-colors duration-300 p-1.5"
+                className={`${NAV_ICON_CLS} flex items-center gap-1`}
               >
-                <Boxes size={16} aria-hidden="true" />
+                <Boxes size={18} aria-hidden="true" />
                 <ChevronDown size={14} aria-hidden="true" />
                 {ownsCurrent(OWNS_TOOLS, here) && <ActiveBar />}
               </button>
@@ -389,9 +411,9 @@ const Navbar = () => {
             <HoverCardTrigger asChild>
               <button
                 aria-label={lang === "cn" ? "指南" : "Guides"}
-                className="relative flex items-center gap-1 text-sm text-foreground hover:text-accent-foreground transition-colors duration-300 p-1.5"
+                className={`${NAV_ICON_CLS} flex items-center gap-1`}
               >
-                <BookOpen size={16} aria-hidden="true" />
+                <BookOpen size={18} aria-hidden="true" />
                 <ChevronDown size={14} aria-hidden="true" />
                 {ownsCurrent(OWNS_GUIDES, here) && <ActiveBar />}
               </button>
