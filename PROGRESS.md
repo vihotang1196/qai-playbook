@@ -195,3 +195,72 @@ undocumented and was never tested.
 upstream 429 is very likely to meet another one, and all three attempts consume
 quota. Worth pairing with a reduction from 3 attempts to 2, but only after the
 failure rate has been observed with the diagnostics in place.
+
+### Root cause found and fixed: the sanitizer covered 3 of 32 control characters
+
+The malformed shape was never a mystery about the model. `funnel` did arrive as a
+JSON string, and `brokenPreview` showed that string was **well-formed,
+pretty-printed JSON** — `[\n  {\n    "section": "标题 Headline",` — with no
+markdown fence and correct structure. The question was why `JSON.parse` rejected
+it.
+
+`sanitizeJsonControlChars` escaped newline, CR and tab. JSON forbids **every**
+codepoint below U+0020 inside a string, so the other 29 passed through untouched
+and the retry parse failed with the identical error as the first attempt. A second
+gap alongside it: a backslash is legal only before `" \ / b f n r t u` (and `\u`
+only before four hex digits), but the old code treated any backslash as the start
+of a valid escape and copied it verbatim — so a literal backslash in the copy also
+stayed invalid.
+
+Covering 3 of 32 was never a decision, just the three that come to mind.
+
+Both are fixed. Escaping is delegated to `JSON.stringify` on the single character
+so the spec picks the form, and comparisons go through `charCodeAt` — the file
+contains no hand-written backslash literals to get wrong.
+
+Verified free of charge by extracting the function and parsing what it should
+rescue: raw newline, U+000B, U+000C, U+0001 and a lone backslash all now parse;
+already-valid escapes, escaped quotes and `\uXXXX` are preserved; content survives
+the round trip; and truncated JSON still fails, correctly. 9/9.
+
+Same round, same class of bug one field over: **`automationMessages` had no shape
+check at all.** It goes through the same coercion, and the normalization below it
+never throws — a string where an object belongs becomes `{}` and every field
+becomes `""`. A coercion failure there returned 200 with six blank WhatsApp and
+email messages, billed in full, counted as a success, discoverable only when the
+customer went to send them. All six must now be present and non-empty. Verified
+against three real generations (2026-07-29, the Sonnet 5 trial, the rollback
+check) — none is a false positive.
+
+**Result.** Same rich questionnaire that failed 3 out of 3 single attempts before
+the fix succeeded on the first attempt after it, in 101s, with all four fields
+correctly shaped and healthy copy (706-char caption, 20 emoji, 9 local-flavour
+particles, all six follow-ups populated). Suggestive, not proof — n=1.
+
+**Model unchanged.** Still `claude-sonnet-4-5`, still the original tone. The fix is
+in our parsing, not in the model or the prompt.
+
+### Open: remove the repair machinery once rescues are visible in real traffic
+
+The server-side repair was built to work around this bug and is now close to dead
+weight:
+
+- Measured generation times are 81, 83, 95 and 101 seconds against a 90-second
+  time gate, so most failures never reach it.
+- Both times it did fire, the repair itself failed, at ~$0.08 each.
+
+It is left in place only because a single passing generation cannot prove the
+sanitizer carries the load on its own. The `generation_result` row now records a
+`rescued` map when a coercion changed a field's shape (`"funnel": "string ->
+array(9)"`), which is the missing evidence — a run that succeeded *because* of the
+sanitizer used to be indistinguishable from one that never broke.
+
+**Criterion for removal:** once enough result rows show `funnel` being rescued,
+delete the repair call, `REPAIR_TIME_BUDGET_MS`, the time gate and
+`buildRepairTool`. Until then they are harmless: they only run after a failure the
+sanitizer could not fix, which is exactly the case worth having a fallback for.
+
+Also still open, unchanged: retry backoff. The client retries immediately, so a
+genuine upstream 429 will likely meet another one, and all three attempts consume
+quota. Pair it with dropping 3 attempts to 2 — after the failure rate has been
+observed with all of this instrumentation in place.
