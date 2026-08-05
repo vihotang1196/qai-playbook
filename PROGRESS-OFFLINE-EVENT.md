@@ -1319,37 +1319,35 @@ land before; the rest are dated only by "after".
 
 ### 🔴 Before opening to everyone (step 11)
 
-**1. Root-cause the Copywriter triple retry.**
-One click produced **three** `generation` rows before succeeding — two failures,
-then a pass, 5 min 3 s wall-clock, ~US$0.30 instead of ~US$0.10.
+**1. ✅ DONE (2026-08-04) — Root-cause the Copywriter triple retry.**
+It was our parser, not the model. `funnel` did arrive as a JSON string, but that
+string was well-formed pretty-printed JSON: `sanitizeJsonControlChars` escaped
+newline, CR and tab while JSON forbids **all 32** codepoints below U+0020 inside a
+string, so the retry parse failed with the identical error and a whole paid
+generation was discarded. A second gap alongside it treated any backslash as the
+start of a valid escape. Both fixed, with unit verification; `automationMessages`
+turned out to have no shape check at all and was silently returning six blank
+messages on a 200. The model and prompt are untouched — a Sonnet 5 + `strict: true`
+trial measured better on every number but changed the copy's voice, and the owner
+kept `claude-sonnet-4-5`. Same questionnaire: 3 of 3 single attempts failed before,
+1 of 1 passed after. Full trail in **PROGRESS.md**.
 
-```
-08:53:56 click · 08:54:00 try 1 · 08:55:48 try 2 · 08:57:19 try 3 · 08:58:59 stored
-```
+**2. ✅ DONE (2026-08-04) — Re-set the loading copy.** Now「通常 1.5-2 分钟」in all
+three languages, from measured runs: 69-85s clean, 81-101s on a detail-rich
+questionnaire. The old「1-5 分钟」was written when a retry storm was the norm; with
+the coercion fixed, single attempts should succeed far more often, so the ceiling
+is no longer representative.
 
-*Why it can't wait:* **every customer costs up to 3× what they're charged for.**
-One order, three Claude calls, one revenue line — that is a per-use loss that
-scales with adoption, so it must be understood before the user count does.
+**3. 🚧 IN PROGRESS (2026-08-04) — `CANARY_FALLBACK` is now backwards.**
+`canary_mode` is already `false` (all 918 sub-accounts open), but `CANARY_FALLBACK`
+is still `deny`. That was correct during the closed beta: a DB read failure refused
+the handful of testers rather than leaking access. Now it means a DB read failure
+refuses **all 918 accounts at once**.
 
-*What to look at:* what actually trips the retry (timeout / `max_tokens`
-exhausted / JSON parse / schema validation); whether failures leave any trace at
-all today (they don't — only the meter row is written, so the reason is invisible
-after the fact — that gap is itself part of the work); and whether
-`max_tokens: 16000` is so close to the ceiling that long outputs truncate →
-fail to parse → retry. If that's it, the fix is cheaper output, not more retries.
-
-**2. Re-set the loading copy once (1) is understood.**
-Provisionally **「通常 1-5 分钟」** — measured runs were 130 s clean and 5 min with
-retries, so 1-3 was understating it. This is a placeholder for a real number, not
-the answer; it depends entirely on what (1) finds.
-
-**3. Flip `CANARY_FALLBACK` from `deny` to `allow`, then REDEPLOY `oe` and
-`offline-event-admin`.**
-Edge Function secrets are injected **at deploy time** — changing the value in the
-dashboard does nothing on its own. Miss this and sub-accounts with no
-`location_tool_access` row are refused: loud, complained about within the hour,
-fixed by one deploy. That noisy failure is exactly why `deny` was chosen as the
-default (see the CANARY_FALLBACK section above).
+Owner is changing it to `allow` in the Supabase dashboard. **Edge Function secrets
+are injected at deploy time**, so the dashboard change alone does nothing —
+`oe` and `offline-event-admin` must both be REDEPLOYED afterwards. Not done until
+those two deploys have run.
 
 ### 🟠 Soon after launch
 
