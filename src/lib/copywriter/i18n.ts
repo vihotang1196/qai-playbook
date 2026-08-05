@@ -45,7 +45,7 @@ export const T = {
     toneOptions: ["专业", "亲切", "夸张吸睛", "搞笑"],
     loadingTitle: "AI 正在为你生成文案…",
     loadingDesc:
-      "正在调研产品、撰写 6 段广告脚本与 9 段 Funnel 文案，通常 1-5 分钟。刷新不会丢失，稍后回来可恢复；但请勿重复点击生成。",
+      "正在调研产品、撰写 6 段广告脚本与 9 段 Funnel 文案，通常 1.5-2 分钟。刷新不会丢失，稍后回来可恢复；但请勿重复点击生成。",
     resultsTitle: "QAI 广告 & Funnel 文案生成器",
     resultsSubtitle: "生成结果 · 内容仅供展示参考",
     restart: "重新填写",
@@ -129,7 +129,7 @@ export const T = {
     toneOptions: ["Professional", "Friendly", "Bold & catchy", "Playful"],
     loadingTitle: "AI is writing your copy…",
     loadingDesc:
-      "Researching the product, drafting 6 ad segments and 9 funnel sections — usually 1-5 minutes. Refreshing won't lose it and you can recover it later, but please don't hit Generate again.",
+      "Researching the product, drafting 6 ad segments and 9 funnel sections — usually 1.5-2 minutes. Refreshing won't lose it and you can recover it later, but please don't hit Generate again.",
     resultsTitle: "QAI Ad & Funnel Copy Generator",
     resultsSubtitle: "Generated result · for preview only",
     restart: "Start over",
@@ -213,7 +213,7 @@ export const T = {
     toneOptions: ["Profesional", "Mesra", "Berani & menarik", "Santai"],
     loadingTitle: "AI sedang menulis copy anda…",
     loadingDesc:
-      "Mengkaji produk, menulis 6 segmen iklan & 9 seksyen funnel — biasanya 1-5 minit. Muat semula tidak akan hilangkannya dan anda boleh pulihkannya kemudian, tetapi jangan tekan Jana sekali lagi.",
+      "Mengkaji produk, menulis 6 segmen iklan & 9 seksyen funnel — biasanya 1.5-2 minit. Muat semula tidak akan hilangkannya dan anda boleh pulihkannya kemudian, tetapi jangan tekan Jana sekali lagi.",
     resultsTitle: "Penjana Iklan & Funnel QAI",
     resultsSubtitle: "Hasil jana · untuk pratonton sahaja",
     restart: "Mula semula",
