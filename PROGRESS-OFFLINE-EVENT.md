@@ -1588,3 +1588,56 @@ type, comment). `tsc`, `eslint` and `npm test` passing means nothing about these
 files. The same applies to the deploy-order rule recorded with migration
 `20260805070000`: when code changes to rely on a database default, the migration
 goes first.
+
+## Coaching Night step 1 — replays out of the source tree (2026-08-05)
+
+Not an Offline Event change; logged here because this file is the running log.
+
+The homepage's 「过往录像」 list was a hardcoded array in `src/lib/coaching.ts`, so
+publishing a replay meant a commit and a deploy every fortnight. It now lives in
+`coaching_sessions` (migration `20260805080000`), managed at `/admin/coaching`.
+
+`replay_url` is the discriminator and is deliberately nullable: non-null = a past
+replay shown on the homepage, null = scheduled but not yet recorded. Step 1 only
+ever writes rows with a replay. 「即将到来」 is still computed by HeroSection's
+`COACHING_ANCHOR` fortnight algorithm — step 2 moves it into null-replay rows
+without another schema change.
+
+**Why not `oe_coaching_sessions`.** Coaching Night is homepage content shown to
+every sub-account, not part of any tool, so it gets no tool prefix. Same reason
+`/admin/coaching` sits at the portal's top level instead of inside a tool shell.
+
+**Reads and writes are split, per the existing pattern** (`helpdesk` /
+`helpdesk-admin`, `oe` / `offline-event-admin`): the anon-callable, read-only
+`coaching` fn serves the homepage; the three CRUD actions live behind
+`requireAdmin` in the existing `admin` fn. The table is RLS-on / zero-policy like
+every `hd_` and `oe_` table.
+
+**The trap this design is built around.** An anon-key direct read of a
+zero-policy table returns an empty array, NOT an error — so copying the `oe_`
+tables' RLS verbatim would have made the homepage silently show 「暂无录像」 with
+the fallback never firing (it only catches throws). Hence the edge fn, and hence
+the contract that success always carries a `replays` key: a 200 without it is
+treated as a broken deploy, not an empty list.
+
+**Fallback rots, on purpose, loudly.** `FALLBACK_RECORDINGS` is a 2026-08-05
+snapshot used only when the fn is unreachable. Because a fallback render and a
+healthy render look identical on the page, the fallback path logs
+`coaching fn unavailable, using fallback` — no toast (a broken back end is not
+the visitor's problem), but F12 tells the owner. **Verifying this feature by
+looking at the page proves nothing; check the Network response length and the
+absence of that warning.**
+
+**Deploy order matters here** (same rule as `20260805070000`): migration →
+`coaching` + `admin` fns → frontend. Push the frontend first and production runs
+on the stale snapshot, looking perfectly normal, until the fn lands.
+
+### Open: `OthersVideoGallery` is now an orphan
+
+`src/components/CoachingNight.tsx` was deleted as dead code (no importers
+anywhere; the `latestCoachingRecording` it rendered was three months stale and
+never appeared on any page). Its only child,
+`src/components/coaching/OthersVideoGallery.tsx`, was imported by nothing else
+and is now unreferenced. Left in place deliberately — out of scope for this
+change. Deleting it should also sweep whatever it was the sole consumer of
+(assets, `t.coaching` i18n keys).
