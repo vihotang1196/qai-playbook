@@ -1063,16 +1063,46 @@ Deno.serve(async (req: Request) => {
   // per segment and `section`/`content` per funnel row, so anything else is a
   // blank page for the customer; failing here converts that silent blank into
   // the normal "please tap Regenerate" path, which the meter also records.
+  /** The six follow-up messages, checked as strictly as the funnel.
+   *
+   *  The normalization further down is written to never throw: a string where an
+   *  object belongs becomes `{}`, a missing field becomes "". So a coercion
+   *  failure on this field produced a 200 with six blank WhatsApp and email
+   *  messages, billed in full, counted as a success — the same silent blank the
+   *  funnel check was added to stop, one field over. The customer would only find
+   *  out when they went to send them. */
+  const automationOk = (v: unknown): boolean => {
+    const isObj = (x: unknown) => !!x && typeof x === "object" && !Array.isArray(x);
+    const nonEmpty = (x: unknown) => typeof x === "string" && x.trim() !== "";
+    if (!isObj(v)) return false;
+    const o = v as Record<string, unknown>;
+    if (!isObj(o.whatsapp) || !isObj(o.email)) return false;
+    const wa = o.whatsapp as Record<string, unknown>;
+    const em = o.email as Record<string, unknown>;
+    const KINDS = ["greeting", "dayBefore", "currentDay"];
+    if (!KINDS.every((k) => nonEmpty(wa[k]))) return false;
+    return KINDS.every((k) => {
+      if (!isObj(em[k])) return false;
+      const item = em[k] as Record<string, unknown>;
+      return nonEmpty(item.subject) && nonEmpty(item.body);
+    });
+  };
+
   const segmentsOk = itemsHaveKeys(parsed.adScript?.segments, ["stage", "content"]);
   const funnelOk = itemsHaveKeys(parsed.funnel, ["section", "content"]);
+  const automationValid = automationOk(parsed.automationMessages);
 
-  if (!segmentsOk || !funnelOk) {
+  if (!segmentsOk || !funnelOk || !automationValid) {
     const cutOff = stopReason === "max_tokens";
     const broken: RepairField[] = [];
     if (!funnelOk) broken.push("funnel");
     if (!segmentsOk) broken.push("segments");
 
-    failMeta.missing = broken.map((f) => (f === "segments" ? "adScript.segments" : f));
+    failMeta.missing = [
+      ...broken.map((f) => (f === "segments" ? "adScript.segments" : f)),
+      ...(automationValid ? [] : ["automationMessages"]),
+    ];
+    failMeta.automationShape = shapeOf(parsed.automationMessages);
     // Which of the two it was: a field that never arrived, or one that arrived
     // with the wrong items. Same customer-facing message, different root cause.
     failMeta.itemShape = {
@@ -1099,7 +1129,11 @@ Deno.serve(async (req: Request) => {
 
     let repaired = false;
 
-    if (!overTimeBudget && (keptAdCopy || funnelOk || segmentsOk)) {
+    // The repair tool only knows how to re-emit funnel and segments, so a broken
+    // automationMessages cannot be fixed by it — failing straight through is
+    // honest, where repairing the other fields would return a 200 that still had
+    // six blank messages in it.
+    if (!overTimeBudget && automationValid && (keptAdCopy || funnelOk || segmentsOk)) {
       const repairStartedAt = Date.now();
       const r = await repairFields(apiKey, system, lang, broken, {
         adCopy: keptAdCopy,
