@@ -1049,15 +1049,33 @@ Deno.serve(async (req: Request) => {
   // first step to knowing whether that happens.
   if (Object.keys(parseFailures).length) failMeta.parseFailures = parseFailures;
 
-  failMeta.reparse = {
-    before: shapesBefore,
-    after: {
-      adScript: shapeOf(parsed.adScript),
-      segments: shapeOf(parsed.adScript?.segments),
-      funnel: shapeOf(parsed.funnel),
-      automationMessages: shapeOf(parsed.automationMessages),
-    },
+  const shapesAfter = {
+    adScript: shapeOf(parsed.adScript),
+    segments: shapeOf(parsed.adScript?.segments),
+    funnel: shapeOf(parsed.funnel),
+    automationMessages: shapeOf(parsed.automationMessages),
   };
+
+  failMeta.reparse = { before: shapesBefore, after: shapesAfter };
+
+  // Which coercions actually rescued something, e.g. "funnel: string ->
+  // array(9)". Without this a generation that succeeded BECAUSE the sanitizer
+  // turned a string back into an array is indistinguishable from one that never
+  // broke — both are simply a 200, and the failure diagnostics only write on
+  // failure. That distinction is the whole question: if rescues show up
+  // regularly, the sanitizer is carrying the load and the repair call, its
+  // timeout gate and buildRepairTool are dead weight around a bug that is now
+  // fixed. Empty on a clean generation, so it costs a row nothing.
+  //
+  // A repaired run deliberately shows nothing here: the repair happens after
+  // these shapes are taken, so funnel reads "string -> string" and is not a
+  // rescue. Credit goes to the mechanism that earned it.
+  const rescued: Record<string, string> = {};
+  for (const key of Object.keys(shapesBefore) as Array<keyof typeof shapesBefore>) {
+    if (shapesBefore[key] !== shapesAfter[key]) {
+      rescued[key] = `${shapesBefore[key]} -> ${shapesAfter[key]}`;
+    }
+  }
 
   // Shape, not just type — see itemsHaveKeys. Results renders `stage`/`content`
   // per segment and `section`/`content` per funnel row, so anything else is a
@@ -1253,7 +1271,13 @@ Deno.serve(async (req: Request) => {
       tool_key: TOOL_KEY,
       event_type: "generation_result",
       location_id: locationId,
-      meta: { language: lang, requestId, result, ...spend },
+      meta: {
+        language: lang,
+        requestId,
+        result,
+        ...spend,
+        ...(Object.keys(rescued).length ? { rescued } : {}),
+      },
     });
   }
 
