@@ -1373,7 +1373,7 @@ against the deployed function.
 
 | Item | Note |
 |---|---|
-| 「你的免费票已用完」 is wrong for an account that never had an allowance | Now every account — the banner is hidden at 0, but the wording still assumes history |
+| ~~「你的免费票已用完」 is wrong for an account that never had an allowance~~ | ✅ **Verified in production 2026-08-04.** Anonymous load of `/events?location_id=gsRRLb2A8IoATd9qWNmh` (a 0/0 account): the allowance block does not render at all — neither「已用完」nor「还有 0 张」. Checked by walking every text node in `document.body`, not by eye: `免费票` appears exactly once, in the static footer note「选座、价格与免费票额度都由后端核算」, which is not the banner. Event data loaded normally (title, RM 397, 座位充足) so this is a real render, not an error state. Browser pane held no `sb-*` key, so the load was genuinely session-free. **Only the 0/0 state is verified** — "has remaining" and "genuinely exhausted" were not exercised |
 | 票/座 unit mismatch | Copy says tickets, the number is seats |
 | `seats_unavailable` conflates two errors | "that seat is taken" vs "the event is full" |
 | `deleteEvent` orphan source | Fix where orphans are created, not just the symptom |
