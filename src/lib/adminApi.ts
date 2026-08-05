@@ -106,6 +106,42 @@ export async function listAudit(limit = 100): Promise<AdminAuditEntry[]> {
   return audit || [];
 }
 
+/** One Coaching Night session. `replay_url` null = scheduled, no recording yet
+ *  (step 2); only rows WITH one show on the homepage's 「过往录像」. */
+export type CoachingSession = {
+  id: string;
+  /** YYYY-MM-DD (a DATE column — no time, no timezone). */
+  session_date: string;
+  topic: string;
+  replay_url: string | null;
+  cover_url: string | null;
+  created_at: string;
+  updated_at: string;
+};
+
+/** Every session, newest first — including replay-less ones, unlike the public
+ *  `coaching` fn which only returns rows that have a recording. */
+export async function listCoachingSessions(): Promise<CoachingSession[]> {
+  const { sessions } = await callAdmin<{ sessions: CoachingSession[] }>("listCoachingSessions");
+  return sessions || [];
+}
+
+/** Create (no id) or update one session. Live immediately on the homepage. */
+export async function saveCoachingSession(payload: {
+  id?: string;
+  session_date: string;
+  topic?: string;
+  replay_url?: string | null;
+  cover_url?: string | null;
+}): Promise<string> {
+  const { id } = await callAdmin<{ id: string }>("saveCoachingSession", payload);
+  return id;
+}
+
+export async function deleteCoachingSession(id: string): Promise<void> {
+  await callAdmin("deleteCoachingSession", { id });
+}
+
 export type AdminUsageStats = {
   totals: { generations: number; posted: number; activeSubAccounts: number };
   byTool: { tool_key: string; count: number }[];

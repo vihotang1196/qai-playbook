@@ -250,6 +250,61 @@ serve(async (req) => {
         return json({ ok: true, enabled });
       }
 
+      // ── Coaching Night sessions (Playbook homepage content) ─────────────
+      // Lives here rather than in a tool fn: Coaching Night belongs to the
+      // homepage, not to Offline Event / Helpdesk / Review Boost — same level as
+      // setPlaybookAccess. Writes are admin-only; the public homepage reads the
+      // replay list through the separate read-only `coaching` fn.
+      case "listCoachingSessions": {
+        // ALL rows, including replay-less ones (step 2's scheduled sessions), so
+        // the admin list is never a subset of what the table actually holds.
+        const { data, error } = await sb
+          .from("coaching_sessions")
+          .select("id, session_date, topic, replay_url, cover_url, created_at, updated_at")
+          .order("session_date", { ascending: false })
+          .limit(500);
+        if (error) throw error;
+        return json({ sessions: data ?? [] });
+      }
+
+      case "saveCoachingSession": {
+        const id = String(body?.id || "").trim();
+        const session_date = String(body?.session_date || "").trim();
+        if (!/^\d{4}-\d{2}-\d{2}$/.test(session_date)) {
+          return json({ error: "session_date required (YYYY-MM-DD)" }, 400);
+        }
+        const topic = typeof body?.topic === "string" ? body.topic.trim() : "";
+        const replay_url = body?.replay_url ? String(body.replay_url).trim() : null;
+        const cover_url = body?.cover_url ? String(body.cover_url).trim() : null;
+        const row = { session_date, topic, replay_url, cover_url };
+
+        if (id) {
+          const { data, error } = await sb
+            .from("coaching_sessions")
+            .update(row)
+            .eq("id", id)
+            .select("id")
+            .single();
+          if (error) throw error;
+          return json({ ok: true, id: data.id });
+        }
+        const { data, error } = await sb
+          .from("coaching_sessions")
+          .insert(row)
+          .select("id")
+          .single();
+        if (error) throw error;
+        return json({ ok: true, id: data.id });
+      }
+
+      case "deleteCoachingSession": {
+        const id = String(body?.id || "").trim();
+        if (!id) return json({ error: "id required" }, 400);
+        const { error } = await sb.from("coaching_sessions").delete().eq("id", id);
+        if (error) throw error;
+        return json({ ok: true });
+      }
+
       // ── Recent audit entries (enriched with business names) ─────────────
       case "listAudit": {
         const limit = Math.min(Math.max(Number(body?.limit) || 100, 1), 500);
