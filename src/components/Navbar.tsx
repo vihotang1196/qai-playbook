@@ -113,6 +113,16 @@ const navLinkCls = (link: NavItem, textIdle: string) =>
     ? NAV_ICON_CLS
     : `relative text-sm transition-colors duration-300 ${textIdle}${link.noSemibold ? "" : " font-semibold"}`;
 
+/** Current-item rule inside a DROPDOWN PANEL. Same language as the mobile
+ *  menu — 3px yellow down the left edge plus bold — but drawn as an absolute
+ *  span rather than a left border: the panel rows are `rounded-lg`, and a
+ *  border would bend around the corner into a yellow sliver. Sitting inside
+ *  the row's existing px-3 padding, it also costs zero layout, so idle rows
+ *  need no transparent-border counterweight. */
+const PanelRule = () => (
+  <span aria-hidden="true" className="pointer-events-none absolute left-0 top-1.5 bottom-1.5 w-[3px] bg-[#fed50a]" />
+);
+
 /** Mobile current-page marker: a 3px yellow rule down the left edge plus bold.
  *  The mobile menu keeps its text, but 12 rows in one column is exactly where
  *  you lose track of where you are, and touch has no hover to fall back on.
@@ -382,16 +392,26 @@ const Navbar = () => {
             </HoverCardTrigger>
             <HoverCardContent align="end" sideOffset={12} className="w-56 p-2">
               <div className="flex flex-col">
-                {toolLinks.map((tool) => (
-                  <a
-                    key={tool.label.en}
-                    href={toolHref(tool)}
-                    className="flex items-center justify-between gap-2 rounded-lg px-3 py-2 text-sm text-foreground hover:bg-accent/10 cursor-pointer transition-colors"
-                  >
-                    <span>{tool.label[lang]}</span>
-                    <ChevronRight size={14} className="text-muted-foreground shrink-0" />
-                  </a>
-                ))}
+                {toolLinks.map((tool) => {
+                  // Same match the trigger uses, so the panel can never disagree
+                  // with the icon above it: '/review-boost' covers its 8 routes,
+                  // '/copywriter' is exact. Coming-Soon tools have no path and so
+                  // can never light up.
+                  const toolPath = tool.base ?? tool.href;
+                  const active = !!toolPath && pathMatches(toolPath, here);
+                  return (
+                    <a
+                      key={tool.label.en}
+                      href={toolHref(tool)}
+                      aria-current={active ? "page" : undefined}
+                      className={`relative flex items-center justify-between gap-2 rounded-lg px-3 py-2 text-sm text-foreground hover:bg-accent/10 cursor-pointer transition-colors ${active ? "font-semibold" : ""}`}
+                    >
+                      {active && <PanelRule />}
+                      <span>{tool.label[lang]}</span>
+                      <ChevronRight size={14} className="text-muted-foreground shrink-0" />
+                    </a>
+                  );
+                })}
                 {comingSoonTools.map((tool) => (
                   <div
                     key={tool.label.en}
@@ -420,16 +440,21 @@ const Navbar = () => {
             </HoverCardTrigger>
             <HoverCardContent align="end" sideOffset={12} className="w-60 p-2">
               <div className="flex flex-col">
-                {GUIDES.map((g) => (
-                  <a
-                    key={g.slug}
-                    href={`/guides/${g.slug}`}
-                    className="flex items-center justify-between gap-2 rounded-lg px-3 py-2 text-sm text-foreground hover:bg-accent/10 cursor-pointer transition-colors"
-                  >
-                    <span>{g.title[lang]}</span>
-                    <ChevronRight size={14} className="text-muted-foreground shrink-0" />
-                  </a>
-                ))}
+                {GUIDES.map((g) => {
+                  const active = pathMatches(`/guides/${g.slug}`, here);
+                  return (
+                    <a
+                      key={g.slug}
+                      href={`/guides/${g.slug}`}
+                      aria-current={active ? "page" : undefined}
+                      className={`relative flex items-center justify-between gap-2 rounded-lg px-3 py-2 text-sm text-foreground hover:bg-accent/10 cursor-pointer transition-colors ${active ? "font-semibold" : ""}`}
+                    >
+                      {active && <PanelRule />}
+                      <span>{g.title[lang]}</span>
+                      <ChevronRight size={14} className="text-muted-foreground shrink-0" />
+                    </a>
+                  );
+                })}
               </div>
             </HoverCardContent>
           </HoverCard>
