@@ -403,12 +403,14 @@ export async function getSettings(): Promise<OeSettingsResponse> {
 }
 
 /** Update the non-Stripe-mode settings. sst_rate is a FRACTION (0.08 = 8%). */
+/** The charge settings, and ONLY those. The two `default_free_*` keys were
+ *  removed from this type on 2026-08-05 together with the server's allow-list —
+ *  the endpoint no longer accepts them, so offering them here would be a type
+ *  that lies. The global allowance is changed by SQL, deliberately. */
 export async function updateSettings(settings: Partial<{
   sst_rate: number | string;
   lunch_price: number | string;
   max_seats_per_booking: number | string;
-  default_free_tickets: number | string;
-  default_free_seats: number | string;
 }>): Promise<{ ok: boolean }> {
   return await callOeAdmin("updateSettings", { settings });
 }
@@ -431,8 +433,16 @@ export async function listSubaccountSettings(): Promise<OeSubaccountRow[]> {
   return rows ?? [];
 }
 
-export async function updateSubaccountSettings(locationId: string, free_tickets: number, free_seats: number): Promise<{ ok: boolean }> {
-  return await callOeAdmin("updateSubaccountSettings", { locationId, free_tickets, free_seats });
+/** Set one sub-account's free allowance, in SEATS — the only unit that exists.
+ *
+ *  `free_tickets` used to be the second parameter here. It was audited on
+ *  2026-08-04 and does nothing: pricing and validation read `free_seats` only.
+ *  Dropping it from the signature rather than passing a constant 0 is deliberate
+ *  — a parameter that is accepted and ignored is how the field survived this
+ *  long. NOTE for anyone reading `admin_audit_log`: entries before 2026-08-05
+ *  carry a `free_tickets` key and later ones do not. Nothing is broken. */
+export async function updateSubaccountSettings(locationId: string, free_seats: number): Promise<{ ok: boolean }> {
+  return await callOeAdmin("updateSubaccountSettings", { locationId, free_seats });
 }
 
 // ── Sub-account manager (all 911, server-paged) ─────────────────────────────
@@ -441,8 +451,10 @@ export type OeSubaccountManagerRow = {
   location_id: string;
   business_name: string | null;
   logo_url: string | null;
-  /** null = no override row → inherits the global default. */
+  /** @deprecated Never affected anything — see updateSubaccountSettings. Still
+   *  sent by the server for the 918 rows of history; do not build on it. */
   free_tickets: number | null;
+  /** null = no override row → inherits the global default. */
   free_seats: number | null;
   has_override: boolean;
   /** May this sub-account book offline classes? (explicit opt-out only) */
@@ -456,6 +468,7 @@ export type OeSubaccountPage = {
   total: number;
   page: number;
   pageSize: number;
+  /** `free_tickets` here is @deprecated for the same reason as on the row. */
   defaults: { free_tickets: number; free_seats: number };
   /** true = 内测中 (a sub-account with no access row is denied). */
   whitelistMode: boolean;

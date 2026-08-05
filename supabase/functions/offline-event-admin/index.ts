@@ -1061,12 +1061,14 @@ serve(async (req) => {
             sst_rate: get("sst_rate", "0.08"),
             lunch_price: get("lunch_price", "39.99"),
             max_seats_per_booking: get("max_seats_per_booking", "4"),
-            // Both keys DO exist in oe_settings (each "1", written 2026-07-28;
-            // verified by SQL 2026-07-29), so the settings page shows 1 / 1 and
-            // these fallbacks are dormant. They fire only if a row is deleted —
-            // at which point the page must not invent an allowance nobody stored.
-            // Must match the same fallbacks in oe/index.ts loadSettings and in
-            // listSubaccountSettings below.
+            // READ path — kept on purpose while the WRITE path above no longer
+            // accepts these keys. The settings page renders the seat default
+            // read-only, so removing this would show a blank box instead of the
+            // real number. Both rows exist in oe_settings and are "0" as of
+            // 2026-08-05 (they were "1" until then; see PROGRESS). The `"0"`
+            // fallbacks fire only if a row is deleted, where the page must not
+            // invent an allowance nobody stored. Must match the same fallbacks in
+            // oe/index.ts loadSettings and in listSubaccountSettings below.
             default_free_tickets: get("default_free_tickets", "0"),
             default_free_seats: get("default_free_seats", "0"),
           },
@@ -1079,7 +1081,18 @@ serve(async (req) => {
       // ── Update the non-Stripe-mode settings (numeric, validated) ─────────
       case "updateSettings": {
         const p = body?.settings ?? {};
-        const allowed = ["sst_rate", "lunch_price", "max_seats_per_booking", "default_free_tickets", "default_free_seats"];
+        // The two `default_free_*` keys are NOT here, and their absence is the
+        // point. The settings page shows the seat default read-only, and a
+        // read-only box over a writable endpoint is a decorative guard — the same
+        // shape as the `sst_rate` hole noted in PROGRESS, where the UI blocks the
+        // normal path and a direct API call still writes. This closes it at the
+        // API: nothing this function exposes can change the global allowance.
+        //
+        // Changing it is a SQL statement, deliberately. One number here applies to
+        // every sub-account synced from GHL afterwards, with no prompt and no
+        // per-account decision. Note SQL writes no `admin_audit_log` row, so
+        // record the change in docs/cleanup/ when you make one.
+        const allowed = ["sst_rate", "lunch_price", "max_seats_per_booking"];
         const nowIso = new Date().toISOString();
         const rows: { key: string; value: string; updated_at: string }[] = [];
         for (const k of allowed) {
@@ -1102,7 +1115,7 @@ serve(async (req) => {
           if (!Number.isFinite(v) || v < 0) return json({ error: `invalid_${k}` }, 400);
           if (k === "sst_rate" && v > 1) return json({ error: "sst_rate_out_of_range" }, 400); // fraction 0..1
           if (k === "max_seats_per_booking") v = Math.max(1, Math.floor(v));
-          if (k === "default_free_tickets" || k === "default_free_seats") v = Math.max(0, Math.floor(v));
+          // (The `default_free_*` clamp that used to live here went with them.)
           rows.push({ key: k, value: String(v), updated_at: nowIso });
         }
         if (rows.length) {
@@ -1347,16 +1360,24 @@ serve(async (req) => {
         return json({ rows: rows.map((r) => ({ ...r, business_name: nameMap[r.location_id as string] ?? null })) });
       }
 
+      // Seats only. `free_tickets` was audited on 2026-08-04 and affects nothing —
+      // pricing and validation read `free_seats`, consumption is counted from
+      // oe_bookings.free_seats, and the customer app never read it. It is no longer
+      // accepted or written here; the column keeps its history and now defaults to
+      // 0 (see the 20260805070000 migration).
+      //
+      // FOR ANYONE READING admin_audit_log: `oe_update_subaccount` entries from
+      // before 2026-08-05 carry a `free_tickets` key and later ones do not. Two
+      // shapes, one action, nothing corrupted.
       case "updateSubaccountSettings": {
         const locId = String(body?.locationId || "").trim();
         if (!locId) return json({ error: "location_required" }, 400);
-        const ft = Math.max(0, Math.floor(Number(body?.free_tickets) || 0));
         const fs = Math.max(0, Math.floor(Number(body?.free_seats) || 0));
         const { error } = await sb
           .from("oe_subaccount_settings")
-          .upsert({ location_id: locId, free_tickets: ft, free_seats: fs, updated_at: new Date().toISOString() }, { onConflict: "location_id" });
+          .upsert({ location_id: locId, free_seats: fs, updated_at: new Date().toISOString() }, { onConflict: "location_id" });
         if (error) throw error;
-        await logAudit(sb, admin, "oe_update_subaccount", { location_id: locId, free_tickets: ft, free_seats: fs }, locId);
+        await logAudit(sb, admin, "oe_update_subaccount", { location_id: locId, free_seats: fs }, locId);
         return json({ ok: true });
       }
 

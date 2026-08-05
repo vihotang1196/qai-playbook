@@ -99,7 +99,6 @@ type OeSettings = {
   maxSeats: number;
   lunchPrice: number;
   sstRate: number;
-  defaultFreeTickets: number;
   defaultFreeSeats: number;
 };
 async function loadSettings(sb: SB): Promise<OeSettings> {
@@ -116,23 +115,27 @@ async function loadSettings(sb: SB): Promise<OeSettings> {
     sstRate: num("sst_rate", 0.08),
     // Global default allowance for a NEW sub-account (admin-configurable, P7c).
     //
-    // BOTH KEYS DO EXIST in oe_settings, each `"1"`, written 2026-07-28 04:11:29 by
-    // the allowance reset — verified directly against the database 2026-07-29.
-    // (An earlier pass through this file claimed they were absent, off a Table
-    // Editor reading; the SQL says otherwise. The stored value wins and these
-    // fallbacks do NOT currently decide anything.)
+    // The `default_free_seats` row DOES exist in oe_settings and is `"0"` as of
+    // 2026-08-05 — queried against the database, not read off a migration file.
+    // It was `"1"` until then; the 2026-07-29 cleanup set it to 0 and an admin
+    // "save charge settings" eight seconds later put it back, because that button
+    // posted this key from stale form state. Both halves are fixed: the value is 0
+    // again and the settings page no longer submits it (nor accepts it server-side).
     //
-    // So these are what happens only if a row is ever deleted or renamed. They
-    // still matter: the seven fallbacks for these two keys used to read 1, 2, 2,
-    // "1", "2", 1, 1 — five different opinions about the same two numbers, which
-    // is a trap that springs the day a row goes missing. Now all zero, because the
-    // right answer to "no configuration" is "give nothing": a sub-account that
-    // should get free seats is one oe_subaccount_settings row away and that row
-    // records the decision.
+    // So this fallback only decides anything if the row is deleted or renamed. It
+    // still matters: the fallbacks for these two keys once read 1, 2, 2, "1", "2",
+    // 1, 1 across the codebase — five different opinions about the same two
+    // numbers, a trap that springs the day a row goes missing. All zero now,
+    // because the right answer to "no configuration" is "give nothing": a
+    // sub-account that should get free seats is one oe_subaccount_settings row
+    // away, and that row records the decision.
     //
-    // ⚠️ Changing these does NOT change what new sub-accounts inherit today —
-    // that is the stored `1`. Only editing oe_settings does.
-    defaultFreeTickets: Math.max(0, Math.floor(num("default_free_tickets", 0))),
+    // ⚠️ This fallback is NOT what new sub-accounts inherit — the stored
+    // oe_settings row is, and it is `0` as of 2026-08-05. Only editing that row
+    // changes what they get.
+    //
+    // `default_free_tickets` is deliberately not read here any more: the column it
+    // fed was audited on 2026-08-04 and affects nothing.
     defaultFreeSeats: Math.max(0, Math.floor(num("default_free_seats", 0))),
   };
 }
@@ -471,10 +474,14 @@ serve(async (req) => {
         // allowance (P7c). ignoreDuplicates → existing rows (incl. per-sub-account
         // overrides) are never overwritten.
         const s = await loadSettings(sb);
+        // `free_tickets` is omitted, not zeroed: the column now defaults to 0 (see
+        // the 20260805070000 migration) and nothing reads it. THAT MAKES THE
+        // DEPLOY ORDER LOAD-BEARING — the migration must be applied before this
+        // function ships, or rows created in the gap inherit the old default of 1.
         await sb
           .from("oe_subaccount_settings")
           .upsert(
-            { location_id: locationId, free_tickets: s.defaultFreeTickets, free_seats: s.defaultFreeSeats },
+            { location_id: locationId, free_seats: s.defaultFreeSeats },
             { onConflict: "location_id", ignoreDuplicates: true },
           );
 
@@ -483,10 +490,9 @@ serve(async (req) => {
 
         const { data: settingsRow } = await sb
           .from("oe_subaccount_settings")
-          .select("free_tickets, free_seats")
+          .select("free_seats")
           .eq("location_id", locationId)
           .maybeSingle();
-        const freeTickets = Number(settingsRow?.free_tickets ?? s.defaultFreeTickets);
         const freeSeats = Number(settingsRow?.free_seats ?? s.defaultFreeSeats);
         const freeSeatsUsed = await freeSeatsUsedFor(sb, locationId);
 
@@ -504,7 +510,9 @@ serve(async (req) => {
           context: {
             enabled: true,
             businessName,
-            freeTickets,
+            // `freeTickets` used to be here. It was returned to every customer and
+            // read by nothing — `grep "\.freeTickets" src/` was zero hits — which is
+            // the same "looks like it means something" problem the field itself was.
             freeSeats,
             freeSeatsUsed,
             freeSeatsRemaining: Math.max(0, freeSeats - freeSeatsUsed),

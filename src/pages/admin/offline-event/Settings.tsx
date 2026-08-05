@@ -43,7 +43,9 @@ export default function OfflineEventSettings() {
   const [sstPercent, setSstPercent] = useState("");
   const [lunchPrice, setLunchPrice] = useState("");
   const [maxSeats, setMaxSeats] = useState("");
-  const [defTickets, setDefTickets] = useState("");
+  // Read-only, and loaded only so the page can SHOW what new sub-accounts would
+  // inherit. There is no setter path from this page on purpose — see the panel
+  // where it renders.
   const [defSeats, setDefSeats] = useState("");
   const [savedFlag, setSavedFlag] = useState(false);
   const [saving, setSaving] = useState(false);
@@ -62,7 +64,6 @@ export default function OfflineEventSettings() {
         setSstPercent(String(Math.round(Number(r.settings.sst_rate) * 10000) / 100));
         setLunchPrice(r.settings.lunch_price);
         setMaxSeats(r.settings.max_seats_per_booking);
-        setDefTickets(r.settings.default_free_tickets);
         setDefSeats(r.settings.default_free_seats);
       })
       .catch((e) => setErr(e instanceof Error ? e.message : "加载失败"));
@@ -96,8 +97,6 @@ export default function OfflineEventSettings() {
     const blankField = ([
       ["午餐价", lunchPrice],
       ["每单最多座位", maxSeats],
-      ["默认免费票", defTickets],
-      ["默认免费座位", defSeats],
     ] as const).find(([, v]) => v.trim() === "");
     if (blankField) {
       toast.error(`${blankField[0]}留空不会清除，请输入 0`);
@@ -106,12 +105,17 @@ export default function OfflineEventSettings() {
     setSaving(true);
     setSavedFlag(false);
     try {
+      // ONLY this section's own three fields. It used to post the two
+      // free-allowance defaults as well, from state loaded at mount, which made
+      // "save the charge settings" silently re-assert whatever allowance the page
+      // happened to be showing. On 2026-07-29 that overwrote a SQL change zeroing
+      // them eight seconds after a Stripe mode switch — same admin, same minute,
+      // no indication one undid the other. `updateSettings` takes a Partial and
+      // skips omitted keys, so sending less is the correct use of the API.
       await updateSettings({
         sst_rate: Number(sstPercent) / 100,
         lunch_price: lunchPrice,
         max_seats_per_booking: maxSeats,
-        default_free_tickets: defTickets,
-        default_free_seats: defSeats,
       });
       setSavedFlag(true);
       setTimeout(() => setSavedFlag(false), 2500);
@@ -289,11 +293,20 @@ export default function OfflineEventSettings() {
           <Field label="午餐价 RM/份"><input value={lunchPrice} onChange={(e) => setLunchPrice(e.target.value)} inputMode="decimal" className={inp} /></Field>
           <Field label="每单最多座位"><input value={maxSeats} onChange={(e) => setMaxSeats(e.target.value)} inputMode="numeric" className={inp} /></Field>
         </div>
-        <p className="font-medium text-sm pt-1">免费额度（全局默认，新子账号首次访问时套用）</p>
+        {/* Read-only, deliberately. This one number applies to EVERY sub-account
+            synced from GHL after it changes, with no prompt and no per-account
+            decision — so an editable box here is a way to give away seats by
+            typing. Granting is a per-account act on the list below. Changing this
+            is a SQL statement, which is friction on purpose. */}
+        <p className="font-medium text-sm pt-1">免费额度（全局默认）</p>
         <div className="grid grid-cols-2 gap-3">
-          <Field label="默认免费票（张）"><input value={defTickets} onChange={(e) => setDefTickets(e.target.value)} inputMode="numeric" className={inp} /></Field>
-          <Field label="默认免费座位（个）"><input value={defSeats} onChange={(e) => setDefSeats(e.target.value)} inputMode="numeric" className={inp} /></Field>
+          <Field label="默认免费名额（个）">
+            <input value={defSeats} readOnly disabled className={`${inp} bg-muted/60 cursor-not-allowed`} />
+          </Field>
         </div>
+        <p className="text-xs text-muted-foreground">
+          如需发放免费名额，请到下方子账号列表单独设置。此处若设为非 0，会自动发给以后每一个新同步进来的子账号 —— 所以它只读，需要改动时请直接改数据库。
+        </p>
         <button onClick={saveCharges} disabled={saving} className="h-10 px-5 rounded-xl text-[#141414] text-sm font-semibold flex items-center gap-1.5 disabled:opacity-40" style={{ background: "#fed50a" }}>
           {saving ? <Loader2 className="w-4 h-4 animate-spin" /> : savedFlag ? <Check className="w-4 h-4" /> : <Save className="w-4 h-4" />}
           {savedFlag ? "已保存" : "保存"}
@@ -349,10 +362,10 @@ function SubAccountManager({ reloadToken }: { reloadToken: number }) {
 
   const refresh = () => load(query.trim(), page);
 
-  const saveAllowance = async (row: OeSubaccountManagerRow, ft: number, fs: number) => {
+  const saveAllowance = async (row: OeSubaccountManagerRow, fs: number) => {
     try {
-      await updateSubaccountSettings(row.location_id, ft, fs);
-      toast.success(`已保存「${row.business_name || row.location_id}」：${ft} 票 / ${fs} 座`);
+      await updateSubaccountSettings(row.location_id, fs);
+      toast.success(`已保存「${row.business_name || row.location_id}」：${fs} 个免费名额`);
       refresh();
     } catch (e) {
       toast.error(e instanceof Error ? e.message : "保存失败");
@@ -410,7 +423,7 @@ function SubAccountManager({ reloadToken }: { reloadToken: number }) {
         <div className="min-w-0">
           <p className="font-display font-bold">子账号管理{total ? ` · 共 ${total} 个` : ""}</p>
           <p className="text-xs text-muted-foreground mt-0.5">
-            每个客户的免费额度 + 能否报名线下课。没设过额度的显示「全局默认（{defaults.free_tickets} 票 / {defaults.free_seats} 座）」，一保存就成为它的专属额度。
+            每个客户的免费名额 + 能否报名线下课。没设过额度的显示「全局默认（{defaults.free_seats} 个）」；<b className="text-[#141414]">点保存就会把这个继承来的数字固化成该账号的专属额度</b>，即使你一个字都没改。
           </p>
         </div>
         <button
@@ -490,7 +503,7 @@ function SubAccountManager({ reloadToken }: { reloadToken: number }) {
         description={
           <>
             「<b className="text-[#141414]">{confirmReset?.business_name || confirmReset?.location_id}</b>」
-            的专属额度会被清除，改为跟随<b className="text-[#141414]">全局默认（{defaults.free_tickets} 票 / {defaults.free_seats} 座）</b>。
+            的专属额度会被清除，改为跟随<b className="text-[#141414]">全局默认（{defaults.free_seats} 个免费名额）</b>。
           </>
         }
         confirmLabel="回到默认"
@@ -512,31 +525,32 @@ function SubRow({
 }: {
   row: OeSubaccountManagerRow;
   defaults: { free_tickets: number; free_seats: number };
-  onSaveAllowance: (row: OeSubaccountManagerRow, ft: number, fs: number) => Promise<void>;
+  onSaveAllowance: (row: OeSubaccountManagerRow, fs: number) => Promise<void>;
   onResetAllowance: (row: OeSubaccountManagerRow) => void;
   onToggleOe: (row: OeSubaccountManagerRow, next: boolean) => Promise<void>;
 }) {
   // What the row currently GRANTS: its own override, or the inherited default.
-  const effFt = row.has_override ? row.free_tickets ?? 0 : defaults.free_tickets;
+  // NOTE the inherited case pre-fills the box, so pressing 保存 on a row you did
+  // not edit still writes an override at that number. That is intended (the note
+  // above the list says so) and is safe while the global default is 0 — it was
+  // not while the default was 1.
   const effFs = row.has_override ? row.free_seats ?? 0 : defaults.free_seats;
-  const [ft, setFt] = useState(String(effFt));
   const [fs, setFs] = useState(String(effFs));
   const [saving, setSaving] = useState(false);
   const [toggling, setToggling] = useState(false);
 
   // A reload (search / page / refresh) hands back new numbers — re-sync the
-  // inputs, or the row would keep showing the previous account's edits.
+  // input, or the row would keep showing the previous account's edits.
   useEffect(() => {
-    setFt(String(effFt));
     setFs(String(effFs));
-  }, [effFt, effFs, row.location_id]);
+  }, [effFs, row.location_id]);
 
-  const dirty = ft !== String(effFt) || fs !== String(effFs);
+  const dirty = fs !== String(effFs);
 
   const save = async () => {
     setSaving(true);
     try {
-      await onSaveAllowance(row, Math.max(0, Math.floor(Number(ft) || 0)), Math.max(0, Math.floor(Number(fs) || 0)));
+      await onSaveAllowance(row, Math.max(0, Math.floor(Number(fs) || 0)));
     } finally {
       setSaving(false);
     }
@@ -562,10 +576,7 @@ function SubRow({
         </div>
       </div>
 
-      <label className="text-[11px] text-muted-foreground shrink-0">票
-        <input value={ft} onChange={(e) => setFt(e.target.value)} inputMode="numeric" className="ml-1 w-12 h-8 rounded-lg border border-border bg-background px-2 text-sm" />
-      </label>
-      <label className="text-[11px] text-muted-foreground shrink-0">座
+      <label className="text-[11px] text-muted-foreground shrink-0">免费名额
         <input value={fs} onChange={(e) => setFs(e.target.value)} inputMode="numeric" className="ml-1 w-12 h-8 rounded-lg border border-border bg-background px-2 text-sm" />
       </label>
       <button

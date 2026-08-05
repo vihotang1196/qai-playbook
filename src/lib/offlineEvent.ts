@@ -42,6 +42,8 @@ export type OeSettings = {
 export type OeContext = {
   enabled: boolean;
   businessName?: string | null;
+  /** @deprecated Removed from the server response 2026-08-05. It was never read
+   *  here; the allowance is `freeSeats` / `freeSeatsRemaining`. */
   freeTickets?: number;
   freeSeats?: number;
   freeSeatsUsed?: number;
