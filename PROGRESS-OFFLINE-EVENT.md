@@ -1589,9 +1589,17 @@ files. The same applies to the deploy-order rule recorded with migration
 `20260805070000`: when code changes to rely on a database default, the migration
 goes first.
 
-## Coaching Night step 1 — replays out of the source tree (2026-08-05)
+## Coaching Night step 1 — replays out of the source tree ✅ DONE (2026-08-05)
 
 Not an Offline Event change; logged here because this file is the running log.
+
+**Shipped and verified on production**, as an anonymous visitor with no session:
+the `coaching` fn returns 200 with `replays.length === 4`, the console carries no
+fallback warning, the homepage renders the four replays in date order, and the
+newest one plays. Admin CRUD round-tripped too (add → homepage shows 5 → delete →
+back to 4), and `coaching_sessions` is back to exactly the 4 seeded rows with
+`updated_at = created_at` on all of them — the test row was deleted, not edited
+onto an existing row.
 
 The homepage's 「过往录像」 list was a hardcoded array in `src/lib/coaching.ts`, so
 publishing a replay meant a commit and a deploy every fortnight. It now lives in
@@ -1599,9 +1607,7 @@ publishing a replay meant a commit and a deploy every fortnight. It now lives in
 
 `replay_url` is the discriminator and is deliberately nullable: non-null = a past
 replay shown on the homepage, null = scheduled but not yet recorded. Step 1 only
-ever writes rows with a replay. 「即将到来」 is still computed by HeroSection's
-`COACHING_ANCHOR` fortnight algorithm — step 2 moves it into null-replay rows
-without another schema change.
+ever writes rows with a replay.
 
 **Why not `oe_coaching_sessions`.** Coaching Night is homepage content shown to
 every sub-account, not part of any tool, so it gets no tool prefix. Same reason
@@ -1612,6 +1618,30 @@ every sub-account, not part of any tool, so it gets no tool prefix. Same reason
 `coaching` fn serves the homepage; the three CRUD actions live behind
 `requireAdmin` in the existing `admin` fn. The table is RLS-on / zero-policy like
 every `hd_` and `oe_` table.
+
+### Three things to carry forward
+
+**1. An anon-key read of a zero-policy table returns an empty array, NOT an
+error.** This is the one most likely to bite again. The plan here started as
+"give the new table an anon read policy and query it from the component", and
+copying the `oe_` tables' RLS verbatim (RLS on, zero policies) would have made
+the homepage silently show 「暂无录像」 — 4 replays gone, and the fallback would
+NOT have fired, because it only catches throws. PostgREST filters invisible rows;
+it does not complain. **Any time the frontend reads a table directly, ask what an
+unauthorised read returns — if the answer is "empty", the failure mode is silent
+data loss on screen.** The repo's answer is uniform and should stay that way:
+0 direct `.from()` reads in `src/`, everything through an edge fn.
+
+**2. When a fallback exists, a healthy page and a broken page look identical.**
+Verifying by looking at the page proves nothing. Check the Network response
+length and the absence of the warning. Same shape as the `free_tickets` audit
+below: the value on screen is not evidence about the path that produced it.
+
+**3. Deploy order** (same rule as `20260805070000`): migration → functions →
+frontend. Push the frontend first and production runs on the stale snapshot,
+looking perfectly normal, until the fn lands. Note the `admin` fn needed
+redeploying too — new actions in an existing function are easy to forget, and the
+symptom is `unknown action` only in the back office, where no customer sees it.
 
 **The trap this design is built around.** An anon-key direct read of a
 zero-policy table returns an empty array, NOT an error — so copying the `oe_`
@@ -1628,9 +1658,22 @@ the visitor's problem), but F12 tells the owner. **Verifying this feature by
 looking at the page proves nothing; check the Network response length and the
 absence of that warning.**
 
-**Deploy order matters here** (same rule as `20260805070000`): migration →
-`coaching` + `admin` fns → frontend. Push the frontend first and production runs
-on the stale snapshot, looking perfectly normal, until the fn lands.
+### Open: step 2 — scheduling into the table (deferred, not blocked)
+
+「即将到来」 is still computed in code: HeroSection's `COACHING_ANCHOR` fortnight
+algorithm (anchor Monday 2026-06-15, alternating 转化 / 流量). Step 2 replaces it
+with rows in this same table.
+
+**Nothing needs building first.** The table already has the right shape — step 2
+writes rows with `replay_url` NULL and reads them for the upcoming block. No
+migration, no new function: `coaching` gets a second read action, and the admin
+page's replay-link field starts meaning "scheduled" rather than "hidden". Then
+`COACHING_ANCHOR`, `topicForMonday` and `getNextMondays` come out of HeroSection.
+
+**Deferred on purpose (owner's call, 2026-08-05):** the fortnight algorithm is
+rolling correctly right now, so this is a refactor with no user-visible payoff
+yet. Revisit when it actually drifts — a skipped or moved session is the trigger,
+because that is the case code cannot express and a table row can.
 
 ### Open: `OthersVideoGallery` is now an orphan
 
