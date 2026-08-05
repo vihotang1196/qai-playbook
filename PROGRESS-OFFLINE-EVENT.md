@@ -1338,16 +1338,23 @@ questionnaire. The old「1-5 分钟」was written when a retry storm was the nor
 the coercion fixed, single attempts should succeed far more often, so the ceiling
 is no longer representative.
 
-**3. 🚧 IN PROGRESS (2026-08-04) — `CANARY_FALLBACK` is now backwards.**
-`canary_mode` is already `false` (all 918 sub-accounts open), but `CANARY_FALLBACK`
-is still `deny`. That was correct during the closed beta: a DB read failure refused
-the handful of testers rather than leaking access. Now it means a DB read failure
-refuses **all 918 accounts at once**.
+**3. ✅ DONE (2026-08-04) — `CANARY_FALLBACK` flipped to `allow` and redeployed.**
+It had become backwards. `canary_mode` is already `false` (all 918 sub-accounts
+open), so `deny` no longer protected a closed beta from leaking access — it meant
+one failed read of `platform_settings.canary_mode` would fall back to WHITELIST
+mode and refuse **all 918 accounts at once**.
 
-Owner is changing it to `allow` in the Supabase dashboard. **Edge Function secrets
-are injected at deploy time**, so the dashboard change alone does nothing —
-`oe` and `offline-event-admin` must both be REDEPLOYED afterwards. Not done until
-those two deploys have run.
+Owner set it to `allow` in the dashboard; `oe` and `offline-event-admin` were both
+redeployed afterwards, because Edge Function secrets are injected at deploy time
+and the dashboard change alone has no effect. Customer path re-checked after the
+deploys — `/events?location_id=…` still renders its event, no console errors.
+
+*What is NOT proven, by design:* the fallback is only consulted when that settings
+read **fails or returns malformed data** (`access.ts` → `canaryFallback()`), never
+on the normal path, so confirming the new value would mean inducing a database
+failure in production. Not worth it. If the fallback ever does fire it logs
+`isCanaryMode: … using CANARY_FALLBACK` — that line in the Edge logs is the signal
+that a settings read broke.
 
 ### 🟠 Soon after launch
 
