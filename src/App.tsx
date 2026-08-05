@@ -29,6 +29,7 @@ import AdminHome from "./pages/admin/AdminHome";
 import AdminSubAccounts from "./pages/admin/AdminSubAccounts";
 import AdminStats from "./pages/admin/AdminStats";
 import AdminAudit from "./pages/admin/AdminAudit";
+import AdminCoaching from "./pages/admin/AdminCoaching";
 import OfflineEventAdminShell from "./components/offline-event/OfflineEventAdminShell";
 import OEOverview from "./pages/admin/offline-event/Overview";
 import OECheckIn from "./pages/admin/offline-event/CheckIn";
@@ -143,6 +144,9 @@ const App = () => (
               <Route path="sub-accounts" element={<AdminSubAccounts />} />
               <Route path="stats" element={<AdminStats />} />
               <Route path="audit" element={<AdminAudit />} />
+              {/* Coaching Night — homepage content, not a tool, so it sits at
+                  the top level rather than inside a tool shell. */}
+              <Route path="coaching" element={<AdminCoaching />} />
               {/* Offline Event admin — nested tool (its own sub-tab shell). */}
               <Route path="offline-event" element={<OfflineEventAdminShell />}>
                 <Route index element={<OEOverview />} />
