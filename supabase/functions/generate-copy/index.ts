@@ -303,27 +303,83 @@ function asString(v: unknown): string {
   return typeof v === "string" ? v : "";
 }
 
-/** Escape raw control chars (newline/CR/tab) that appear INSIDE string literals,
- *  so a JSON string that used real line breaks becomes parseable. */
+/** Escape what JSON forbids inside a string but a model may still emit.
+ *
+ *  Two classes, both seen as unrecoverable parse failures on real output:
+ *
+ *  1. Control characters. JSON forbids EVERY codepoint below U+0020 inside a
+ *     string. This used to escape three of them — newline, CR and tab — and
+ *     passed the other 29 through untouched, so the retry parse failed with the
+ *     same error as the first attempt and the field was written off as
+ *     unrescuable. Covering 3 of 32 was never the intent, just the obvious
+ *     three.
+ *  2. Invalid escape sequences. A backslash is legal only before one of
+ *     " \ / b f n r t u, and \u only before four hex digits. A literal
+ *     backslash in the copy left the sequence intact and invalid, and the old
+ *     code copied it verbatim by design.
+ *
+ *  Escaping is delegated to JSON.stringify on the single character, so the spec
+ *  decides the form (newline becomes the two-character escape, U+000B becomes
+ *  the \u form) and this file needs no hand-written backslash literals to get
+ *  wrong. Character comparisons go through charCodeAt for the same reason. */
 function sanitizeJsonControlChars(s: string): string {
+  const BACKSLASH = 92;
+  const QUOTE = 34;
+
+  /** The exact escape JSON wants for this one character. */
+  const escapeOf = (ch: string): string => JSON.stringify(ch).slice(1, -1);
+  const isHex = (c: string | undefined): boolean =>
+    c !== undefined && ((c >= "0" && c <= "9") || (c >= "a" && c <= "f") || (c >= "A" && c <= "F"));
+  /** Escapes that need no argument beyond the character itself. */
+  const isSimpleEscape = (c: string | undefined): boolean => {
+    if (c === undefined) return false;
+    const code = c.charCodeAt(0);
+    return code === BACKSLASH || code === QUOTE || "bfnrt/".includes(c);
+  };
+
   let out = "";
   let inStr = false;
-  let esc = false;
+
   for (let i = 0; i < s.length; i++) {
     const ch = s[i];
-    if (esc) { out += ch; esc = false; continue; }
-    if (ch === "\\") { out += ch; esc = true; continue; }
-    if (ch === '"') { inStr = !inStr; out += ch; continue; }
-    if (inStr) {
-      if (ch === "\n") { out += "\\n"; continue; }
-      if (ch === "\r") { out += "\\r"; continue; }
-      if (ch === "\t") { out += "\\t"; continue; }
+    const code = ch.charCodeAt(0);
+
+    if (code === QUOTE) {
+      inStr = !inStr;
+      out += ch;
+      continue;
     }
+
+    if (code === BACKSLASH) {
+      const next = s[i + 1];
+      const validUnicode =
+        next === "u" && isHex(s[i + 2]) && isHex(s[i + 3]) && isHex(s[i + 4]) && isHex(s[i + 5]);
+      if (inStr && !isSimpleEscape(next) && !validUnicode) {
+        // Not the start of a legal escape, so it is literal content.
+        out += escapeOf(ch);
+        continue;
+      }
+      // Legal escape (or a backslash outside a string, which this cannot fix):
+      // copy it together with the character it escapes, so an escaped quote
+      // cannot flip inStr.
+      out += ch;
+      if (next !== undefined) {
+        out += next;
+        i++;
+      }
+      continue;
+    }
+
+    if (inStr && code < 0x20) {
+      out += escapeOf(ch);
+      continue;
+    }
+
     out += ch;
   }
+
   return out;
 }
-
 // The tool Claude is forced to call. Using tool use (structured output) rather
 // than parsing free-text JSON guarantees a schema-valid object — no markdown
 // fences, unescaped quotes, newlines or stray HTML can break it.
