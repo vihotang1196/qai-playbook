@@ -1827,3 +1827,64 @@ one course's title over another's videos — and the `data ?` fallback rendered 
 Start button that did nothing instead of failing loudly. `desc` moved onto
 `Course`, the i18n array is deleted, and the pairing no longer exists. The
 coupling was not fixed, it was removed.
+
+## 🔴 RULE: never run a whole-worktree git command in this repo (2026-08-06)
+
+**More than one agent session works in this checkout at the same time.** A
+whole-worktree command therefore reaches into work that is not yours.
+
+**Banned unless the working tree has been confirmed to contain only your own
+changes:** `git stash`, `git checkout <ref>` / `git checkout -- .`,
+`git reset --hard`, `git clean`. `git stash` in particular takes **every tracked
+modification in the tree**, not just the files you touched — pathspec-free by
+default, and `git stash pop` then restores them into a tree that may have moved.
+
+**Near miss:** during the shared-player extraction, `git stash` was used to test
+HEAD as a control. At that moment another session had `src/App.tsx` modified plus
+`src/pages/UpgradeV2.tsx` / `src/styles/upgrade.css` untracked. It was only safe
+because that session had committed minutes earlier (`e0f283b`, `31679a8`). Run it
+five minutes sooner and their App.tsx edit would have vanished into a stash they
+could not see, looking to them like work that evaporated.
+
+**Instead:** commit your own work first, then compare with read-only commands
+(`git show <sha>:<path>`, `git diff <sha> -- <path>`), or copy the file aside and
+edit in place. If a control test genuinely needs an older version of one file,
+restore only that path (`git checkout <sha> -- <one/file>`) and put it back the
+same way — and check `git status` before and after.
+
+## Shared <VideoPlayer> — one player, one bandwidth gate (2026-08-06)
+
+`src/components/video/VideoPlayer.tsx` owns the video element, the Brutalist
+controls and the whole gate. `CoachingPlayer` dropped from 261 lines to 60 and is
+now just the branded placeholder plus "every src change here is a deliberate pick,
+so play it".
+
+**Why shared rather than two styled-alike copies:** the gate is code where missing
+one condition costs a gigabyte of traffic and raises no error. Two copies drift;
+one cannot. The Course Hub was about to need the identical gate, which is what
+made now the moment to extract — the requirement itself had removed most of the
+divergence between the two.
+
+The gate: `preload="none"` · **300ms dwell** before anything is fetched (a fast
+scroll past must not open a range request) · pause (never stop) on exit ·
+muted autoplay with a centre unmute CTA · a hand pause the observer will not
+override · a refused `play()` falls back to the play button, never a black box.
+
+Differences are props — `autoPlayOnView`, `onEnded`, `placeholder`, `playToken`
+— with no "which screen am I" branch inside. `playToken` exists because the two
+surfaces disagree about what a src change means: Coaching Night switches episode
+only when someone clicks a date (play at once), while the Course Hub switches
+course without starting a stream (land paused on lesson 1). A counter the caller
+bumps says "play this now" without the player having to know who it is serving.
+
+### ⚠️ This extraction is UNVERIFIED behaviourally, by owner's decision
+
+The preview pane reports `document.visibilityState: "hidden"`, and while hidden
+Chrome delivers **no IntersectionObserver callbacks** and pauses media on its own
+(`play → playing → pause` with zero JS calls to `pause()`, confirmed by patching
+`HTMLMediaElement.prototype.pause`). A control test on HEAD's known-good player
+failed identically, so this is the environment and not a regression — but "not a
+regression" is not "verified". The owner verifies the six behaviours on
+production in a real browser; **the Course Hub is not to be switched over until
+they confirm.** Same root cause as the earlier tooltip / hover / screenshot
+limitations recorded above: this pane produces no frames.
