@@ -287,7 +287,7 @@ const CoursePlayer = ({ courses, initialCourseId }: CoursePlayerProps) => {
         {/* Course switcher — same language as Coaching Night's date strip:
             horizontal, scrollable, yellow fill on the selected one. */}
         {courses.length > 1 && (
-          <div className="mt-4 flex gap-2 overflow-x-auto pb-1">
+          <div className="mt-4 flex gap-3 overflow-x-auto pb-1">
             {courses.map((c) => {
               const on = c.id === course.id;
               return (
@@ -296,16 +296,16 @@ const CoursePlayer = ({ courses, initialCourseId }: CoursePlayerProps) => {
                   type="button"
                   onClick={() => setCourseId(c.id)}
                   aria-current={on ? "true" : undefined}
-                  className={`shrink-0 rounded-xl border-2 border-[#141414] px-4 py-2 text-left transition-[transform,box-shadow] duration-150 ${
+                  className={`shrink-0 rounded-xl border-2 border-[#141414] px-7 py-5 text-left transition-[transform,box-shadow] duration-150 ${
                     on
-                      ? "bg-[#fed50a] shadow-[3px_3px_0_#141414]"
-                      : "bg-white hover:-translate-x-[1px] hover:-translate-y-[1px] hover:shadow-[3px_3px_0_#141414]"
+                      ? "bg-[#fed50a] shadow-[4px_4px_0_#141414]"
+                      : "bg-white hover:-translate-x-[2px] hover:-translate-y-[2px] hover:shadow-[4px_4px_0_#141414]"
                   }`}
                 >
-                  <span className="block whitespace-nowrap text-sm font-bold tracking-tight text-foreground">
+                  <span className="block whitespace-nowrap text-lg font-bold tracking-tight text-foreground">
                     {c.title[lang]}
                   </span>
-                  <span className="block whitespace-nowrap text-[10px] font-medium text-muted-foreground">
+                  <span className="mt-1 block whitespace-nowrap text-xs font-medium text-muted-foreground">
                     {c.curriculum.length} {lang === "cn" ? "模块" : "modules"} ·{" "}
                     {c.curriculum.reduce((n, p) => n + p.videos.length, 0)} {lang === "cn" ? "课" : "lessons"}
                   </span>
