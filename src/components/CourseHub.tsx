@@ -49,7 +49,7 @@ const CourseHub = () => {
                     </DialogTitle>
                   </DialogHeader>
                   <div className="px-4 pb-5 md:px-5">
-                    <CoursePlayer course={course} />
+                    <CoursePlayer courses={[course]} />
                   </div>
                 </DialogContent>
               </Dialog>

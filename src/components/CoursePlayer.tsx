@@ -23,8 +23,36 @@ const formatTime = (s: number): string => {
  * highlights the active lesson, and auto-advances to the next lesson when
  * one finishes.
  */
-const CoursePlayer = ({ course }: { course: Course }) => {
+type CoursePlayerProps = {
+  /** All selectable courses. A single entry hides the switcher strip, which is
+   *  how the existing Dialog usage keeps working untouched. */
+  courses: Course[];
+  initialCourseId?: string;
+};
+
+/** lg breakpoint. Desktop shows every module expanded and scrolls the sidebar
+ *  inside a fixed frame; on a phone that same list is ~1000px of column under a
+ *  156px video, and a nested scroll area there would fight the page scroll — so
+ *  it collapses to the module being watched instead. */
+const useIsDesktop = () => {
+  const query = "(min-width: 1024px)";
+  const [is, setIs] = useState(() =>
+    typeof window === "undefined" ? true : window.matchMedia(query).matches,
+  );
+  useEffect(() => {
+    const mq = window.matchMedia(query);
+    const on = () => setIs(mq.matches);
+    mq.addEventListener("change", on);
+    return () => mq.removeEventListener("change", on);
+  }, []);
+  return is;
+};
+
+const CoursePlayer = ({ courses, initialCourseId }: CoursePlayerProps) => {
   const { lang } = useLang();
+  const isDesktop = useIsDesktop();
+  const [courseId, setCourseId] = useState(initialCourseId ?? courses[0]?.id);
+  const course = courses.find((c) => c.id === courseId) ?? courses[0];
 
   // Flatten the curriculum into an ordered lesson list (for indexing /
   // auto-advance) while keeping the grouped shape for the sidebar.
@@ -55,17 +83,42 @@ const CoursePlayer = ({ course }: { course: Course }) => {
 
   const active = lessons[activeIndex] ?? lessons[0];
 
-  // Switching course → restart from the first lesson, no autoplay.
+  // Switching course → restart from the first lesson, NO autoplay. Deliberate:
+  // picking a course says "show me this", not "start playing". The player lands
+  // on lesson 1 showing the course cover with the play button over it — an empty
+  // player would just look broken.
   useEffect(() => {
     setActiveIndex(0);
     autoplayRef.current = false;
   }, [course]);
 
-  // Reset transient playback state whenever the active lesson changes.
+  /** Which module is expanded on mobile. Follows the lesson being played, so
+   *  picking a course or auto-advancing never leaves the list closed on the
+   *  thing that is on screen. */
+  const activePart = useMemo(() => {
+    let seen = 0;
+    for (const p of course.curriculum) {
+      if (activeIndex < seen + p.videos.length) return p.part;
+      seen += p.videos.length;
+    }
+    return course.curriculum[0]?.part;
+  }, [course, activeIndex]);
+  const [openPart, setOpenPart] = useState<string | undefined>(undefined);
+  useEffect(() => setOpenPart(activePart), [activePart]);
+
+  // Reset transient playback state whenever the active lesson changes, and start
+  // playback here rather than from onLoadedMetadata: with preload="none" the
+  // metadata event never fires until something calls play(), so the old
+  // "autoplay when metadata arrives" path would silently never run.
   useEffect(() => {
     setProgress(0);
     setDuration(0);
     setIsPlaying(false);
+    if (!autoplayRef.current) return;
+    autoplayRef.current = false;
+    videoRef.current?.play().then(() => setIsPlaying(true)).catch(() => {
+      /* blocked — the centre play button is already showing */
+    });
   }, [activeIndex]);
 
   // Keep the active row visible in the sidebar.
@@ -85,13 +138,7 @@ const CoursePlayer = ({ course }: { course: Course }) => {
   }, []);
 
   const handleLoadedMetadata = useCallback(() => {
-    const el = videoRef.current;
-    if (!el) return;
-    setDuration(el.duration || 0);
-    if (autoplayRef.current) {
-      autoplayRef.current = false;
-      el.play().then(() => setIsPlaying(true)).catch(() => {});
-    }
+    setDuration(videoRef.current?.duration || 0);
   }, []);
 
   const handleTimeUpdate = useCallback(() => {
@@ -153,7 +200,11 @@ const CoursePlayer = ({ course }: { course: Course }) => {
             poster={course.cover}
             muted={muted}
             playsInline
-            preload="metadata"
+            // Nothing autoplays here, so nothing should preload either: this
+            // player is now permanently mounted on the homepage, and `metadata`
+            // would fetch from every lesson the visitor lands on without asking
+            // — including the 485 MB one at the end of 广告设计.
+            preload="none"
             onTimeUpdate={handleTimeUpdate}
             onLoadedMetadata={handleLoadedMetadata}
             onEnded={handleEnded}
@@ -228,11 +279,50 @@ const CoursePlayer = ({ course }: { course: Course }) => {
             {active?.title}
           </h4>
         </div>
+
+        {/* Course switcher — same language as Coaching Night's date strip:
+            horizontal, scrollable, yellow fill on the selected one. Hidden when
+            there is only one course to choose from (the old Dialog usage). */}
+        {courses.length > 1 && (
+          <div className="mt-4 flex gap-2 overflow-x-auto pb-1">
+            {courses.map((c) => {
+              const on = c.id === course.id;
+              return (
+                <button
+                  key={c.id}
+                  type="button"
+                  onClick={() => setCourseId(c.id)}
+                  aria-current={on ? "true" : undefined}
+                  className={`shrink-0 rounded-xl border-2 border-[#141414] px-4 py-2 text-left transition-[transform,box-shadow] duration-150 ${
+                    on
+                      ? "bg-[#fed50a] shadow-[3px_3px_0_#141414]"
+                      : "bg-white hover:-translate-x-[1px] hover:-translate-y-[1px] hover:shadow-[3px_3px_0_#141414]"
+                  }`}
+                >
+                  <span className="block whitespace-nowrap text-sm font-bold tracking-tight text-foreground">
+                    {c.title[lang]}
+                  </span>
+                  <span className="block whitespace-nowrap text-[10px] font-medium text-muted-foreground">
+                    {c.curriculum.length} {lang === "cn" ? "模块" : "modules"} ·{" "}
+                    {c.curriculum.reduce((n, p) => n + p.videos.length, 0)} {lang === "cn" ? "课" : "lessons"}
+                  </span>
+                </button>
+              );
+            })}
+          </div>
+        )}
       </div>
 
-      {/* Right: curriculum sidebar ~35% */}
-      <div className="lg:col-span-3">
-        <div className="rounded-2xl bg-secondary/40 border border-border overflow-hidden flex flex-col max-h-[420px] lg:max-h-[560px]">
+      {/* Right: curriculum sidebar ~35%.
+          On lg the inner frame is absolutely positioned, so this column
+          contributes no content height and the grid row is sized by the player
+          alone — the sidebar then fills exactly that height and scrolls inside
+          it. A `max-h` in px cannot do this: the player's height comes from its
+          column width (aspect-video) and the list's from the course (481px for
+          文案攻略, 1003px for 广告设计), so any fixed number is wrong somewhere.
+          Below lg the absolute positioning is off and it flows normally. */}
+      <div className="lg:col-span-3 lg:relative">
+        <div className="rounded-2xl bg-secondary/40 border border-border overflow-hidden flex flex-col lg:absolute lg:inset-0">
           <div className="p-4 border-b border-border">
             <h4 className="text-sm font-semibold tracking-tight text-foreground">
               {lang === "cn" ? "课程目录" : "Curriculum"}
@@ -242,15 +332,27 @@ const CoursePlayer = ({ course }: { course: Course }) => {
             </p>
           </div>
 
-          <div className="overflow-y-auto flex-1 py-2">
-            {course.curriculum.map((part) => (
+          <div className="overflow-y-auto flex-1 py-2 min-h-0">
+            {course.curriculum.map((part) => {
+              const expanded = isDesktop || openPart === part.part;
+              return (
               <div key={part.part} className="px-2 pb-2">
-                <div className="px-3 pt-3 pb-1.5">
+                {/* Desktop: a plain heading, everything expanded. Mobile: the
+                    heading is the toggle, and only one module is open. */}
+                <button
+                  type="button"
+                  onClick={() => !isDesktop && setOpenPart(expanded ? undefined : part.part)}
+                  aria-expanded={isDesktop ? undefined : expanded}
+                  className="flex w-full items-center justify-between gap-2 px-3 pt-3 pb-1.5 text-left lg:pointer-events-none"
+                >
                   <p className="text-[10px] font-semibold tracking-widest uppercase text-muted-foreground">
                     {part.part} · {part.title}
                   </p>
-                </div>
-                <div className="space-y-0.5">
+                  <span className="shrink-0 text-[10px] font-semibold text-muted-foreground lg:hidden">
+                    {expanded ? "−" : `+${part.videos.length}`}
+                  </span>
+                </button>
+                <div className={`space-y-0.5 ${expanded ? "" : "hidden"}`}>
                   {part.videos.map((v) => {
                     const lesson = lessons.find((l) => l.url === v.url && l.title === v.title);
                     const idx = lesson?.index ?? 0;
@@ -279,7 +381,8 @@ const CoursePlayer = ({ course }: { course: Course }) => {
                   })}
                 </div>
               </div>
-            ))}
+              );
+            })}
           </div>
         </div>
       </div>
