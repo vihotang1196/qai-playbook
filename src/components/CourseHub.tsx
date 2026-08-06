@@ -23,47 +23,38 @@ const CourseHub = () => {
         </h2>
         {!hideSubtitles && <p className="mt-3 text-muted-foreground">{t.courseHub.subtitle[lang]}</p>}
 
+        {/* One array now — `courses` carries the copy as well as the curriculum,
+            so a card can no longer show one course's title over another's
+            videos. The old `data ?` fallback is gone with the pairing it was
+            guarding against. */}
         <div className="mt-12 grid grid-cols-1 md:grid-cols-2 gap-8">
-          {t.courseHub.courses.map((course, i) => {
-            const data = courses[i];
-            return (
-              <div key={i} className="vision-panel p-6">
-                <div className="w-full aspect-video rounded-xl bg-secondary mb-5 overflow-hidden">
-                  {data ? (
-                    <img src={data.cover} alt={course.title[lang]} className="w-full h-full object-cover" />
-                  ) : (
-                    <span className="text-3xl font-bold text-muted-foreground/20">{String(i + 1).padStart(2, "0")}</span>
-                  )}
-                </div>
-                <h3 className="text-lg font-semibold tracking-tight">{course.title[lang]}</h3>
-                {!hideSubtitles && <p className="mt-1 text-sm text-muted-foreground">{course.desc[lang]}</p>}
+          {courses.map((course) => (
+            <div key={course.id} className="vision-panel p-6">
+              <div className="w-full aspect-video rounded-xl bg-secondary mb-5 overflow-hidden">
+                <img src={course.cover} alt={course.title[lang]} className="w-full h-full object-cover" />
+              </div>
+              <h3 className="text-lg font-semibold tracking-tight">{course.title[lang]}</h3>
+              {!hideSubtitles && <p className="mt-1 text-sm text-muted-foreground">{course.desc[lang]}</p>}
 
-                {data ? (
-                  <Dialog>
-                    <DialogTrigger asChild>
-                      <Button variant="default" size="sm" className="mt-5 w-full">
-                        {t.courseHub.start[lang]}
-                      </Button>
-                    </DialogTrigger>
-                    <DialogContent className="max-w-6xl w-[95vw] p-0 gap-0 overflow-hidden">
-                      <DialogHeader className="px-5 pt-5 pb-3 text-left">
-                        <DialogTitle className="text-lg font-semibold tracking-tight">
-                          {course.title[lang]}
-                        </DialogTitle>
-                      </DialogHeader>
-                      <div className="px-4 pb-5 md:px-5">
-                        <CoursePlayer course={data} />
-                      </div>
-                    </DialogContent>
-                  </Dialog>
-                ) : (
+              <Dialog>
+                <DialogTrigger asChild>
                   <Button variant="default" size="sm" className="mt-5 w-full">
                     {t.courseHub.start[lang]}
                   </Button>
-                )}
-              </div>
-            );
-          })}
+                </DialogTrigger>
+                <DialogContent className="max-w-6xl w-[95vw] p-0 gap-0 overflow-hidden">
+                  <DialogHeader className="px-5 pt-5 pb-3 text-left">
+                    <DialogTitle className="text-lg font-semibold tracking-tight">
+                      {course.title[lang]}
+                    </DialogTitle>
+                  </DialogHeader>
+                  <div className="px-4 pb-5 md:px-5">
+                    <CoursePlayer course={course} />
+                  </div>
+                </DialogContent>
+              </Dialog>
+            </div>
+          ))}
         </div>
       </div>
     </section>

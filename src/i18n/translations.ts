@@ -50,12 +50,11 @@ export const t = {
   courseHub: {
     title: { cn: "课程中心", en: "Course Hub" },
     subtitle: { cn: "系统化课程，按需学习", en: "Structured courses, learn at your pace" },
-    courses: [
-      { title: { cn: "广告设计", en: "Ad Design" }, desc: { cn: "打造高点击率的广告创意与视觉", en: "Create high-CTR ad creatives & visuals" } },
-      { title: { cn: "广告设置", en: "Ad Setup" }, desc: { cn: "从零搭建系统化投放策略", en: "Build systematic ad campaigns from scratch" } },
-      { title: { cn: "成交策略", en: "Closing Strategy" }, desc: { cn: "掌握提升转化率的成交心法", en: "Master techniques to boost conversions" } },
-      { title: { cn: "文案攻略", en: "Copywriting" }, desc: { cn: "写出能卖货的高转化文案", en: "Write high-converting copy that sells" } },
-    ],
+    // The per-course title/desc array that used to live here moved into
+    // src/lib/courses.ts. It duplicated the titles already on each Course and
+    // was paired with the curriculum by array index, which silently mismatched
+    // the moment either side was reordered. Course copy belongs next to the
+    // course data, not opposite it.
     start: { cn: "开始", en: "Start" },
   },
   coaching: {

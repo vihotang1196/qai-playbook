@@ -26,6 +26,12 @@ export interface Course {
   id: string;
   /** bilingual course title (matches the Course Hub cards) */
   title: { cn: string; en: string };
+  /** bilingual one-liner. Lived in `t.courseHub.courses` until the two arrays
+   *  were merged: the Course Hub paired i18n copy with curriculum data BY ARRAY
+   *  INDEX, so adding or reordering either one silently put one course's title
+   *  on another's videos — and the `data ?` fallback rendered a Start button
+   *  that did nothing rather than failing loudly. One array, no pairing. */
+  desc: { cn: string; en: string };
   /** cover image (same asset used on the Course Hub card) */
   cover: string;
   curriculum: CoursePart[];
@@ -35,6 +41,7 @@ export const courses: Course[] = [
   {
     id: "ad-design",
     title: { cn: "广告设计", en: "Ad Design" },
+    desc: { cn: "打造高点击率的广告创意与视觉", en: "Create high-CTR ad creatives & visuals" },
     cover: "https://assets.cdn.filesafe.space/zUvmZ5aUG77DfLnXLzKo/media/69bb6ab3dac58434d5e1ff3d.png",
     curriculum: [
       {
@@ -90,6 +97,7 @@ export const courses: Course[] = [
   {
     id: "ad-setup",
     title: { cn: "广告设置", en: "Ad Setup" },
+    desc: { cn: "从零搭建系统化投放策略", en: "Build systematic ad campaigns from scratch" },
     cover: "https://assets.cdn.filesafe.space/zUvmZ5aUG77DfLnXLzKo/media/69bb6abc3147fdd3fd4ebdef.png",
     curriculum: [
       {
@@ -126,6 +134,7 @@ export const courses: Course[] = [
   {
     id: "closing-strategy",
     title: { cn: "成交策略", en: "Closing Strategy" },
+    desc: { cn: "掌握提升转化率的成交心法", en: "Master techniques to boost conversions" },
     cover: "https://assets.cdn.filesafe.space/zUvmZ5aUG77DfLnXLzKo/media/69bb6ac23147fd285c4ebe99.png",
     curriculum: [
       {
@@ -170,6 +179,7 @@ export const courses: Course[] = [
   {
     id: "copywriting",
     title: { cn: "文案攻略", en: "Copywriting" },
+    desc: { cn: "写出能卖货的高转化文案", en: "Write high-converting copy that sells" },
     cover: "https://assets.cdn.filesafe.space/zUvmZ5aUG77DfLnXLzKo/media/69bb99cd7e33ef7b076adef6.png",
     curriculum: [
       {
