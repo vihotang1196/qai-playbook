@@ -10,6 +10,7 @@ import Index from "./pages/Index.tsx";
 import DFY from "./pages/DFY.tsx";
 import Credits from "./pages/Credits.tsx";
 import Upgrade from "./pages/Upgrade.tsx";
+import UpgradeV2 from "./pages/UpgradeV2.tsx";
 import Affiliate from "./pages/Affiliate.tsx";
 import Tools from "./pages/Tools.tsx";
 import Copywriter from "./pages/Copywriter.tsx";
@@ -177,6 +178,7 @@ const App = () => (
               <Route path="/dfy" element={<DFY />} />
               <Route path="/credits" element={<Credits />} />
               <Route path="/upgrade" element={<Upgrade />} />
+              <Route path="/upgrade-v2" element={<UpgradeV2 />} />
               <Route path="/affiliate" element={<Affiliate />} />
 
               {/* Offline Event — CUSTOMER booking page. Identity = URL location_id
