@@ -291,8 +291,127 @@ const UpgradeV2 = () => {
 
       {/* ⑦ 两个配套价格 / PLANS & PRICING */}
       <section className="u-sec" id="plans">
-        <div className="u-wrap u-center">
-          <h2 className="u-sec-title u-display">{l(bi("⑦ Plans & pricing", "⑦ 两个配套价格"))}</h2>
+        <div className="u-wrap">
+          <h2 className="u-sec-title u-center u-display">
+            {l(bi("Two plans, pricing up front", "两个配套，价格清清楚楚"))}
+          </h2>
+          {/* Price disclosure — deliberately NOT wrapped in hideSubtitles: it
+              states the billing period and that SST is excluded, so it must
+              always be visible. */}
+          <p className="u-sec-sub u-center">
+            {l(bi(
+              "Billed annually. Prices exclude SST. No hidden fees.",
+              "都是按年收费，价格未含 SST，没有隐藏费用"
+            ))}
+          </p>
+          <div className="u-two-col">
+            {/* Plan A — add accounts */}
+            <div className="u-card u-plan u-a">
+              <div className="u-topbar" />
+              <span className="u-kicker">{l(bi("📈 Grow your reach", "📈 扩展业务"))}</span>
+              <h3>{l(bi("Upgrade Nurture Plan (add accounts)", "升级 Nurture Plan（加账号）"))}</h3>
+              <p className="u-oneline">{l(bi("From 1 account up to 6", "从 1 个账号 → 最多 6 个账号"))}</p>
+              <div className="u-price">
+                <span className="u-cur">USD</span>
+                <span className="u-amt">$1,000</span>
+                <span className="u-per">{l(bi("/year", "/ 年"))}</span>
+              </div>
+              <p className="u-sst-note">+ 8% SST</p>
+              <p className="u-fit">
+                {lang === "cn" ? (
+                  <>适合：<b>agency / 多品牌 / 多项目</b></>
+                ) : (
+                  <>Best for: <b>agencies, multi-brand, multi-project</b></>
+                )}
+              </p>
+              <ul className="u-feats">
+                <li>
+                  <span className="u-ck"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round"><path d="M20 6 9 17l-5-5" /></svg></span>
+                  {l(bi("Manage multiple brands and clients at once", "同时管理多个品牌 / 客户"))}
+                </li>
+                <li>
+                  <span className="u-ck"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round"><path d="M20 6 9 17l-5-5" /></svg></span>
+                  {l(bi("Each account runs independently — no mixed data", "每个账号独立运作，数据不混"))}
+                </li>
+                <li>
+                  <span className="u-ck"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round"><path d="M20 6 9 17l-5-5" /></svg></span>
+                  {l(bi("Open up another revenue stream", "多开一条收入来源"))}
+                </li>
+              </ul>
+              <a
+                className="u-cta"
+                href="https://wa.me/601112436811"
+                target="_blank"
+                rel="noopener noreferrer"
+              >
+                {l(bi("Upgrade accounts", "升级账号"))}
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round"><path d="M5 12h14" /><path d="m12 5 7 7-7 7" /></svg>
+              </a>
+            </div>
+
+            {/* Plan B — add WhatsApp capacity */}
+            <div className="u-card u-plan u-b">
+              <div className="u-topbar" />
+              <span className="u-kicker">{l(bi("💬 Boost your capacity", "💬 提升处理能力"))}</span>
+              <h3>{l(bi("WhatsApp Add-on", "WhatsApp Add-on（加 WhatsApp）"))}</h3>
+              <p className="u-oneline">
+                {l(bi("Add multiple WhatsApp numbers to one account", "一个账号可加多个 WhatsApp"))}
+              </p>
+              <div className="u-price">
+                <span className="u-cur">USD</span>
+                <span className="u-amt">$190</span>
+                <span className="u-per">{l(bi("each/year", "/ 每个 / 年"))}</span>
+              </div>
+              <p className="u-sst-note">+ 8% SST</p>
+              <p className="u-price-note">
+                {l(bi("🔥 Better rates the more you add", "🔥 量多更优惠，加越多越划算"))}
+              </p>
+              <div className="u-video">
+                <iframe
+                  src="https://www.loom.com/embed/c86119e8d171442b9f6a80375141bbc9"
+                  title={l(bi("WhatsApp Add-on introduction", "WhatsApp Add-on 介绍"))}
+                  allowFullScreen
+                />
+              </div>
+              <p className="u-fit">
+                {lang === "cn" ? (
+                  <>适合：<b>对话量大、常漏单、回复慢</b></>
+                ) : (
+                  <>Best for: <b>high volume, missed leads, slow replies</b></>
+                )}
+              </p>
+              <ul className="u-feats">
+                <li>
+                  <span className="u-ck"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round"><path d="M20 6 9 17l-5-5" /></svg></span>
+                  {l(bi("Handle more customer conversations at once", "同时处理更多客户对话"))}
+                </li>
+                <li>
+                  <span className="u-ck"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round"><path d="M20 6 9 17l-5-5" /></svg></span>
+                  {l(bi("Stop missing leads and slow replies", "避免漏单 / 慢回复"))}
+                </li>
+                <li>
+                  <span className="u-ck"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round"><path d="M20 6 9 17l-5-5" /></svg></span>
+                  {l(bi("Connect any WhatsApp number", "任何 WhatsApp 号码都能接"))}
+                </li>
+              </ul>
+              <a
+                className="u-cta"
+                href="https://wa.me/601112436811"
+                target="_blank"
+                rel="noopener noreferrer"
+              >
+                {l(bi("Add WhatsApp", "加 WhatsApp"))}
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round"><path d="M5 12h14" /><path d="m12 5 7 7-7 7" /></svg>
+              </a>
+            </div>
+          </div>
+          <p className="u-combine-note">
+            {lang === "cn" ? (
+              <>想两个一起加？直接跟客服说一声，<b>一次帮你配置好。</b></>
+            ) : (
+              <>Want both? Just tell support — <b>we'll set it all up in one go.</b></>
+            )}
+          </p>
         </div>
       </section>
 

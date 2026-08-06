@@ -159,6 +159,9 @@
 .upg .u-price .u-amt { font-family: 'Sora', 'Noto Sans SC', sans-serif; font-size: 44px; font-weight: 800; letter-spacing: -0.02em; }
 .upg .u-price .u-per { font-size: 18px; color: var(--u-muted); font-weight: 600; }
 .upg .u-price-note { font-size: 18px; color: var(--u-ink); font-weight: 700; margin: 0 0 16px; min-height: 22px; }
+/* Tax disclosure shown directly under each price. Always rendered — never
+   hidden by the hideSubtitles switch, since it is part of the price. */
+.upg .u-sst-note { font-size: 16px; color: var(--u-muted); font-weight: 600; margin: 4px 0 12px; }
 .upg .u-fit { font-size: 18px; color: var(--u-muted); margin: 0 0 18px; }
 .upg .u-fit b { color: var(--u-ink); font-weight: 700; }
 .upg .u-feats { list-style: none; padding: 0; margin: 0 0 22px; display: flex; flex-direction: column; gap: 12px; }
