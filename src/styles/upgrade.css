@@ -34,7 +34,16 @@
 
   /* keeps the full-bleed dark hero from producing a horizontal scrollbar */
   overflow-x: hidden;
+
+  /* clears the fixed, ~66px-tall Navbar (h-16 + 2px border) so the black hero
+     band begins right below it while still bleeding edge-to-edge horizontally.
+     No negative margin, no Navbar changes. */
+  padding-top: 66px;
 }
+
+/* anchor target for the "See plans & pricing" button — offsets the smooth
+   scroll so the section title isn't hidden under the fixed Navbar. */
+.upg #plans { scroll-margin-top: 80px; }
 
 .upg *, .upg *::before, .upg *::after { box-sizing: border-box; }
 .upg svg { display: block; }
