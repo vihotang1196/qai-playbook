@@ -1685,3 +1685,74 @@ never appeared on any page). Its only child,
 and is now unreferenced. Left in place deliberately — out of scope for this
 change. Deleting it should also sweep whatever it was the sole consumer of
 (assets, `t.coaching` i18n keys).
+
+## Coaching Night block rebuilt — calendar + inline player (2026-08-05)
+
+Not an Offline Event change; logged here because this file is the running log.
+Follows on from the replay-storage work recorded above.
+
+### 🔴 转化 / 流量 — settled by the owner, do NOT re-derive it from the data
+
+The schedule is **every Monday**, topic alternating 转化 / 流量 fortnightly.
+`COACHING_ANCHOR` + `topicForMonday` + `getNextMondays` were right all along and
+must not be "fixed".
+
+**Why this needs writing down:** `coaching_sessions` holds only 转化 rows at
+14-day spacing, and the full git history of `src/lib/coaching.ts` shows the same
+— no recording has *ever* been authored with 流量. It is extremely tempting to
+conclude the class is fortnightly. It is not. **The 流量 weeks happen; their
+recordings just never get uploaded.** July proves it exactly: 6 Jul and 20 Jul
+(流量) have no replay, 13 Jul and 27 Jul (转化) do. Reading a schedule off the
+recording table is reading absence of data as absence of an event — I made that
+mistake once already.
+
+So a Monday with no replay is a **real class with a missing recording**, which is
+why the calendar highlights every Monday and marks the replay-less ones as inert
+rather than hiding them.
+
+### The Tuesday dates in the old gallery are UPLOAD dates
+
+`OthersVideoGallery`'s 16 videos include four Tuesdays, each right after a
+Monday. That is not a two-night format: the owner taught Monday and uploaded
+Tuesday, and the file date became the title. So the prototype's PART 1 / PART 2
+framing is wrong too — **the same class is in there twice**. Whether those 16
+entries are ~8 sessions or 16 is unresolved; work it out before importing them.
+
+`/admin/coaching` now carries a permanent note plus a soft (non-blocking)
+warning when a non-Monday is picked, because that mistake is silent: the row
+saves, then highlights a weekday on the homepage calendar that no replay will
+ever match, and nothing errors.
+
+### ⚠️ `OthersVideoGallery` is the ONLY copy of 16 historical video URLs
+
+`src/components/coaching/OthersVideoGallery.tsx` (Dec 2025 – Apr 2026) is still
+unreferenced dead code, and **deleting it drops those URLs to git history only**
+— nobody three months from now will think to `git show` a deleted component.
+They are not in the database and not anywhere else in the tree. The custom
+player controls were lifted out of it into `CoachingPlayer.tsx`, so the file's
+only remaining value is that list. Import the URLs (or at least paste them here)
+before deleting. Deferred deliberately until this rebuild has settled.
+
+### Notes on the rebuild itself
+
+- **Every replay is 0.5–1 GB** (27 JUL = 963 MB) and the CDN reports
+  `cf-cache-status: BYPASS`, so every view goes to origin. Hence
+  `preload="none"` + IntersectionObserver: nothing loads until the block is
+  scrolled into view, and it **pauses on the way out** — "play when seen"
+  without "stop when unseen" leaves a gigabyte buffering while the customer
+  reads on. Leaving pauses (keeps `currentTime`) and never re-mutes.
+- **Native `controls` cannot be trimmed to three buttons.** `controlsList` only
+  accepts nodownload / nofullscreen / noplaybackrate / noremoteplayback — there
+  is no way to hide the volume slider or the timeline. Custom controls are not a
+  preference here, they are the only option.
+- **Most sessions have `cover_url` null**, so with `preload="none"` the first
+  thing on screen would be a black rectangle. `CoachingPlayer` draws a branded
+  placeholder (black + yellow tile + date + topic) whenever there is no cover; a
+  real cover uploaded in the admin takes over automatically. Do not "fix" this
+  by hand-uploading covers — that decays the moment one is forgotten.
+- The calendar shows the **current month only**, so in a month whose sessions
+  have not been recorded yet (e.g. August at time of writing) **no day is
+  clickable** and the horizontal strip under the player is the only way to
+  switch episodes. That resolves itself as replays land; it is not a bug.
+- Pre-existing `prefer-const` lint error on `getNextMondays`' `cursor` was left
+  alone — that function is off-limits by owner instruction.
