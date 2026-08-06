@@ -1944,3 +1944,68 @@ Three `--premium-*` tokens (old dark navy) are mapped in tailwind.config as
 set. Also note `.dark` in full is still the old blue/purple VisionOS theme and is
 currently unreachable: `darkMode: ["class"]` is configured but nothing in the code
 ever puts `dark` on `<html>`.
+
+---
+
+## Homepage cut to four sections (2026-08-06)
+
+`FeaturedCourses` and `MilestoneSection` are gone. The homepage is now
+**Hero → StartHere → CourseHub → SolutionsSection**. Measured at 1280×800:
+**6966px → 4720px, −2246px** (the two sections were 817 + 1426; the extra 3px
+is sub-pixel rounding across the four survivors, not spacing — the vertical
+padding lives inside each section, so removing one leaves no gap behind).
+
+Two commits on purpose: `c4d9bd2` removed the `<Section />` lines only, keeping
+the component files as a one-line rollback; `97d8bed` deleted the files plus
+`t.featured` once the first was confirmed good.
+
+**Why FeaturedCourses went:** it was CourseHub's four courses a second time, and
+its cards did nothing but `getElementById("courses").scrollIntoView()` — a menu
+whose only function was to scroll to the real menu 800px below.
+
+### 🔴 What this leaves for the future roadmap cleanup
+
+`MilestoneSection` was reading `t.roadmap.timeline`, not a `t.milestone` of its
+own. With it gone, **the only importer left for the whole ~130-line `t.roadmap`
+block (timeline / hero / value / product / comparison / proof) is
+`src/components/roadmap/` — eight components with no route in App.tsx and no
+importer anywhere.** All of it is now unreachable.
+
+**That cleanup's scope is therefore "8 components + the entire `t.roadmap`
+block", deleted together.** Splitting them breaks the build: drop the copy and
+`RoadmapTimeline.tsx` fails to compile. Leaving `t.roadmap` in place today was
+deliberate — folding it into the deletion commit would have cost that commit its
+clean rollback. **It is not an oversight.**
+
+### GuidedTour: two dead steps removed, a third one found
+
+The tour went 11 steps → 9. Nothing hardcodes the count — `isLast`, the progress
+dots and the `{step+1}/{tourSteps.length}` counter all derive from the array
+(GuidedTour.tsx:124/168/183), and `tourSteps` is a module-local const with no
+importers.
+
+A dead step does **not** throw: `if (!target) return` (GuidedTour.tsx:89) bails
+before measuring. The visible result is worse than a broken link — the page does
+not scroll, no yellow ring appears, and the card at the bottom still narrates a
+section that is not there. Nobody would report that as a bug.
+
+**🟠 Step 4 `targetId: "coaching"` is already dead and was NOT touched here.**
+`id="coaching"` does not exist anywhere in the codebase — GuidedTour.tsx:34 is
+its only mention. Same silent failure, predating this change. Also note the
+tour's order no longer matches the page: Coaching Night lives *inside*
+`<HeroSection>` near the top, so step 4 would scroll backwards past step 3
+(`#courses`, top 1968px) if its anchor existed. Fixing it means adding
+`id="coaching"` to the Coaching Night panel **and** moving that step ahead of
+`#courses` — otherwise the fix just makes the tour visibly jump backwards
+instead of quietly doing nothing.
+
+### Left alone on purpose
+
+- The Notion CTA in the deleted MilestoneSection
+  (`qiai.notion.site/27528b270a6d80b98cc9d45e0e6da90e`) was the homepage's only
+  link to that page. Its sibling CTA pointed at the WhatsApp group, which is
+  already `COMMUNITY_LINK` in HeroSection.tsx:17 — the hero's primary CTA — so
+  that one lost nothing. Owner is reviewing whether the Notion one needs a new
+  home; if so it is a separate commit.
+- One entry drops off the `hover:text-accent-foreground` no-op list above:
+  `components/FeaturedCourses.tsx` no longer exists. 12 occurrences → 11.
