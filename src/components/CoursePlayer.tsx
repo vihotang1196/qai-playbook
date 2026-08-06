@@ -220,17 +220,16 @@ const CoursePlayer = ({ courses, initialCourseId }: CoursePlayerProps) => {
                           key={idx}
                           ref={(el) => { listItemRefs.current[idx] = el; }}
                           onClick={() => selectLesson(idx)}
-                          // Hardcoded #fed50a rather than bg-accent: the --accent
-                          // token resolves to #FDCD0D, a hair off the brand
-                          // yellow, and the switcher chips sitting right beside
-                          // this list use the exact value.
+                          // Back on the semantic token: --accent now resolves to
+                          // #fed50a exactly, so there is no reason to hardcode it
+                          // and lose the one place a brand colour can be changed.
                           className={`w-full text-left flex items-center gap-2.5 px-3 py-2 rounded-lg transition-all ${
-                            isActive ? "bg-[#fed50a]/10 ring-1 ring-[#fed50a]/50" : "hover:bg-foreground/5"
+                            isActive ? "bg-accent/10 ring-1 ring-accent/40" : "hover:bg-foreground/5"
                           }`}
                         >
                           <span
                             className={`shrink-0 w-6 h-6 rounded-full flex items-center justify-center ${
-                              isActive ? "bg-[#fed50a] text-[#141414]" : "bg-foreground/10 text-foreground/60"
+                              isActive ? "bg-accent text-accent-foreground" : "bg-foreground/10 text-foreground/60"
                             }`}
                           >
                             <Play size={11} className="fill-current ml-px" />
