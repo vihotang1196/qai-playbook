@@ -410,7 +410,7 @@ const HeroSection = () => {
                 player goes on top — a customer on a phone is far likelier to want
                 to watch a replay than to plan around a schedule, and a 7-column
                 month grid is a poor first screen at 375px. */}
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-6 md:gap-8 md:divide-x divide-[#141414]/10">
+            <div className="grid grid-cols-1 md:grid-cols-[minmax(0,5fr)_minmax(0,7fr)] gap-6 md:gap-8 md:divide-x divide-[#141414]/10">
               {/* Calendar + Join room. md:mt-6 is the deliberate 24px offset that
                   sets the player's top edge slightly higher; 24 matches the
                   panel's own p-6 rhythm, so it reads as intent, not misalignment. */}
@@ -461,10 +461,12 @@ const HeroSection = () => {
                 })()}
               </div>
 
-              {/* Player + horizontal replay strip. flex-col with the strip on
-                  mt-auto bottom-aligns this column against the calendar, whose
-                  height changes with the month (a 6-row August vs a 5-row
-                  February), so no fixed height could ever match it. */}
+              {/* Player + horizontal replay strip.
+                  The strip sits directly under the player on a normal mt-4. An
+                  earlier version pushed it down with mt-auto to bottom-align the
+                  two columns; that bought an alignment nobody looks for and paid
+                  for it with 117px of empty space in the middle of the panel,
+                  which everybody sees. Columns of unequal height are fine. */}
               <div className="order-1 md:order-2 flex flex-col">
                 <p className="text-[11px] font-semibold tracking-widest uppercase text-muted-foreground mb-3">
                   {lang === "cn" ? "过往录像" : "Past Replays"}
@@ -484,7 +486,7 @@ const HeroSection = () => {
                       topic={current.topic}
                       lang={lang}
                     />
-                    <div className="mt-auto pt-3">
+                    <div className="mt-4">
                       <div className="flex gap-2 overflow-x-auto pb-1">
                         {recordings.map((r) => {
                           const on = r.iso === current.iso;

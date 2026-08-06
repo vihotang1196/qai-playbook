@@ -116,11 +116,36 @@ const CoachingCalendar = ({ replays, activeIso, onPick, today, anchor, next, top
         }}
         className="p-0"
         classNames={{
-          caption: "flex justify-start pt-0 pb-1 relative items-center",
+          // The month wrapper is a flex item in the stock `months` row, so it
+          // shrank to content (99px) and every width below it inherited that.
+          // Everything else here is downstream of these two.
+          months: "flex w-full",
+          month: "w-full space-y-2",
+          caption: "flex justify-start pt-0 pb-2 relative items-center",
           caption_label: "font-display text-base font-bold tracking-tight text-foreground",
-          head_cell: "w-9 text-[11px] font-semibold uppercase tracking-widest text-muted-foreground",
-          cell: "h-9 w-9 p-0 text-center text-sm relative",
-          day: "h-9 w-9 p-0 font-normal rounded-lg transition-[filter,box-shadow] duration-150",
+          // Fluid grid, not the stock fixed w-9 cells: at 36px the month only
+          // filled about half the column and left a band of white beside the
+          // full-width Join button under it, which read as a misalignment.
+          // flex-1 + aspect-square keeps the seven columns equal and the cells
+          // square at any column width, so nothing stretches out of shape.
+          // The <table> is forced to block layout. react-day-picker renders a
+          // real table, and table layout fights `flex-1` on the cells: the tracks
+          // size from content instead of the row, which collapsed every day to
+          // 14px. Dropping table layout makes the flex rows behave normally.
+          table: "block w-full",
+          head: "block w-full",
+          tbody: "block w-full",
+          head_row: "flex w-full",
+          head_cell: "flex-1 text-[11px] font-semibold uppercase tracking-widest text-muted-foreground",
+          row: "flex w-full mt-1",
+          cell: "flex-1 aspect-square p-0 text-center relative",
+          // absolute inset-0, not h-full/w-full: the cell's height comes from
+          // aspect-ratio, and a percentage height against that does not resolve
+          // — the button collapsed to its text and sat 21px inside a 48px cell.
+          // cursor-default by default — react-day-picker's own button class sets
+          // pointer on every day, which promises a click that only the days with
+          // a replay actually honour. The `replay` modifier puts it back.
+          day: "absolute inset-0 p-0 font-normal text-base rounded-lg cursor-default transition-[filter,box-shadow] duration-150",
           // Ring, not a fill: today can itself be either kind of Monday, so the
           // "you are here" marker has to survive on top of both.
           day_today: "ring-2 ring-[#141414] ring-offset-2 ring-offset-white",
