@@ -18,14 +18,18 @@ const formatTime = (s: number): string => {
 };
 
 /**
- * Course playback view: left video player (~65%) + right curriculum
- * sidebar (~35%). Designed to live inside a Dialog. Plays with sound,
- * highlights the active lesson, and auto-advances to the next lesson when
- * one finishes.
+ * Course playback view: left video player (~65%) + course switcher strip, right
+ * curriculum sidebar (~35%). Renders inline on the page (it used to sit in a
+ * Dialog opened from a grid of cover cards; both are gone). Plays with sound,
+ * highlights the active lesson, and auto-advances when one finishes.
+ *
+ * Nothing here autoplays, unlike CoachingPlayer. That one has a well-defined
+ * "latest episode" to start on; a 50-lesson hub does not, so any lesson it chose
+ * to start would be the wrong one.
  */
 type CoursePlayerProps = {
-  /** All selectable courses. A single entry hides the switcher strip, which is
-   *  how the existing Dialog usage keeps working untouched. */
+  /** All selectable courses. A single entry hides the switcher strip — there is
+   *  nothing to switch between, and the strip would just be a label. */
   courses: Course[];
   initialCourseId?: string;
 };
@@ -281,8 +285,7 @@ const CoursePlayer = ({ courses, initialCourseId }: CoursePlayerProps) => {
         </div>
 
         {/* Course switcher — same language as Coaching Night's date strip:
-            horizontal, scrollable, yellow fill on the selected one. Hidden when
-            there is only one course to choose from (the old Dialog usage). */}
+            horizontal, scrollable, yellow fill on the selected one. */}
         {courses.length > 1 && (
           <div className="mt-4 flex gap-2 overflow-x-auto pb-1">
             {courses.map((c) => {

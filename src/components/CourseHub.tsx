@@ -1,16 +1,22 @@
-import { Button } from "@/components/ui/button";
-import {
-  Dialog,
-  DialogContent,
-  DialogHeader,
-  DialogTitle,
-  DialogTrigger,
-} from "@/components/ui/dialog";
 import { useLang } from "@/i18n/LanguageContext";
 import { t } from "@/i18n/translations";
 import { courses } from "@/lib/courses";
 import CoursePlayer from "@/components/CoursePlayer";
 
+/**
+ * Course Hub — the player lives on the page now.
+ *
+ * It used to be a 2×2 grid of cover cards, each opening the same player inside a
+ * Dialog. The cards were a menu in front of a menu: the player already carries a
+ * course switcher and a full curriculum, so the grid only added a click and a
+ * modal. Inline, the first lesson of the first course is one click away.
+ *
+ * Note this section got SHORTER, not taller: the card grid was 939px of 16:9
+ * covers (measured, 1440px viewport), and the whole section was 1373px.
+ *
+ * `id="courses"` is unchanged on purpose — the Featured Courses cards scroll here
+ * with getElementById("courses").
+ */
 const CourseHub = () => {
   const { lang, hideSubtitles } = useLang();
 
@@ -23,38 +29,8 @@ const CourseHub = () => {
         </h2>
         {!hideSubtitles && <p className="mt-3 text-muted-foreground">{t.courseHub.subtitle[lang]}</p>}
 
-        {/* One array now — `courses` carries the copy as well as the curriculum,
-            so a card can no longer show one course's title over another's
-            videos. The old `data ?` fallback is gone with the pairing it was
-            guarding against. */}
-        <div className="mt-12 grid grid-cols-1 md:grid-cols-2 gap-8">
-          {courses.map((course) => (
-            <div key={course.id} className="vision-panel p-6">
-              <div className="w-full aspect-video rounded-xl bg-secondary mb-5 overflow-hidden">
-                <img src={course.cover} alt={course.title[lang]} className="w-full h-full object-cover" />
-              </div>
-              <h3 className="text-lg font-semibold tracking-tight">{course.title[lang]}</h3>
-              {!hideSubtitles && <p className="mt-1 text-sm text-muted-foreground">{course.desc[lang]}</p>}
-
-              <Dialog>
-                <DialogTrigger asChild>
-                  <Button variant="default" size="sm" className="mt-5 w-full">
-                    {t.courseHub.start[lang]}
-                  </Button>
-                </DialogTrigger>
-                <DialogContent className="max-w-6xl w-[95vw] p-0 gap-0 overflow-hidden">
-                  <DialogHeader className="px-5 pt-5 pb-3 text-left">
-                    <DialogTitle className="text-lg font-semibold tracking-tight">
-                      {course.title[lang]}
-                    </DialogTitle>
-                  </DialogHeader>
-                  <div className="px-4 pb-5 md:px-5">
-                    <CoursePlayer courses={[course]} />
-                  </div>
-                </DialogContent>
-              </Dialog>
-            </div>
-          ))}
+        <div className="mt-12">
+          <CoursePlayer courses={courses} />
         </div>
       </div>
     </section>
