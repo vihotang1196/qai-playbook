@@ -10,8 +10,14 @@ const Index = () => {
   return (
     <>
       <HeroSection />
-      <FeaturedCourses />
+      {/* StartHere sits directly under the hero: its second step is 「参加
+          Coaching」, and the Coaching Night panel lives inside <HeroSection>,
+          so the reader meets the invitation after the thing it points at, not
+          before it. Above the hero it would also push the headline, the three
+          CTAs and Coaching Night all past the first screen — that section is
+          1815px tall on its own. */}
       <StartHere />
+      <FeaturedCourses />
       <CourseHub />
 
       <MilestoneSection />
