@@ -74,7 +74,6 @@ const UpgradeV2 = () => {
           <h2 className="u-sec-title u-center u-display">
             {l(bi("You might be running into this", "你现在可能遇到这些问题"))}
           </h2>
-          <div className="u-sec-sub u-center">&nbsp;</div>
           <div className="u-card">
             <div className="u-pain-grid">
               <div className="u-pain">
@@ -252,9 +251,41 @@ const UpgradeV2 = () => {
       </section>
 
       {/* ⑥ 哪种情况 / WHICH ONE */}
-      <section className="u-sec">
-        <div className="u-wrap u-center">
-          <h2 className="u-sec-title u-display">{l(bi("⑥ Which one", "⑥ 哪种情况"))}</h2>
+      <section className="u-sec-tight">
+        <div className="u-wrap">
+          <h2 className="u-sec-title u-center u-display">
+            {l(bi("Which one is you right now?", "你现在是哪一种情况？"))}
+          </h2>
+          {!hideSubtitles && (
+            <p className="u-sec-sub u-center">
+              {l(bi("Find your situation, see what you need", "对号入座，一眼看出该加哪个"))}
+            </p>
+          )}
+          <div className="u-card u-row">
+            <span className="u-ic"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2" /><circle cx="9" cy="7" r="4" /><path d="M22 21v-2a4 4 0 0 0-3-3.87" /><path d="M16 3.13a4 4 0 0 1 0 7.75" /></svg></span>
+            <span className="u-situation">
+              {l(bi(
+                "More clients and brands — one account isn't enough",
+                "客户 / 品牌越来越多，一个账号不够用"
+              ))}
+            </span>
+            <span className="u-rec">{l(bi("You need: more accounts", "你需要：加账号"))}</span>
+          </div>
+          <div className="u-card u-row">
+            <span className="u-ic"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M7.9 20A9 9 0 1 0 4 16.1L2 22Z" /></svg></span>
+            <span className="u-situation">
+              {l(bi(
+                "One business, conversations overflowing, replies falling behind",
+                "单个业务对话爆满、回复跟不上、开始漏单"
+              ))}
+            </span>
+            <span className="u-rec">{l(bi("You need: more WhatsApp capacity", "你需要：加 WhatsApp 容量"))}</span>
+          </div>
+          <div className="u-card u-row">
+            <span className="u-ic"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2" /></svg></span>
+            <span className="u-situation">{l(bi("Both of the above", "两样都遇到了"))}</span>
+            <span className="u-rec">{l(bi("Add both — fastest way to scale", "两个一起加，放大最快"))}</span>
+          </div>
         </div>
       </section>
 
