@@ -24,17 +24,6 @@ export const t = {
     cta: { cn: "进入社区", en: "Join Community" },
     watch: { cn: "观看介绍", en: "Watch Intro" },
   },
-  featured: {
-    title: { cn: "精选内容", en: "Featured" },
-    subtitle: { cn: "精选内容，助你突破", en: "Curated content to help you break through" },
-    explore: { cn: "探索", en: "Explore" },
-    courses: [
-      { title: { cn: "广告设计", en: "Ad Design" }, desc: { cn: "打造高点击率的广告创意", en: "Create high-CTR ad creatives" } },
-      { title: { cn: "广告设置", en: "Ad Setup" }, desc: { cn: "系统化投放与优化策略", en: "Systematic launch & optimization strategy" } },
-      { title: { cn: "成交策略", en: "Closing Strategy" }, desc: { cn: "提升转化率的成交心法", en: "Conversion-boosting closing techniques" } },
-      { title: { cn: "文案攻略", en: "Copywriting" }, desc: { cn: "写出能卖货的文案", en: "Write copy that sells" } },
-    ],
-  },
   startHere: {
     title: { cn: "开始你的旅程", en: "Start Your Journey" },
     subtitle: { cn: "四步成长路径，从学习到蜕变", en: "Four steps from learning to transformation" },

@@ -14,8 +14,9 @@ import CoursePlayer from "@/components/CoursePlayer";
  * Note this section got SHORTER, not taller: the card grid was 939px of 16:9
  * covers (measured, 1440px viewport), and the whole section was 1373px.
  *
- * `id="courses"` is unchanged on purpose — the Featured Courses cards scroll here
- * with getElementById("courses").
+ * `id="courses"` is unchanged on purpose — GuidedTour scrolls here with
+ * getElementById("courses"). (Featured Courses used to be the other caller;
+ * that section is gone.)
  */
 const CourseHub = () => {
   const { lang, hideSubtitles } = useLang();
