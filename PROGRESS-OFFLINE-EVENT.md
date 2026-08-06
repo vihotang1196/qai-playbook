@@ -1888,3 +1888,59 @@ regression" is not "verified". The owner verifies the six behaviours on
 production in a real browser; **the Course Hub is not to be switched over until
 they confirm.** Same root cause as the earlier tooltip / hover / screenshot
 limitations recorded above: this pane produces no frames.
+
+## Brand yellow was 8/255 off in the theme tokens (2026-08-06)
+
+`--primary` / `--accent` / `--ring` all held `48 98% 52%`, which resolves to
+**#FDCD0D**, not the brand **#FED50A** — green channel low by 8. Invisible on its
+own; visible the moment a token-coloured element sits beside one of the many
+components that hardcode `#fed50a`. Found via the Course Hub curriculum list
+(`bg-accent` dot) next to the course switcher chips (`bg-[#fed50a]`).
+
+**Root cause:** the Batch 1 rebrand converted hex → HSL and rounded. Only yellow
+suffered: ink (`0 0% 8%` → #141414), white, and muted (`240 3% 36%` → #59595f)
+all round-trip exactly, because their HSL happens to be integral. Yellow does
+not — a full audit of all 56 `:root` tokens turned up **no other** brand colour
+off its stated value, and the only lying comment was `--primary`'s, which
+claimed to be #fed50a while resolving to #FDCD0D.
+
+**🔴 The decimals in `49.9 99.2% 51.8%` are load-bearing.** #fed50a is
+hsl(49.92, 99.19%, 51.76%) and **no integer HSL triple resolves to it** —
+brute-forced the whole 48–52 / 95–100% / 50–54% space. `50 99% 52%` gives
+rgb(254,213,11). Anyone "tidying" these to integers reintroduces the bug in
+miniature. A comment on `--primary` says so. Switching the tokens to hex instead
+was rejected: it would mean rewriting every `hsl(var(--x))` call site to
+`var(--x)`, whereas decimals cost nothing.
+
+**Why the token was changed here when `--accent-foreground` was fixed per-site.**
+Different failure modes. `hover:text-accent-foreground` (12 sites, still open
+below) is a *functional* no-op with no single correct replacement — each surface
+needs its own hover colour, so it must be decided per site. The yellow was a
+*cosmetic* near-miss with exactly one correct value that all 279 usages wanted;
+per-site would have meant hardcoding ~225 places across 30+ files and destroying
+the single point of control. **Many sites + tiny delta → change the token; few
+sites + visible delta → change the sites.**
+
+Verified programmatically, not by eye (an 8/255 shift is not eye-checkable):
+three tokens resolve to `rgb(254, 213, 10)`; the `bg-accent` dot and the
+hardcoded chip are now string-identical; `.dark` untouched (accent still
+`rgb(176,134,249)` purple, primary `rgb(100,156,247)` blue); the focus ring
+carries `rgb(254,213,10) 0 0 0 2px`; and a sweep of all 5 stylesheets finds
+**0 remaining #FDCD0D**.
+
+### ⚠️ Still-live coral: 8 `--sidebar-*` tokens (annotated, not fixed)
+
+`--sidebar-primary` and `--sidebar-ring` resolve to **#ff3d6a — the pre-rebrand
+brand colour** — and the rest are old navy #16213c and pink tints. Batch 1 never
+reached them. They are invisible only because their sole consumer,
+`src/components/ui/sidebar.tsx`, has no importers (dead code, same category as
+`OthersVideoGallery.tsx`). **Importing `<Sidebar>` would put coral pink on screen
+immediately.** A warning comment now sits above them in index.css saying to
+convert first. Low priority precisely because the failure is loud and
+unreachable, not silent.
+
+Three `--premium-*` tokens (old dark navy) are mapped in tailwind.config as
+`premium-*` with **zero uses in src** — dispose of them together with the sidebar
+set. Also note `.dark` in full is still the old blue/purple VisionOS theme and is
+currently unreachable: `darkMode: ["class"]` is configured but nothing in the code
+ever puts `dark` on `<html>`.
