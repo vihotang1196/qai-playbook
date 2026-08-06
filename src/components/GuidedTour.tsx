@@ -16,11 +16,6 @@ const tourSteps: TourStep[] = [
     description: { cn: "这是导航栏，你可以快速跳转到各个板块和页面，还能切换语言、字体大小和深色模式。", en: "This is the navigation bar — quickly jump to any section or page, switch language, font size, and dark mode." },
   },
   {
-    targetId: "featured",
-    title: { cn: "精选内容", en: "Featured Content" },
-    description: { cn: "这里是我们精选的课程和最新直播回放，帮你快速找到最有价值的内容。", en: "Here you'll find curated courses and the latest live session replays." },
-  },
-  {
     targetId: "start-here",
     title: { cn: "成长路径", en: "Growth Path" },
     description: { cn: "四步成长路径，从基础到蜕变，帮你系统化学习与执行。", en: "A four-step journey from fundamentals to transformation." },
@@ -34,11 +29,6 @@ const tourSteps: TourStep[] = [
     targetId: "coaching",
     title: { cn: "Coaching Night", en: "Coaching Night" },
     description: { cn: "每周在线直播培训，查看时间表、观看回放，随时参与学习。", en: "Weekly live coaching sessions — view the schedule, watch replays, and join anytime." },
-  },
-  {
-    targetId: "milestone",
-    title: { cn: "里程碑", en: "Milestones" },
-    description: { cn: "查看你的成长里程碑，每个阶段都有清晰的目标和行动指南。", en: "Track your growth milestones with clear goals and action guides at each stage." },
   },
   {
     targetId: "solutions",

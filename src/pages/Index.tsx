@@ -1,9 +1,6 @@
 import HeroSection from "@/components/HeroSection";
-import FeaturedCourses from "@/components/FeaturedCourses";
 import StartHere from "@/components/StartHere";
 import CourseHub from "@/components/CourseHub";
-
-import MilestoneSection from "@/components/MilestoneSection";
 import SolutionsSection from "@/components/solutions/SolutionsSection";
 
 const Index = () => {
@@ -17,10 +14,7 @@ const Index = () => {
           CTAs and Coaching Night all past the first screen — that section is
           1815px tall on its own. */}
       <StartHere />
-      <FeaturedCourses />
       <CourseHub />
-
-      <MilestoneSection />
       <SolutionsSection />
     </>
   );
