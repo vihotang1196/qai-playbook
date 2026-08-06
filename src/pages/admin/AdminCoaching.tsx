@@ -28,6 +28,18 @@ import {
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
 
+const CN_WEEKDAYS = ["周日", "周一", "周二", "周三", "周四", "周五", "周六"];
+
+/** Parse `YYYY-MM-DD` as a LOCAL date. `new Date(iso)` reads a bare date as UTC
+ *  midnight, which lands on the previous day west of Greenwich — and this value
+ *  decides whether the "not a Monday" warning fires. */
+const parseIso = (iso: string) => {
+  const [y, m, d] = iso.split("-").map(Number);
+  return new Date(y, (m || 1) - 1, d || 1);
+};
+const isMonday = (iso: string) => parseIso(iso).getDay() === 1;
+const weekdayCn = (iso: string) => CN_WEEKDAYS[parseIso(iso).getDay()];
+
 /** Clear a stuck body pointer-lock Radix can leave after a modal closes
  *  (radix-ui/primitives#2122). Same guard as the KB admin. */
 function releaseBodyPointerLock() {
@@ -245,6 +257,18 @@ function SessionDialog({
           <div>
             <label className="text-xs text-muted-foreground">日期 *</label>
             <Input type="date" value={date} onChange={(e) => setDate(e.target.value)} />
+            <p className="text-[11px] text-muted-foreground mt-1">
+              填<strong className="text-foreground">上课日期（周一）</strong>，不是上传日期。填错的话首页日历上会对不上，那条录像点不到。
+            </p>
+            {/* Soft warning, never a block: make-up classes and one-off sessions
+                are real. The failure this catches is silent — a Tuesday upload
+                date saves fine, then highlights a Tuesday on the homepage
+                calendar that no replay will ever match, and nothing errors. */}
+            {date && !isMonday(date) && (
+              <p className="text-[11px] font-semibold text-foreground mt-1 rounded-lg border-2 border-[#141414] bg-[#fed50a] px-2 py-1.5">
+                这不是周一（{weekdayCn(date)}），确认是上课日期吗？补课或特殊场次可以照常保存。
+              </p>
+            )}
           </div>
 
           <div>
