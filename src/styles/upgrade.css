@@ -1,5 +1,6 @@
 /* Scoped stylesheet for the /upgrade-v2 redesign.
-   Source: upgrade-design.html <style> block, mechanically transformed:
+   Source: the <style> block of upgrade-design.html, the original design mockup
+   (since removed from the repo), mechanically transformed:
      - every rule scoped under the top-level `.upg` container
      - every class renamed with a `u-` prefix (design names like card/row/badge
        are too generic and could clash with global styles)

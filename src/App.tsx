@@ -10,7 +10,6 @@ import Index from "./pages/Index.tsx";
 import DFY from "./pages/DFY.tsx";
 import Credits from "./pages/Credits.tsx";
 import Upgrade from "./pages/Upgrade.tsx";
-import UpgradeV2 from "./pages/UpgradeV2.tsx";
 import Affiliate from "./pages/Affiliate.tsx";
 import Tools from "./pages/Tools.tsx";
 import Copywriter from "./pages/Copywriter.tsx";
@@ -177,11 +176,7 @@ const App = () => (
               <Route path="/" element={<Index />} />
               <Route path="/dfy" element={<DFY />} />
               <Route path="/credits" element={<Credits />} />
-              {/* Production route now serves the redesigned page. The old
-                  <Upgrade /> page and its components are kept as a rollback
-                  path until the new one is confirmed good in production. */}
-              <Route path="/upgrade" element={<UpgradeV2 />} />
-              <Route path="/upgrade-v2" element={<UpgradeV2 />} />
+              <Route path="/upgrade" element={<Upgrade />} />
               <Route path="/affiliate" element={<Affiliate />} />
 
               {/* Offline Event — CUSTOMER booking page. Identity = URL location_id
