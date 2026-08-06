@@ -24,12 +24,13 @@
   --u-yellow: #fed50a;
 
   /* from the design's body{} — note the dot-grid background-image is
-     deliberately NOT carried over (see header comment). */
+     deliberately NOT carried over (see header comment). No background-color
+     either: the container stays transparent so the site-wide dot-grid layer
+     that Layout paints behind the page shows through. */
   font-family: 'Plus Jakarta Sans', 'Noto Sans SC', system-ui, sans-serif;
   font-size: 18px;
   line-height: 1.6;
   color: var(--u-ink);
-  background-color: #ffffff;
   -webkit-font-smoothing: antialiased;
 
   /* keeps the full-bleed dark hero from producing a horizontal scrollbar */
