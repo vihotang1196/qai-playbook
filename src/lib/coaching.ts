@@ -2,6 +2,9 @@ import { getSupabase } from "@/lib/supabase";
 import nurtureOs15Jun from "@/assets/nurture-os-15jun.png.asset.json";
 
 export interface CoachingRecording {
+  /** Raw `YYYY-MM-DD` from the DATE column. The calendar matches on this;
+   *  `date` below is display-only and cannot be parsed back reliably. */
+  iso: string;
   date: string;
   topic: string;
   url: string;
@@ -30,24 +33,28 @@ export function formatCoachingDate(iso: string): string {
 // 不要试图让它自动同步（会引入缓存一致性问题）。
 const FALLBACK_RECORDINGS: CoachingRecording[] = [
   {
+    iso: "2026-07-27",
     date: "27 JUL 2026",
     topic: "转化",
     url: "https://assets.cdn.filesafe.space/UQhNDa03bFrytsA8NXtD/media/6a67600495687dbf221e49dd.mp4",
     // no cover → branded placeholder fallback
   },
   {
+    iso: "2026-07-13",
     date: "13 JUL 2026",
     topic: "转化",
     url: "https://assets.cdn.filesafe.space/UQhNDa03bFrytsA8NXtD/media/6a55de071097b811959d71f8.mp4",
     // no cover → branded placeholder fallback
   },
   {
+    iso: "2026-06-29",
     date: "29 JUN 2026",
     topic: "转化",
     url: "https://assets.cdn.filesafe.space/UQhNDa03bFrytsA8NXtD/media/6a4340e63a7f0c5468a4a952.mp4",
     // no cover → branded placeholder fallback
   },
   {
+    iso: "2026-06-15",
     date: "15 JUN 2026",
     topic: "转化",
     url: "https://assets.cdn.filesafe.space/UQhNDa03bFrytsA8NXtD/media/6a30fc59998928ce1fdb43b7.mp4",
@@ -84,6 +91,7 @@ export async function fetchCoachingReplays(): Promise<CoachingRecording[]> {
     // A success without the contracted key is a broken deploy, not an empty list.
     if (!data || !Array.isArray(data.replays)) throw new Error("malformed response");
     return data.replays.map((r) => ({
+      iso: r.session_date,
       date: formatCoachingDate(r.session_date),
       topic: r.topic ?? "",
       url: r.replay_url,

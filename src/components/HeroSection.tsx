@@ -4,6 +4,8 @@ import { ArrowRight, Play, Video, Calendar, Clock, MapPin, CalendarPlus, Rocket,
 import { useLang } from "@/i18n/LanguageContext";
 import { t } from "@/i18n/translations";
 import { fetchCoachingReplays, type CoachingRecording } from "@/lib/coaching";
+import CoachingCalendar from "./coaching/CoachingCalendar";
+import CoachingPlayer from "./coaching/CoachingPlayer";
 import GuidedTour from "./GuidedTour";
 import {
   Dialog,
@@ -144,6 +146,18 @@ const HeroSection = () => {
       alive = false;
     };
   }, []);
+  // What the player is showing. Falls back to the newest replay rather than
+  // being seeded by an effect, so a fresh load always opens on the latest
+  // episode and picking one is the only thing that overrides it.
+  const current = activeRecording ?? recordings?.[0] ?? null;
+  /** THE one switch. The calendar and the strip below the player both call it,
+   *  so the two can never disagree about what is playing. */
+  const pickRecording = (r: CoachingRecording) => setActiveRecording(r);
+  const replayByIso = useMemo(
+    () => new Map((recordings ?? []).map((r) => [r.iso, r])),
+    [recordings],
+  );
+
   const [, setTick] = useState(0);
   useEffect(() => {
     const id = setInterval(() => setTick((t) => t + 1), 30000);
@@ -390,49 +404,43 @@ const HeroSection = () => {
               </p>
             </div>
 
-            {/* Two zones: upcoming sessions | past replays */}
+            {/* Calendar (schedule) | player (replays).
+                DOM order is calendar-then-player so `md:divide-x` puts the rule
+                between the two columns; `order-*` flips them below md, where the
+                player goes on top — a customer on a phone is far likelier to want
+                to watch a replay than to plan around a schedule, and a 7-column
+                month grid is a poor first screen at 375px. */}
             <div className="grid grid-cols-1 md:grid-cols-2 gap-6 md:gap-8 md:divide-x divide-[#141414]/10">
-              {/* Left — upcoming sessions */}
-              <div className="md:pr-8">
+              {/* Calendar + Join room. md:mt-6 is the deliberate 24px offset that
+                  sets the player's top edge slightly higher; 24 matches the
+                  panel's own p-6 rhythm, so it reads as intent, not misalignment. */}
+              <div className="order-2 md:order-1 md:pr-8 md:mt-6">
                 <p className="text-[11px] font-semibold tracking-widest uppercase text-muted-foreground mb-3">
-                  {lang === "cn" ? "即将到来" : "Upcoming"}
+                  {lang === "cn" ? "排期" : "Schedule"}
                 </p>
                 {(() => {
                   const myt = getMytNow();
                   const nextMondays = getNextMondays(3);
-                  const fmtMd = (d: Date) => `${d.getMonth() + 1}月 ${d.getDate()}日`;
-                  const fmtMdEn = (d: Date) =>
-                    `${d.toLocaleString("en-US", { month: "short" })} ${d.getDate()}`;
                   const minutes = myt.getHours() * 60 + myt.getMinutes();
                   const isSameDay = (a: Date, b: Date) =>
                     a.getFullYear() === b.getFullYear() && a.getMonth() === b.getMonth() && a.getDate() === b.getDate();
-                  // All sessions share one room link, so a single Join button
-                  // gated on "is any date live now" (today + 19:00–21:30 MYT).
-                  const liveIndex = nextMondays.findIndex(
+                  // Unchanged: all sessions share one room link, so a single Join
+                  // button gated on "is any date live now" (today + 19:00–21:30 MYT).
+                  const anyLive = nextMondays.some(
                     (d) => isSameDay(d, myt) && minutes >= 19 * 60 && minutes <= 21 * 60 + 30,
                   );
-                  const anyLive = liveIndex >= 0;
                   return (
                     <>
-                      <div className="space-y-2">
-                        {nextMondays.map((d, i) => (
-                          <div key={i} className="flex items-center justify-between gap-3 rounded-xl bg-[#141414]/[0.04] px-3 py-2">
-                            <div className="flex items-center gap-2 min-w-0">
-                              <span className="text-sm font-bold tracking-tight text-foreground truncate">
-                                {lang === "cn" ? `${fmtMd(d)} · 一` : `${fmtMdEn(d)} · Mon`}
-                              </span>
-                              {i === liveIndex && (
-                                <span className="shrink-0 text-[9px] font-bold uppercase px-1.5 py-0.5 rounded bg-[#141414] text-white animate-pulse">
-                                  LIVE
-                                </span>
-                              )}
-                            </div>
-                            <span className="shrink-0 px-2 py-0.5 rounded-full bg-[#141414]/[0.06] text-foreground text-[11px] font-semibold">
-                              {topicForMonday(d)}
-                            </span>
-                          </div>
-                        ))}
-                      </div>
+                      <CoachingCalendar
+                        replays={replayByIso}
+                        activeIso={current?.iso ?? null}
+                        onPick={pickRecording}
+                        today={myt}
+                        anchor={COACHING_ANCHOR}
+                        next={nextMondays[0] ?? null}
+                        topicFor={topicForMonday}
+                        lang={lang}
+                      />
                       <Button
                         size="sm"
                         variant={anyLive ? "default" : "outline"}
@@ -442,50 +450,70 @@ const HeroSection = () => {
                       >
                         <Video size={14} />
                         {lang === "cn" ? "进入教室" : "Join Room"}
+                        {anyLive && (
+                          <span className="ml-1 text-[9px] font-bold uppercase px-1.5 py-0.5 rounded bg-[#141414] text-white animate-pulse">
+                            LIVE
+                          </span>
+                        )}
                       </Button>
                     </>
                   );
                 })()}
               </div>
 
-              {/* Right — past replays */}
-              <div>
+              {/* Player + horizontal replay strip. flex-col with the strip on
+                  mt-auto bottom-aligns this column against the calendar, whose
+                  height changes with the month (a 6-row August vs a 5-row
+                  February), so no fixed height could ever match it. */}
+              <div className="order-1 md:order-2 flex flex-col">
                 <p className="text-[11px] font-semibold tracking-widest uppercase text-muted-foreground mb-3">
                   {lang === "cn" ? "过往录像" : "Past Replays"}
                 </p>
                 {recordings === null ? (
-                  // Same box metrics as a real row, so the panel doesn't jump.
-                  <div className="space-y-2" aria-hidden>
-                    {[0, 1, 2, 3].map((i) => (
-                      <div
-                        key={i}
-                        className="h-[53px] animate-pulse rounded-xl border border-[#141414]/10 bg-[#141414]/[0.04]"
-                      />
-                    ))}
-                  </div>
-                ) : recordings.length === 0 ? (
+                  <div className="aspect-video w-full animate-pulse rounded-xl border-2 border-[#141414]/15 bg-[#141414]/[0.04]" aria-hidden />
+                ) : !current ? (
                   <p className="text-sm text-muted-foreground">
                     {lang === "cn" ? "暂无录像，敬请期待。" : "No recordings yet. Stay tuned."}
                   </p>
                 ) : (
-                  <div className="space-y-2">
-                    {recordings.map((r, i) => (
-                      <button
-                        key={i}
-                        type="button"
-                        onClick={() => setActiveRecording(r)}
-                        className="group flex w-full items-center gap-3 rounded-xl border border-[#141414]/20 bg-[#141414]/[0.04] px-3 py-2.5 text-left transition-all duration-300 hover:bg-[#141414]/[0.08]"
-                      >
-                        <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-[#141414]/[0.08] text-foreground transition-colors group-hover:bg-[#141414] group-hover:text-white">
-                          <Play size={14} className="fill-current ml-0.5" />
-                        </span>
-                        <span className="flex flex-1 items-center justify-between gap-2">
-                          <span className="text-sm font-semibold text-foreground">{r.date}</span>
-                          <span className="text-[11px] font-medium text-muted-foreground">{r.topic}</span>
-                        </span>
-                      </button>
-                    ))}
-                  </div>
+                  <>
+                    <CoachingPlayer
+                      src={current.url}
+                      poster={current.cover}
+                      label={current.date}
+                      topic={current.topic}
+                      lang={lang}
+                    />
+                    <div className="mt-auto pt-3">
+                      <div className="flex gap-2 overflow-x-auto pb-1">
+                        {recordings.map((r) => {
+                          const on = r.iso === current.iso;
+                          return (
+                            <button
+                              key={r.iso}
+                              type="button"
+                              onClick={() => pickRecording(r)}
+                              aria-current={on ? "true" : undefined}
+                              className={`shrink-0 rounded-xl border-2 border-[#141414] px-3 py-2 text-left transition-[transform,box-shadow] duration-150 ${
+                                on
+                                  ? "bg-[#fed50a] shadow-[3px_3px_0_#141414]"
+                                  : "bg-white hover:-translate-x-[1px] hover:-translate-y-[1px] hover:shadow-[3px_3px_0_#141414]"
+                              }`}
+                            >
+                              <span className="block text-xs font-bold tracking-tight text-foreground whitespace-nowrap">
+                                {r.date}
+                              </span>
+                              {r.topic && (
+                                <span className="block text-[10px] font-medium text-muted-foreground whitespace-nowrap">
+                                  {r.topic}
+                                </span>
+                              )}
+                            </button>
+                          );
+                        })}
+                      </div>
+                    </div>
+                  </>
                 )}
               </div>
             </div>
@@ -523,30 +551,8 @@ const HeroSection = () => {
         </DialogContent>
       </Dialog>
 
-      {/* Coaching Night replay player */}
-      <Dialog open={!!activeRecording} onOpenChange={(open) => !open && setActiveRecording(null)}>
-        <DialogContent className="max-w-3xl w-[92vw] p-0 overflow-hidden">
-          <DialogHeader className="px-5 pt-5 pb-3 text-left">
-            <DialogTitle className="text-base font-semibold tracking-tight">
-              {lang === "cn" ? "Coaching Night 回放" : "Coaching Night Replay"}
-              {activeRecording && <span className="text-muted-foreground font-medium"> — {activeRecording.date} · {activeRecording.topic}</span>}
-            </DialogTitle>
-          </DialogHeader>
-          <div className="px-4 pb-5 md:px-5">
-            {activeRecording && (
-              <video
-                key={activeRecording.url}
-                src={activeRecording.url}
-                poster={activeRecording.cover}
-                controls
-                autoPlay
-                playsInline
-                className="w-full aspect-video rounded-xl bg-black"
-              />
-            )}
-          </div>
-        </DialogContent>
-      </Dialog>
+      {/* The replay Dialog is gone: replays now play inline in the Coaching
+          Night panel, so a modal would be a second, competing player. */}
     </>
   );
 };
