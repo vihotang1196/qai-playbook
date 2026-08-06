@@ -386,8 +386,11 @@ const HeroSection = () => {
           </div>
         </div>
 
-        {/* ── Coaching Night group: ONE panel — upcoming + past replays ── */}
-        <div className="mt-6 md:mt-8">
+        {/* ── Coaching Night group: ONE panel — upcoming + past replays ──
+             id="coaching" is GuidedTour's target. Keep it on this wrapper, not
+             on the inner glass panel: the tour rings the element's bounding box
+             and the wrapper is what carries the top margin. */}
+        <div id="coaching" className="mt-6 md:mt-8">
           <div className="glass-panel-red p-5 md:p-6">
             {/* Header: title + shared session-time note */}
             <div className="flex flex-col gap-1.5 sm:flex-row sm:items-center sm:justify-between mb-5">

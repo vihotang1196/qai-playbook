@@ -9,11 +9,29 @@ interface TourStep {
   description: { cn: string; en: string };
 }
 
+/**
+ * ORDER MATTERS: keep these in the page's own top-to-bottom order.
+ *
+ * Each step calls scrollIntoView on its target, so a step that sits above the
+ * previous one makes the tour scroll backwards. Measured document positions at
+ * the time of writing: #coaching 555 (it lives INSIDE <HeroSection>, above
+ * StartHere — not where its name suggests), #start-here 1212, #courses 1968,
+ * #solutions 3008.
+ *
+ * The navbar steps are exempt: #navbar-nav and the four #nav-* targets live in
+ * a `fixed` <header>, so they are always on screen and scrollIntoView moves
+ * nothing. They can bookend the list without scrolling the page back up.
+ */
 const tourSteps: TourStep[] = [
   {
     targetId: "navbar-nav",
     title: { cn: "导航菜单", en: "Navigation Menu" },
     description: { cn: "这是导航栏，你可以快速跳转到各个板块和页面，还能切换语言、字体大小和深色模式。", en: "This is the navigation bar — quickly jump to any section or page, switch language, font size, and dark mode." },
+  },
+  {
+    targetId: "coaching",
+    title: { cn: "Coaching Night", en: "Coaching Night" },
+    description: { cn: "每周在线直播培训，查看时间表、观看回放，随时参与学习。", en: "Weekly live coaching sessions — view the schedule, watch replays, and join anytime." },
   },
   {
     targetId: "start-here",
@@ -24,11 +42,6 @@ const tourSteps: TourStep[] = [
     targetId: "courses",
     title: { cn: "课程中心", en: "Course Hub" },
     description: { cn: "系统化的课程内容，包含广告设计、广告设置、成交策略和文案攻略。", en: "Structured courses covering ad design, ad setup, closing strategy, and copywriting." },
-  },
-  {
-    targetId: "coaching",
-    title: { cn: "Coaching Night", en: "Coaching Night" },
-    description: { cn: "每周在线直播培训，查看时间表、观看回放，随时参与学习。", en: "Weekly live coaching sessions — view the schedule, watch replays, and join anytime." },
   },
   {
     targetId: "solutions",
@@ -67,6 +80,28 @@ const GuidedTour = ({ isOpen, onClose }: GuidedTourProps) => {
   const [step, setStep] = useState(0);
   const [highlight, setHighlight] = useState<{ top: number; left: number; width: number; height: number } | null>(null);
   const rafRef = useRef<number>(0);
+
+  /**
+   * DEV-only: shout about steps whose target does not exist.
+   *
+   * A rotted targetId fails SILENTLY — the effect below bails at
+   * `if (!target) return`, so the page does not scroll, no ring is drawn, and
+   * the card at the bottom carries on narrating a section that is not there.
+   * Nothing throws, so nothing surfaces it. Three steps (featured, milestone,
+   * coaching) had rotted this way before anyone noticed, and only two of them
+   * were removed on purpose. Stripped from production builds.
+   */
+  useEffect(() => {
+    if (!import.meta.env.DEV || !isOpen) return;
+    const missing = tourSteps.filter((s) => !document.getElementById(s.targetId));
+    if (missing.length > 0) {
+      console.warn(
+        `[GuidedTour] ${missing.length} of ${tourSteps.length} steps target an element that does not exist here. ` +
+          `They will silently do nothing — no scroll, no highlight, card still talking:`,
+        missing.map((s) => `#${s.targetId} — "${s.title.en}"`),
+      );
+    }
+  }, [isOpen]);
 
   useEffect(() => {
     if (!isOpen) {
