@@ -2009,3 +2009,86 @@ instead of quietly doing nothing.
   home; if so it is a separate commit.
 - One entry drops off the `hover:text-accent-foreground` no-op list above:
   `components/FeaturedCourses.tsx` no longer exists. 12 occurrences → 11.
+
+---
+
+## GuidedTour: a rotted targetId fails silently, and nothing tells you (2026-08-06)
+
+**The failure mode.** A tour step whose `targetId` matches no element does not
+throw and does not look broken. `GuidedTour.tsx:89` bails at
+`if (!target) return;` before measuring, so the page does not scroll, no yellow
+ring is drawn, and the card at the bottom carries on narrating a section that is
+not on screen. The user sees a tour that "went weird for a second". Nobody would
+file that.
+
+**Three steps had rotted at once** — `featured`, `milestone` and `coaching` —
+and only the first two were removed deliberately. `id="coaching"` had never
+existed anywhere in the codebase; `GuidedTour.tsx:34` was its sole mention. That
+is the point: **no mechanism existed to tell anyone a targetId had gone dead.**
+The `if (!target) return` guard prevents the crash and swallows the signal in the
+same line.
+
+### Fix 1 — the anchor, plus the ordering trap that comes with it
+
+`id="coaching"` now sits on the Coaching Night wrapper in HeroSection (on the
+wrapper, not the inner `.glass-panel-red`: the ring traces the bounding box and
+the wrapper carries the top margin).
+
+**Adding the id alone would have made it worse.** The Coaching Night panel lives
+*inside* `<HeroSection>` at y=555 — above StartHere, not where its position in
+the step list implied. Restoring the anchor without moving the step would have
+taken the tour from step 3 `#courses` (1968) backwards to 555: silent nothing
+traded for a visible backwards jump. So the step moved to position 2.
+
+Measured order, now monotonically downward:
+
+| # | target | y | |
+|---|---|---|---|
+| 1 | navbar-nav | 17 | fixed header — no scroll |
+| 2 | coaching | 555 | ⬇ |
+| 3 | start-here | 1212 | ⬇ |
+| 4 | courses | 1968 | ⬇ |
+| 5 | solutions | 3008 | ⬇ |
+| 6–9 | nav-dfy / -credits / -upgrade / -affiliate | 17 | fixed header — no scroll |
+
+**The navbar steps are exempt from the ordering rule** and this is worth knowing
+before someone "fixes" them: they sit in `<header class="fixed top-0">`, so they
+are always on screen and `scrollIntoView` moves nothing. They can bookend the
+list without dragging the page back to the top.
+
+### Fix 2 — DEV-only anchor check
+
+Opening the tour now walks every `targetId` and `console.warn`s the ones that
+resolve to nothing, naming each step. Guarded by `import.meta.env.DEV`.
+**Verified stripped from production**: the warning string is absent from a fresh
+bundle that still contains the same component's other copy (the grep has a
+positive control, so a zero is a real zero).
+
+### Ordering invariant, for whoever edits tourSteps next
+
+Keep steps in the page's own top-to-bottom order. A comment above `tourSteps`
+now says so and carries the measured positions. Nothing enforces it — the DEV
+check catches *missing* anchors, not *out-of-order* ones.
+
+### ⚠️ The browser panel cannot verify scrolling
+
+Burned an hour on this, so: **the in-app browser panel renders the whole page
+flattened and has no real scroll viewport.** `body.clientHeight` equals
+`documentElement.scrollHeight` (4720 both), `window.scrollTo`,
+`scrollingElement.scrollTop = N` and `scrollIntoView` all silently no-op with
+`scrollY` pinned at 0. Same family as the known "cannot capture composited
+frames" limitation.
+
+Consequence: **`getBoundingClientRect()` on the tour's absolutely-positioned
+highlight returns stale values there** — it reported every step as the step-1 box
+(522×54), which reads exactly like "the highlight never updates". It does. Check
+the element's **inline `style.top/height`** and the SVG mask rect instead; both
+matched target ±12px padding on all 9 steps. Do not diagnose a scroll or
+position bug from that panel.
+
+### Note for the eventual /upgrade cleanup
+
+While this was in flight another session was mid-merge on the upgrade pages, with
+its deletions already staged. Committed with `git commit -- <paths>` so only
+these two files went in and their staged work stayed untouched — worth reusing
+whenever `git status` shows staged changes that are not yours.
