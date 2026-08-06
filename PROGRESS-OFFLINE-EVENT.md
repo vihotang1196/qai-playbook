@@ -1756,3 +1756,74 @@ before deleting. Deferred deliberately until this rebuild has settled.
   switch episodes. That resolves itself as replays land; it is not a bug.
 - Pre-existing `prefer-const` lint error on `getNextMondays`' `cursor` was left
   alone — that function is off-limits by owner instruction.
+
+## Course Hub rebuilt — inline player + course switcher (2026-08-06)
+
+Not an Offline Event change; logged here because this file is the running log.
+
+The 2×2 grid of cover cards, each opening the player in a Dialog, is gone. The
+player renders on the page with a course switcher strip under it and the
+curriculum on the right. The cards were a menu in front of a menu — the player
+already carried both a switcher and a full curriculum.
+
+### Measured facts worth not re-deriving
+
+**Course videos are an order of magnitude smaller than Coaching Night replays.**
+All 50 measured, all HTTP 200, no dead links: **~3.6 GB total, avg 73 MB**,
+range 5–485 MB. Coaching Night is 563–1064 MB *per episode*. Same CDN behaviour
+otherwise (`access-control-allow-origin: *`, Range → 206, `cf-cache-status`
+MISS/BYPASS so every view goes to origin).
+
+Per course: 广告设计 18 lessons / 1883 MB · 成交策略 13 / 981 MB ·
+广告设置 11 / 343 MB · 文案攻略 8 / 466 MB.
+
+**The 485 MB outlier is lesson 18 of 18** in 广告设计 ("Canva 设计神器 -
+Step-by-step Demo"), in the last module. It is NOT near the front, so the default
+course does not need changing — lesson 1 is 134 MB. Check this again before
+making any course the default.
+
+**Sidebar height cannot be a fixed number.** The curriculum is 481px for
+文案攻略 and 1003px for 广告设计, while the player's height comes from its
+column width (`aspect-video`). The old `max-h-[560px]` was wrong for both. It is
+now solved structurally: on lg the sidebar's inner frame is `absolute inset-0`,
+so that column contributes no content height, the grid row is sized by the player
+alone, and the sidebar fills exactly that and scrolls inside. Same lesson as the
+Coaching Night calendar — **flex/structure, never a magic pixel height**, because
+both inputs vary independently.
+
+**The section got SHORTER, not taller** (I predicted taller): 1373px → 1004px at
+1440px viewport. The card grid was 939px of 16:9 covers.
+
+### Deliberate differences from CoachingPlayer
+
+- **No autoplay here, on purpose.** Coaching Night has a well-defined "latest
+  episode" to open on; a 50-lesson hub does not, so any lesson it picked to start
+  would be the wrong one. Course switch → lesson 1, paused, showing the course
+  cover. Lesson click → plays.
+- `preload="none"` for the same reason it exists in CoachingPlayer, but the
+  trigger differs: nothing autoplays, so nothing should preload, and this player
+  is now permanently mounted on the homepage.
+- **Watch out:** `preload="none"` silently breaks any "autoplay when metadata
+  arrives" pattern — `onLoadedMetadata` never fires until something calls
+  `play()`. The lesson-select path was rewritten to call `play()` from the
+  activeIndex effect instead. If a future change reintroduces
+  metadata-triggered playback, it will do nothing and not error.
+- Mobile collapses the curriculum to the module being watched. A nested scroll
+  area would fight the page scroll on touch; ~1000px of list under a 184px video
+  is worse.
+
+### The two players are still separate, by owner's decision
+
+`CoachingPlayer` and `CoursePlayer` are same-origin duplicates (both descend from
+the `OthersVideoGallery` prototype) and share progress-bar / mute / fullscreen /
+seek logic almost line for line. **Not merged: both are live, and merging would
+change two working things at once.** Revisit only with a reason.
+
+### Removed coupling: i18n paired with data by array index
+
+`t.courseHub.courses` duplicated each course's title and was paired with
+`courses.ts` **by array index**, so adding or reordering either side would put
+one course's title over another's videos — and the `data ?` fallback rendered a
+Start button that did nothing instead of failing loudly. `desc` moved onto
+`Course`, the i18n array is deleted, and the pairing no longer exists. The
+coupling was not fixed, it was removed.
