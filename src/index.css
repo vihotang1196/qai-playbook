@@ -17,7 +17,15 @@
     --popover: 0 0% 100%;
     --popover-foreground: 0 0% 8%;    /* (was 222 47% 11%) */
 
-    --primary: 48 98% 52%;            /* brand yellow #fed50a (was coral 346 100% 62%) */
+    /* ── Brand yellow. FRACTIONAL HSL ON PURPOSE ─────────────────────────
+       #fed50a is hsl(49.92, 99.19%, 51.76%). Rounded to integers it lands
+       somewhere else: the original `48 98% 52%` resolved to #FDCD0D — 8/255 off
+       on the green channel, invisible alone but visible beside the many
+       components that hardcode #fed50a. There is NO integer HSL triple that
+       resolves to #fed50a (brute-forced 48–52 / 95–100% / 50–54%), so the
+       decimals are load-bearing; do not "tidy" them to 50 99% 52%, which gives
+       rgb(254,213,11). All three yellow tokens below must stay identical. */
+    --primary: 49.9 99.2% 51.8%;      /* brand yellow #fed50a (was coral 346 100% 62%) */
     --primary-foreground: 0 0% 8%;    /* ink on yellow (was white 0 0% 100%) */
 
     --secondary: 0 0% 96%;            /* neutral (was 340 40% 97%) */
@@ -26,7 +34,7 @@
     --muted: 0 0% 96%;                /* neutral (was 340 30% 96%) */
     --muted-foreground: 240 3% 36%;   /* #59595f (was 220 9% 46%) */
 
-    --accent: 48 98% 52%;             /* yellow (was pink 330 81% 60%) */
+    --accent: 49.9 99.2% 51.8%;       /* brand yellow #fed50a — see note on --primary (was pink 330 81% 60%) */
     --accent-foreground: 0 0% 8%;     /* (was white) */
 
     --destructive: 0 84.2% 60.2%;
@@ -34,7 +42,7 @@
 
     --border: 0 0% 87%;               /* neutral hairline (was pinkish 340 25% 92%) */
     --input: 0 0% 85%;                /* (was 340 25% 93%) */
-    --ring: 48 98% 52%;               /* yellow (was coral 346 100% 62%) */
+    --ring: 49.9 99.2% 51.8%;         /* brand yellow #fed50a — see note on --primary (was coral 346 100% 62%) */
 
     --radius: 0.75rem;                 /* 12px — crisper Brutalist (was 1.5rem/24px) */
 
@@ -55,6 +63,15 @@
     --gradient-accent: linear-gradient(135deg, #fed50a, #f5c400);
     --gradient-warm: linear-gradient(135deg, #fed50a, #f5c400);
 
+    /* ⚠️ CORAL-ERA LEFTOVERS — the rebrand never reached these.
+       `--sidebar-primary` / `--sidebar-ring` resolve to #ff3d6a, which is the
+       PRE-REBRAND brand colour; the rest are the old navy (#16213c) and pink
+       tints. They are invisible today only because their sole consumer,
+       src/components/ui/sidebar.tsx, has no importers anywhere — it is dead
+       code. Reviving that component would put coral pink on screen instantly.
+       So: if you ever import <Sidebar>, convert these to the Brutalist palette
+       (ink #141414 / yellow #fed50a / white) FIRST. Deferred rather than fixed
+       because a loud failure nobody can trip over is not urgent. */
     --sidebar-background: 220 50% 99%;
     --sidebar-foreground: 222 47% 16%;
     --sidebar-primary: 346 100% 62%;
@@ -64,6 +81,9 @@
     --sidebar-border: 340 25% 92%;
     --sidebar-ring: 346 100% 62%;
 
+    /* Same story, less risk: mapped in tailwind.config as premium-* but with
+       ZERO uses anywhere in src. Dispose of these together with the sidebar
+       tokens above. */
     --premium-bg: 222 47% 11%;
     --premium-fg: 0 0% 100%;
     --premium-muted: 220 10% 70%;
