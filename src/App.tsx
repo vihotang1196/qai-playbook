@@ -177,7 +177,10 @@ const App = () => (
               <Route path="/" element={<Index />} />
               <Route path="/dfy" element={<DFY />} />
               <Route path="/credits" element={<Credits />} />
-              <Route path="/upgrade" element={<Upgrade />} />
+              {/* Production route now serves the redesigned page. The old
+                  <Upgrade /> page and its components are kept as a rollback
+                  path until the new one is confirmed good in production. */}
+              <Route path="/upgrade" element={<UpgradeV2 />} />
               <Route path="/upgrade-v2" element={<UpgradeV2 />} />
               <Route path="/affiliate" element={<Affiliate />} />
 
