@@ -280,7 +280,7 @@ function InflightNotice({
   const secs = Math.max(0, Math.round((now - startedAt) / 1000));
 
   return (
-    <div className="mx-auto mb-6 max-w-3xl rounded-2xl border-2 border-[#141414] bg-[#fed50a]/15 px-5 py-4">
+    <div className="mx-auto mb-6 max-w-5xl rounded-2xl border-2 border-[#141414] bg-[#fed50a]/15 px-5 py-4">
       <div className="flex items-start gap-3">
         <Loader2 className="mt-0.5 h-5 w-5 shrink-0 animate-spin text-[#141414]" />
         <div className="min-w-0 flex-1">
