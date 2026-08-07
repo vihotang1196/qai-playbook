@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { useLang } from "@/i18n/LanguageContext";
 import { Dialog, DialogContent, DialogTitle } from "@/components/ui/dialog";
-import { MessageCircleQuestion, Sparkles, type LucideIcon } from "lucide-react";
+import { type LucideIcon } from "lucide-react";
 
 import thumbEmailResell from "@/assets/credits/email-resell-settings.webp";
 import thumbPremiumTriggers from "@/assets/credits/premium-triggers-actions.webp";
@@ -13,6 +13,13 @@ import thumbWhatsappApi from "@/assets/credits/whatsapp-business-api.webp";
 import thumbReviewAi from "@/assets/credits/review-ai.webp";
 import thumbFunnelAi from "@/assets/credits/funnel-ai.webp";
 import thumbAgentStudio from "@/assets/credits/agent-studio.webp";
+// These two came in at 1915x900 and 1916x505 rather than 16:9, so their
+// thumbnails are pre-cropped to 400x225 instead of scaled at native aspect like
+// the ten above. Stored uncropped they would be 400x188 and 400x105, and the
+// card would scale them UP to fill a ~204px-tall box. The full-size originals
+// are untouched — the preview shows the whole frame.
+import thumbAskAi from "@/assets/credits/ask-ai.webp";
+import thumbAiStudio from "@/assets/credits/ai-studio.webp";
 
 type Bi = { en: string; cn: string };
 const bi = (en: string, cn: string): Bi => ({ en, cn });
@@ -20,18 +27,19 @@ const bi = (en: string, cn: string): Bi => ({ en, cn });
 /**
  * Each service carries TWO images on purpose:
  *
- *   thumb — a 400×225 webp bundled with the app (src/assets/credits). ~6 KB each,
- *           63 KB for all ten. These are what the grid renders.
- *   full  — the untouched 1920×1080 PNG on the CDN, 344–765 KB each. Fetched
- *           ONLY when someone opens the preview.
+ *   thumb — a 400×225 webp bundled with the app (src/assets/credits). 1.5–8.5 KB
+ *           each, 67 KB for all twelve. These are what the grid renders.
+ *   full  — the untouched screenshot on the CDN, 125–765 KB each. Fetched ONLY
+ *           when someone opens the preview.
  *
  * The originals used to be the card images: 5.34 MB of 1920px PNGs downloaded to
  * be drawn into ~290px boxes. The CDN has no image pipeline — `?width=`, `?w=`,
  * `?tr=w-` and `?fm=webp` were all tried and every one returns the full-size PNG
  * unchanged — so the small versions are generated ahead of time and committed.
  *
- * Adding a service means adding its thumbnail to src/assets/credits too. If that
- * is ever a burden, the fallback is `icon` below, not a 1920px card image.
+ * Adding a service means adding its thumbnail to src/assets/credits too, sized
+ * 400px wide, webp quality 82. If that is ever a burden, the fallback is `icon`
+ * below, not a full-size card image.
  */
 type Service = {
   title: Bi;
@@ -39,96 +47,107 @@ type Service = {
   value: Bi;
   thumb?: string;
   full?: string;
-  /** For services with no screenshot at all — see the placeholder note below. */
+  /**
+   * Fallback for a service with no screenshot: an icon block of the same 16:9
+   * size, not clickable. Nothing uses it right now — every service has an image
+   * — and it is kept deliberately, because the next service added may not.
+   */
   icon?: LucideIcon;
 };
 
-const CDN = "https://assets.cdn.filesafe.space/zUvmZ5aUG77DfLnXLzKo/media/";
+// The segment after the host is a GHL LOCATION ID, not a fixed prefix. Most of
+// these screenshots were captured in the main sub-account; Ask AI and AI Studio
+// came from the demo one, so their URLs differ by more than the file id and the
+// two cannot share a constant. Adding an image from a third sub-account means
+// adding a third constant here, not pasting a full URL inline.
+const CDN = "https://assets.cdn.filesafe.space/";
+const MEDIA_MAIN = `${CDN}zUvmZ5aUG77DfLnXLzKo/media/`;
+const MEDIA_DEMO = `${CDN}gsRRLb2A8IoATd9qWNmh/media/`;
 
 const services: Service[] = [
   {
     title: bi("Email Resell Settings", "邮件转售设置"),
     thumb: thumbEmailResell,
-    full: `${CDN}6967623702f1bea84560db0e.png`,
+    full: `${MEDIA_MAIN}6967623702f1bea84560db0e.png`,
     price: "$0.0014 / email",
     value: bi("$10 ≈ 7,145 emails", "$10 ≈ 7,145 封邮件"),
   },
   {
     title: bi("Premium Triggers & Actions", "高级触发器与操作"),
     thumb: thumbPremiumTriggers,
-    full: `${CDN}6967620502f1be529b60d5ba.png`,
+    full: `${MEDIA_MAIN}6967620502f1be529b60d5ba.png`,
     price: "$0.02 / execution",
     value: bi("$10 ≈ 500 executions", "$10 ≈ 500 次执行"),
   },
   {
     title: bi("Email Verification", "邮箱验证"),
     thumb: thumbEmailVerification,
-    full: `${CDN}6967608eb9e85ca81d354001.png`,
+    full: `${MEDIA_MAIN}6967608eb9e85ca81d354001.png`,
     price: "$0.005 / verification",
     value: bi("$10 ≈ 2,000 verifications", "$10 ≈ 2,000 次验证"),
   },
   {
     title: bi("Content AI", "内容 AI"),
     thumb: thumbContentAi,
-    full: `${CDN}69676052a3a1146528139420.png`,
+    full: `${MEDIA_MAIN}69676052a3a1146528139420.png`,
     price: "$0.18 / 1K words · $0.12 / image",
     value: bi("$10 ≈ 55,555 words or 85 images", "$10 ≈ 55,555 字或 85 张图片"),
   },
   {
     title: bi("Workflow AI Models", "工作流 AI 模型"),
     thumb: thumbWorkflowAi,
-    full: `${CDN}6967601e02f1be97d66088ae.png`,
+    full: `${MEDIA_MAIN}6967601e02f1be97d66088ae.png`,
     price: "$1.20 / 750K input · $4.80 / 750K output",
     value: bi("$10 ≈ 6.25M input words", "$10 ≈ 625 万输入字"),
   },
   {
     title: bi("Conversation & Voice AI", "对话与语音 AI"),
     thumb: thumbConversationAi,
-    full: `${CDN}69675fe789a60e5675424775.png`,
+    full: `${MEDIA_MAIN}69675fe789a60e5675424775.png`,
     price: "$0.04 / msg · $0.26 / min voice",
     value: bi("$10 ≈ 250 msgs or 40 min calls", "$10 ≈ 250 条消息或 40 分钟通话"),
   },
   {
     title: bi("WhatsApp Business API", "WhatsApp 商业 API"),
     thumb: thumbWhatsappApi,
-    full: `${CDN}69675fbe41565282a655a291.png`,
+    full: `${MEDIA_MAIN}69675fbe41565282a655a291.png`,
     price: "$0.0962 / usage",
     value: bi("$10 ≈ 105 usages", "$10 ≈ 105 次使用"),
   },
   {
     title: bi("Review AI", "评论 AI"),
     thumb: thumbReviewAi,
-    full: `${CDN}69675f8da3a114d78d137901.png`,
+    full: `${MEDIA_MAIN}69675f8da3a114d78d137901.png`,
     price: "$0.02 / response",
     value: bi("$10 ≈ 500 responses", "$10 ≈ 500 条回复"),
   },
   {
     title: bi("Funnel AI", "漏斗 AI"),
     thumb: thumbFunnelAi,
-    full: `${CDN}69675f29a3a1140d91136ec4.png`,
+    full: `${MEDIA_MAIN}69675f29a3a1140d91136ec4.png`,
     price: "$1.98 / funnel",
     value: bi("$10 ≈ 5 funnels", "$10 ≈ 5 个漏斗"),
   },
   {
     title: bi("Agent Studio", "Agent Studio"),
     thumb: thumbAgentStudio,
-    full: `${CDN}69675e934156524c68557f16.png`,
+    full: `${MEDIA_MAIN}69675e934156524c68557f16.png`,
     price: "$0.50 / 750K words",
     value: bi("$10 ≈ 1,500,000 words", "$10 ≈ 150 万字"),
   },
-  // No screenshot exists for these two. They get an icon block of the same 16:9
-  // size so the grid keeps its shape — a short card among tall ones reads as a
-  // rendering fault. The block is deliberately NOT clickable: there is no larger
-  // image behind it, and opening an empty viewer is worse than not offering one.
+  // These last two live in the demo sub-account — note MEDIA_DEMO, not
+  // MEDIA_MAIN. They shipped as icon placeholders until screenshots existed.
   {
     title: bi("Ask AI", "Ask AI"),
-    icon: MessageCircleQuestion,
+    thumb: thumbAskAi,
+    full: `${MEDIA_DEMO}6a755e1a4d2d75c766b4783a.png`,
     price: "$4.22 / 1,000,000 Tokens",
     value: bi("$10 ≈ 1,000,000 Tokens", "$10 ≈ 1,000,000 Tokens"),
   },
   {
     title: bi("AI Studio", "AI Studio"),
-    icon: Sparkles,
+    thumb: thumbAiStudio,
+    full: `${MEDIA_DEMO}6a755e1a13503efed5f60a11.png`,
     price: "$4.22 / 1,000,000 Tokens",
     value: bi("$10 ≈ 1,000,000 Tokens", "$10 ≈ 1,000,000 Tokens"),
   },
@@ -203,6 +222,11 @@ const ServicePricingGrid = () => {
                   </span>
                 </button>
               ) : (
+                // Unreached today — every service has a screenshot. Kept for the
+                // next one that does not: same 16:9 box so the grid keeps its
+                // shape (a short card among tall ones reads as a rendering
+                // fault), and deliberately NOT clickable, since there would be
+                // no larger image behind it.
                 <div
                   aria-hidden
                   className="flex aspect-video w-full items-center justify-center border-b-2 border-[#141414] bg-[#141414]"
