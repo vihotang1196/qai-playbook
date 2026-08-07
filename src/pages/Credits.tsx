@@ -47,10 +47,7 @@ const Credits = () => {
         {/* ═══ SECTION 2: SERVICE PRICING ═══ */}
         <ServicePricingGrid />
 
-
-
-
-        {/* ═══ SECTION 4: TRANSPARENCY ═══ */}
+        {/* ═══ SECTION 3: TRANSPARENCY ═══ */}
         <section className="max-w-5xl mx-auto px-6 mb-24">
           <h2 className="text-3xl font-bold text-center mb-3">
             {l(bi("Full control, full transparency", "完全掌控，完全透明"))}
@@ -78,10 +75,6 @@ const Credits = () => {
             ))}
           </div>
         </section>
-
-
-
-
     </main>
   );
 };
