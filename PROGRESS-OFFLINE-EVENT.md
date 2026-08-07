@@ -2185,3 +2185,90 @@ above), so **none of the three scroll behaviours could be verified there.** What
 was verified: 首页 is client-side (JS context survives), the effect fires exactly
 once, and its argument is `{top: 0, behavior: "instant"}`. Landing position,
 anchor behaviour and back/forward restore all need a real browser.
+
+---
+
+## 🔴 STRUCTURAL: ScrollToTop always loses. Any mount-time scroll beats it. (2026-08-07)
+
+**This matters more than the bug that exposed it.**
+
+`<ScrollToTop />` is the FIRST child of `<BrowserRouter>`, and `<Routes>` comes
+after it (App.tsx). React runs effects in tree order, so an earlier sibling's
+subtree always commits before a later one's. **ScrollToTop therefore runs before
+every component on the page — and whatever scrolls last wins.** Measured on a
+real navigation: ScrollToTop at t=57ms, CoursePlayer's mount effect at t=193ms.
+The later one decided where the reader ended up.
+
+This is structural, not a timing accident. It cannot be fixed by reordering,
+delaying, or making ScrollToTop "more aggressive": anything that mounts inside a
+route is by definition later.
+
+### The rule this implies
+
+**Any scroll or focus performed on mount must be asked one question: can it move
+the document?** If the answer is not a confident no, do not use
+`scrollIntoView()` / `focus()` / `scrollIntoViewIfNeeded()` — set the container's
+own `scrollTop` instead.
+
+`focus()` counts. It scrolls the focused element into view exactly like
+`scrollIntoView` does (use `focus({ preventScroll: true })` when the element must
+be focused but the page must not move).
+
+Every future component that adds a mount-time scroll re-creates this bug, and
+ScrollToTop will not save it. There is no global guard — only this rule.
+
+### ⚠️ `block: "nearest"` does NOT confine a scroll to its container
+
+This was believed to be safe on first read and it is not. **`nearest` means
+"scroll the minimum distance needed to make this visible" — not "only scroll
+inside the scroll container".** When the target sits outside the VIEWPORT,
+`scrollIntoView` walks every scrollable ancestor up to and including the
+document, `nearest` or not. The option controls *how far* it scrolls, never
+*what* it scrolls.
+
+There is no option to `scrollIntoView` that limits it to one container. Confining
+it means computing the offset and assigning `container.scrollTop` yourself.
+`scrollIntoViewIfNeeded()` is not an answer either — it is non-standard and has
+the same ancestor-walking behaviour.
+
+### The bug this came from
+
+`CoursePlayer` kept its active curriculum row visible with
+`scrollIntoView({ block: "nearest", behavior: "smooth" })` in an effect keyed on
+`[activeIndex]` — which also runs on mount. Two bugs in one line:
+
+1. **Arriving at the homepage dumped the reader at Course Hub** (the row is at
+   y≈2391, well below the fold). This affected a plain load of
+   playbook.qiai.tech as much as an in-app navigation — the load path does not
+   matter, because the component mounts either way.
+2. **Clicking a lesson far down the list scrolled the page too.** Never
+   reported. It would have surfaced later as "the page jumps when I pick a
+   lesson", with nothing connecting it to this file.
+
+Fixing only (2) would have left (1); fixing only (1) — e.g. by skipping the
+mount pass — would have left (2). Both were fixed: skip the first run
+(`prevIndexRef === null`), and set `frame.scrollTop` directly.
+
+Note for anyone editing that effect: offsets come from `getBoundingClientRect`,
+not `offsetTop`. `offsetTop` is measured from the offsetParent, which on `lg` is
+the absolutely-positioned outer frame rather than the scrolling div, so it would
+be wrong on exactly the breakpoint where the sidebar actually scrolls.
+
+### How this class of bug is verified without a scrolling viewport
+
+The browser panel cannot scroll (see the GuidedTour section), so "did the page
+move" is unanswerable there directly. What works instead: **patch
+`Element.prototype.scrollIntoView` and `window.scrollTo` to record every call,
+with `new Error().stack` for the source**, then drive the interaction. That is
+how the 57ms/193ms ordering and the offending call site were pinned down, and
+how the fix was confirmed (homepage arrival now fires ScrollToTop alone; lesson
+15 scrolls the frame 0→126 with zero page-scroll calls).
+
+### Searching a production bundle: mind the quote style
+
+Confirming a fix had shipped nearly produced a false "not deployed" answer:
+grepping the minified bundle for `behavior:"instant"` found nothing, because the
+minifier had rewritten it as `` behavior:`instant` `` — backticks, not double
+quotes. **Search minified bundles for the bare identifier (`instant`, `POP`,
+`nearest`) and read the surrounding context, never for a quoted literal.** The
+fix was live the whole time.
