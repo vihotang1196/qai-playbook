@@ -153,7 +153,11 @@ type NavItem = {
 };
 
 const navLinks: NavItem[] = [
-  { label: t.nav.home, href: "#hero", icon: Home, owns: ["/"] },
+  // 首页 = the TOP OF THE PAGE, deliberately not an anchor to a section. It was
+  // "#hero" until the hero stopped being the first block, at which point 首页
+  // scrolled DOWN. Pointing it at whatever section is currently first would just
+  // re-arm that trap for the next reorder. See handleNavClick.
+  { label: t.nav.home, href: "#", icon: Home, owns: ["/"] },
   // Help Center — the internal Helpdesk page (/help). withLocation carries the GHL
   // location_id so the shared help center recognises the sub-account.
   { label: { en: "Help Center", cn: "帮助中心" }, href: "/help", isRoute: true, noSemibold: true, withLocation: true, icon: LifeBuoy, owns: ["/help"] },
@@ -233,7 +237,18 @@ const Navbar = () => {
     if (link.isRoute) return; // normal navigation for route links
     if (!isHome) {
       e.preventDefault();
-      navigate("/" + link.href);
+      // "#" is 首页, which is the homepage itself — "/#" would work but leaves a
+      // bare hash on the URL for no reason.
+      navigate(link.href === "#" ? "/" : "/" + link.href);
+      return;
+    }
+    // Already home: scroll to the top ourselves. A bare href="#" does land at
+    // the top natively, but it also stamps "#" onto the URL and jumps instantly;
+    // this keeps the address clean and matches the smooth scroll every other
+    // in-page link uses.
+    if (link.href === "#") {
+      e.preventDefault();
+      window.scrollTo({ top: 0, behavior: "smooth" });
     }
   };
 

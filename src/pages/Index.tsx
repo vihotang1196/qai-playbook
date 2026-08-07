@@ -6,14 +6,18 @@ import SolutionsSection from "@/components/solutions/SolutionsSection";
 const Index = () => {
   return (
     <>
-      <HeroSection />
-      {/* StartHere sits directly under the hero: its second step is 「参加
-          Coaching」, and the Coaching Night panel lives inside <HeroSection>,
-          so the reader meets the invitation after the thing it points at, not
-          before it. Above the hero it would also push the headline, the three
-          CTAs and Coaching Night all past the first screen — that section is
-          1815px tall on its own. */}
+      {/* StartHere opens the page (owner's call): the first thing a visitor
+          should see is 「开始你的旅程」, not the headline.
+
+          This reverses the previous arrangement, and the cost is real and
+          accepted: 「参加 Coaching」 is step 2 of this section, but the
+          Coaching Night panel it points at lives inside <HeroSection> BELOW —
+          so the invitation now arrives before the thing it refers to. The
+          panel also drops off the first screen (~1310px in, vs 555 before),
+          which means its autoplay gate no longer fires on load; it fires when
+          the reader scrolls down to it. Left as-is on purpose. */}
       <StartHere />
+      <HeroSection />
       <CourseHub />
       <SolutionsSection />
     </>

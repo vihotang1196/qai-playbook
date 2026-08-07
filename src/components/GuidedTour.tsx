@@ -14,9 +14,12 @@ interface TourStep {
  *
  * Each step calls scrollIntoView on its target, so a step that sits above the
  * previous one makes the tour scroll backwards. Measured document positions at
- * the time of writing: #coaching 555 (it lives INSIDE <HeroSection>, above
- * StartHere — not where its name suggests), #start-here 1212, #courses 1968,
- * #solutions 3008.
+ * 1280×800: #start-here 0, #coaching 1312, #courses 1970, #solutions 3010.
+ *
+ * #coaching is the one that bites. It is NOT a section of its own — it lives
+ * INSIDE <HeroSection>, so it moves whenever the homepage is reordered. It has
+ * already been at 555 (hero first) and is now at 1312 (StartHere first). Always
+ * re-measure it rather than assuming where it sits.
  *
  * The navbar steps are exempt: #navbar-nav and the four #nav-* targets live in
  * a `fixed` <header>, so they are always on screen and scrollIntoView moves
@@ -29,14 +32,14 @@ const tourSteps: TourStep[] = [
     description: { cn: "这是导航栏，你可以快速跳转到各个板块和页面，还能切换语言、字体大小和深色模式。", en: "This is the navigation bar — quickly jump to any section or page, switch language, font size, and dark mode." },
   },
   {
-    targetId: "coaching",
-    title: { cn: "Coaching Night", en: "Coaching Night" },
-    description: { cn: "每周在线直播培训，查看时间表、观看回放，随时参与学习。", en: "Weekly live coaching sessions — view the schedule, watch replays, and join anytime." },
-  },
-  {
     targetId: "start-here",
     title: { cn: "成长路径", en: "Growth Path" },
     description: { cn: "四步成长路径，从基础到蜕变，帮你系统化学习与执行。", en: "A four-step journey from fundamentals to transformation." },
+  },
+  {
+    targetId: "coaching",
+    title: { cn: "Coaching Night", en: "Coaching Night" },
+    description: { cn: "每周在线直播培训，查看时间表、观看回放，随时参与学习。", en: "Weekly live coaching sessions — view the schedule, watch replays, and join anytime." },
   },
   {
     targetId: "courses",
