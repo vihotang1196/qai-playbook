@@ -1,6 +1,6 @@
 import { useEffect } from "react";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { BrowserRouter, Route, Routes, useLocation, useNavigate } from "react-router-dom";
+import { BrowserRouter, Route, Routes, useLocation, useNavigate, useNavigationType } from "react-router-dom";
 import { Toaster as Sonner } from "@/components/ui/sonner";
 import { Toaster } from "@/components/ui/toaster";
 import { TooltipProvider } from "@/components/ui/tooltip";
@@ -53,9 +53,58 @@ import GuidePage from "./pages/guides/GuidePage";
 import QaiStylePreview from "./pages/QaiStylePreview";
 import { rememberLocationId, rememberStaff, resolveLocationId, getDefaultPage } from "@/lib/ghl";
 
+/**
+ * Land at the top of the page on navigation.
+ *
+ * This arrived in the original Lovable import (1d9e0fe) as a bare
+ * `window.scrollTo(0, 0)` and was never looked at again. It was broken that
+ * whole time, and PROBABILISTICALLY so, which is why nobody reported it —
+ * short pages happened to finish the scroll, long ones did not.
+ *
+ * ── 1. `behavior: "instant"` is load-bearing. Do not drop it. ──
+ * index.css sets `html { scroll-behavior: smooth }`. That CSS hijacks any
+ * programmatic scroll whose behavior is `auto` — and `auto` is the default,
+ * so plain `scrollTo(0, 0)` becomes a several-hundred-millisecond ANIMATION
+ * starting from wherever the previous page was scrolled to. The new route is
+ * mounting at the same moment; the document height changes underneath the
+ * animation and it dies partway, leaving the reader in the middle of the new
+ * page. Coming from a long page to the homepage this was reliable enough to
+ * look like a feature. `instant` is the only value that overrules the CSS.
+ * (Deleting the global smooth rule would also work, but it would change how
+ * every in-page anchor on the site feels. Same trap, same escape as
+ * styles/upgrade.css:15, which dropped that rule for the same reason.)
+ *
+ * ── 2. The POP branch is UNVERIFIED — treat it as a hypothesis. ──
+ * On back/forward we do nothing and let the browser's own
+ * `history.scrollRestoration` (currently "auto") put the reader back where
+ * they were. That is the correct INTENT — a reader going back expects their
+ * old position, not the top — and it is strictly better than what happened
+ * before, which was scrolling them to the top and discarding the restored
+ * position entirely.
+ *
+ * Whether the browser actually lands on the right spot is another question.
+ * Under client-side routing the restore fires on popstate, BEFORE React has
+ * rendered the destination, so the document is still short and the browser
+ * may clamp a 3000px restore down to whatever currently fits. This is a known
+ * SPA problem. If real-world testing shows it landing short, the fix is to
+ * record scroll positions per history key ourselves and restore after paint —
+ * do NOT "fix" it by deleting this branch and scrolling to the top on POP.
+ *
+ * ── 3. The hash branch is defensive, not load-bearing. ──
+ * Nothing currently navigates ACROSS pages with a hash: the site's only hash
+ * links (/dfy, /qai-style, the two logos) are same-page anchors, and a
+ * same-page anchor never changes `pathname`, so this effect does not run for
+ * them at all. It is here so that adding one such link later cannot silently
+ * turn into "the anchor is ignored and you get dumped at the top".
+ */
 const ScrollToTop = () => {
-  const { pathname } = useLocation();
-  useEffect(() => { window.scrollTo(0, 0); }, [pathname]);
+  const { pathname, hash } = useLocation();
+  const navType = useNavigationType();
+  useEffect(() => {
+    if (navType === "POP") return;  // back/forward — see 2 above
+    if (hash) return;               // let the anchor win — see 3 above
+    window.scrollTo({ top: 0, behavior: "instant" });
+  }, [pathname, hash, navType]);
   return null;
 };
 
