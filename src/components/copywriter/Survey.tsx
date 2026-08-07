@@ -15,6 +15,14 @@ import {
 import { Sparkles, Languages } from "lucide-react";
 import type { SurveyInput } from "@/lib/copywriter/types";
 import { T, type Language, loadLang, saveLang } from "@/lib/copywriter/i18n";
+import {
+  TONE_KEYS,
+  GENDER_KEYS,
+  CTA_KEYS,
+  AGE_ANY,
+  OPTION_LABELS,
+  normalizeOptionValue,
+} from "@/lib/copywriter/options";
 
 const DRAFT_KEY = "qai_survey_draft";
 
@@ -38,7 +46,20 @@ function loadDraft(): SurveyInput {
   if (typeof window === "undefined") return DEFAULT;
   try {
     const raw = localStorage.getItem(DRAFT_KEY);
-    return raw ? { ...DEFAULT, ...JSON.parse(raw) } : DEFAULT;
+    if (!raw) return DEFAULT;
+    const saved = { ...DEFAULT, ...JSON.parse(raw) } as SurveyInput;
+    // Drafts written before options became stable keys hold the localized label
+    // that was on screen ("专业"). Translate those back to keys so the buttons
+    // light up again; anything unrecognisable is cleared so the customer
+    // re-picks rather than a stale string reaching the prompt. The free-text
+    // answers they actually spent time on are untouched either way.
+    return {
+      ...saved,
+      tone: normalizeOptionValue("tone", saved.tone),
+      gender: normalizeOptionValue("gender", saved.gender),
+      cta: normalizeOptionValue("cta", saved.cta),
+      ageRange: normalizeOptionValue("age", saved.ageRange),
+    };
   } catch {
     return DEFAULT;
   }
@@ -154,7 +175,7 @@ export function Survey({
 
   const setLanguage = (l: Language) => {
     saveLang(l);
-    setData((d) => ({ ...d, language: l, tone: d.tone || T[l].toneOptions[1] }));
+    setData((d) => ({ ...d, language: l, tone: d.tone || TONE_KEYS[1] }));
   };
 
   const canSubmit =
@@ -257,8 +278,7 @@ export function Survey({
             <div className={STACK_CLS}>
               <Field label={t.ageRange} required>
                 {(() => {
-                  const isUnlimited =
-                    !!data.ageRange && !/^\d+-\d+$/.test(data.ageRange);
+                  const isUnlimited = data.ageRange === AGE_ANY;
                   const m = data.ageRange.match(/^(\d+)-(\d+)$/);
                   const lo = m ? parseInt(m[1], 10) : 25;
                   const hi = m ? parseInt(m[2], 10) : 45;
@@ -282,14 +302,14 @@ export function Survey({
                         </button>
                         <button
                           type="button"
-                          onClick={() => update("ageRange", t.ageUnlimited)}
+                          onClick={() => update("ageRange", AGE_ANY)}
                           className={`rounded-xl px-3 py-2.5 text-sm font-medium transition-all duration-300 ${
                             isUnlimited
                               ? "bg-[#fed50a] border-2 border-[#141414] text-[#141414]"
                               : "glass-input hover:-translate-y-0.5"
                           }`}
                         >
-                          {t.ageUnlimited}
+                          {OPTION_LABELS[lang].age[AGE_ANY]}
                         </button>
                       </div>
                       {!isUnlimited && !!data.ageRange && (
@@ -323,18 +343,18 @@ export function Survey({
               <Field label={t.gender} required>
                 <div className={GROUP_CLS}>
                   <div className="grid grid-cols-3 gap-2">
-                    {t.genderOptions.map((opt) => (
+                    {GENDER_KEYS.map((k) => (
                       <button
-                        key={opt}
+                        key={k}
                         type="button"
-                        onClick={() => update("gender", opt)}
+                        onClick={() => update("gender", k)}
                         className={`rounded-xl px-3 py-2.5 text-sm font-medium transition-all duration-300 ${
-                          data.gender === opt
+                          data.gender === k
                             ? "bg-[#fed50a] border-2 border-[#141414] text-[#141414]"
                             : "glass-input hover:-translate-y-0.5"
                         }`}
                       >
-                        {opt}
+                        {OPTION_LABELS[lang].gender[k]}
                       </button>
                     ))}
                   </div>
@@ -361,9 +381,9 @@ export function Survey({
                     <SelectValue placeholder={t.ctaPh} />
                   </SelectTrigger>
                   <SelectContent>
-                    {t.ctaOptions.map((o) => (
-                      <SelectItem key={o} value={o}>
-                        {o}
+                    {CTA_KEYS.map((k) => (
+                      <SelectItem key={k} value={k}>
+                        {OPTION_LABELS[lang].cta[k]}
                       </SelectItem>
                     ))}
                   </SelectContent>
@@ -372,18 +392,18 @@ export function Survey({
               <Field label={t.tone} required>
                 <div className={GROUP_CLS}>
                   <div className="grid grid-cols-2 gap-2">
-                    {t.toneOptions.map((opt) => (
+                    {TONE_KEYS.map((k) => (
                       <button
-                        key={opt}
+                        key={k}
                         type="button"
-                        onClick={() => update("tone", opt)}
+                        onClick={() => update("tone", k)}
                         className={`rounded-xl px-3 py-3 text-sm font-medium transition-all duration-300 ${
-                          data.tone === opt
+                          data.tone === k
                             ? "bg-[#fed50a] border-2 border-[#141414] text-[#141414]"
                             : "glass-input hover:-translate-y-0.5"
                         }`}
                       >
-                        {opt}
+                        {OPTION_LABELS[lang].tone[k]}
                       </button>
                     ))}
                   </div>
