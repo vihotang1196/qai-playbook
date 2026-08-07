@@ -142,11 +142,19 @@ const ServicePricingGrid = () => {
   const [preview, setPreview] = useState<Service | null>(null);
 
   return (
-    // max-w-7xl, one step wider than the page's other two sections (the hero is
-    // 4xl and Transparency is 5xl — they have never shared a container). At four
-    // columns this puts each card at ~290px, the same size as the StartHere cards
-    // on the homepage.
-    <section className="max-w-7xl mx-auto px-6 mb-24">
+    // 1600px rather than a Tailwind step: the primary way customers reach this
+    // page is inside the GHL iframe, which is ~1900px wide, and max-w-7xl (1280)
+    // left a wide empty margin down both sides. The page's other two sections
+    // are narrower (hero 4xl, Transparency 5xl) and always have been — they have
+    // never shared a container, so widening this one aligns with nothing.
+    //
+    // Still FOUR columns, not five or six. 12 divides evenly by 4 and 6 but not
+    // by 5, so five columns would strand two orphans in the last row. Six across
+    // the full width lands back at ~286px per card — as tight as before — and
+    // collapses to ~228px once the window drops to 1536, where the longest price
+    // line stops fitting. Four at 1600 gives ~370px: a clean 3×4, more room for
+    // the text, and the 400px thumbnails render just under 1:1.
+    <section className="max-w-[1600px] mx-auto px-6 mb-24">
       <h2 className="text-3xl font-bold text-center mb-3">
         {l(bi("What Uses Credits?", "什么会使用额度？"))}
       </h2>
