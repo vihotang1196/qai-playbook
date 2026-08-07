@@ -2272,3 +2272,107 @@ minifier had rewritten it as `` behavior:`instant` `` — backticks, not double
 quotes. **Search minified bundles for the bare identifier (`instant`, `POP`,
 `nearest`) and read the surrounding context, never for a quoted literal.** The
 fix was live the whole time.
+
+---
+
+## Helpdesk: conversations were fragmenting, and two bugs were covering for each other (2026-08-07)
+
+`conversationId` lived only in React state. Every reload started a NEW
+conversation row. The visible symptom was a blank chat — but the real damage was
+in the data: one person asking three questions with a refresh between them
+became **three separate conversations** in the admin list, and the assistant
+lost the thread each time. Every conversation recorded since launch is
+fragmented this way; the fix does not repair the existing rows.
+
+Fixed by persisting the id in localStorage (keyed per sub-account) plus a new
+`history` action that replays the visitor's most recent thread.
+
+### 🔴 Two bugs that hid each other — "fixing one makes things worse"
+
+**This pattern is the reason this section exists.**
+
+The model's history was fetched with `.order("created_at").limit(20)` —
+ascending, so the **oldest** twenty. On a long thread the model was fed the
+beginning of the conversation and never the part the user had just said.
+
+**It never fired, and the fragmentation is precisely why.** Conversations could
+not survive a refresh, so they rarely reached twenty messages — "oldest 20"
+happened to be "all of them". The broken sort was invisible because the other
+bug kept threads short.
+
+Fixing the fragmentation is exactly what makes threads long enough for the sort
+bug to bite, and the symptom would have been far stranger than what it replaced:
+an assistant that recalls the start of the chat but not the previous sentence.
+That reads as "the AI has gone stupid", not "there is a bug in a SQL ORDER BY",
+so nobody would have reported it usefully.
+
+**Generalisation worth carrying:** when a fix removes a constraint that was
+accidentally masking another defect, look for what that constraint was hiding
+*before* shipping. A latent bug that only activates on the happy path of your
+own fix will land as a regression caused by you.
+
+### The display limit and the model's limit must be the SAME number
+
+Now one shared `HISTORY_LIMIT` (20) in helpdesk-chat, used for both the model's
+context slice and the widget's replay.
+
+The plan was to show 50 and feed 20. That is a trap: the user can point at
+something visible on their screen that the model was never given, e.g. "I tried
+step 2 like you said and it still fails". **No system prompt can fix this** — the
+model has no way to know something was withheld, and the existing anti-fabrication
+rules do not cover it (they forbid inventing steps *not in the knowledge base*;
+steps invented here would be perfectly real KB steps, just not the ones it
+actually said). Aligning the two numbers removes the failure mode instead of
+papering over it.
+
+### visitor_id + location_id is isolation AND defence in depth
+
+The pairing is required for the obvious reason — one browser may have visited
+several sub-accounts, and their threads must not cross. The second reason is
+less obvious and worth writing down: **`visitor_id` is supplied by the client, so
+it is effectively a bearer token.** Requiring the matching `location_id` means
+holding one of the two alone is not enough to pull someone's history.
+
+**Not keyed on `staff_email`, deliberately.** It would give cross-device history
+for free, and it is tempting. But it arrives from a URL merge field with no
+verification — `20260723140000_helpdesk_asker.sql` says outright "used for
+attribution / admin filtering only, **never auth**". Serving private conversation
+content off it would upgrade a cosmetic weakness (wrong name on a label) into
+"read a colleague's history by editing a query string", and inside one
+sub-account everyone knows everyone's email. Threads stay device-bound; owner
+accepted that. There is no better option short of a real login, which a help
+centre cannot afford.
+
+### Answers now store their sources
+
+`hd_messages` gained a `sources jsonb` column. Without it a replayed thread would
+show older answers bare and newer ones with guide buttons — one conversation,
+two appearances, reads as broken. Note the ids are `hd_articles` UUIDs, so a
+Notion-side rename does NOT break a link (sync updates the row, id is stable);
+only deleting the article does.
+
+### 🟠 Raw backend error codes are shown to users — worth a sweep
+
+Opening a deleted guide printed **「加载失败：not_found」** — the edge function's
+literal error string, straight to the customer. Fixed here (a dead guide now says
+「这篇指南已不存在，可能已被移除或合并。」 with a way back), and it mattered more
+after this change because replayed history resurfaces months-old source links
+pointing at articles since removed.
+
+**The pattern is likely elsewhere.** The shape is `catch (e) → setErr(e.message)
+→ render it`, where `e.message` came from a `json({ error: "..." }, 4xx)` in an
+edge function. `src/lib/helpdesk.ts` deliberately unwraps the body's `error`
+field into the thrown message, so every caller that renders `err` verbatim has
+this. Not swept yet.
+
+### Verification note
+
+Production was verified with curl against the deployed function, not through the
+panel. Watch out for one artifact: **Git Bash mangles UTF-8 in `curl -d`**, so the
+stored user messages from that test read as `????`. Not a product bug — the
+assistant's Chinese round-tripped perfectly through the same path. Send test
+payloads from a file or the browser if the text itself matters.
+
+A test conversation is now in production data: visitor `web-verify-0807`,
+conversation `73c251f1-f468-477b-a31f-04eb1883e384`, asker `verify@test.local` /
+「验证测试」, 4 messages. Delete when convenient.
