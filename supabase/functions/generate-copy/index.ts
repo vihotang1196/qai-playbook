@@ -16,6 +16,8 @@ import { serviceClient } from "../_shared/ghl.ts";
 import { hasPlaybookAccess } from "../_shared/access.ts";
 import { logToolUsage } from "../_shared/usage.ts";
 import { checkRateLimit, locKey, rateLimitMessage, DAY_MS, HOUR_MS } from "../_shared/ratelimit.ts";
+// Same table the questionnaire renders from — see that file's sync note.
+import { optionLabel } from "../_shared/copy-options.ts";
 
 // Chosen for its copy tone, not its mechanics. Sonnet 5 was trialled on
 // 2026-08-04 and measured better on every number — one attempt instead of three,
@@ -762,20 +764,27 @@ Deno.serve(async (req: Request) => {
     );
   }
 
+  // The four option fields arrive as STABLE KEYS ("professional") and are
+  // rendered here into the OUTPUT language, so every prompt builder downstream
+  // just interpolates ready-to-read text and needs no knowledge of keys.
+  //
+  // `optionLabel` passes anything it doesn't recognise straight through, which
+  // is the compatibility path: an older tab still posting the localized label
+  // ("专业") keeps working. A numeric age range ("25-45") takes the same route.
   const s: SurveyInput = {
     language: lang,
     productName: asString(raw.productName),
     productDesc: asString(raw.productDesc),
     price: asString(raw.price),
     usp: asString(raw.usp),
-    ageRange: asString(raw.ageRange),
-    gender: asString(raw.gender),
+    ageRange: optionLabel("age", asString(raw.ageRange), lang),
+    gender: optionLabel("gender", asString(raw.gender), lang),
     occupation: asString(raw.occupation),
     painPoint: asString(raw.painPoint),
     dream: asString(raw.dream),
     testimonials: asString(raw.testimonials),
-    cta: asString(raw.cta),
-    tone: asString(raw.tone),
+    cta: optionLabel("cta", asString(raw.cta), lang),
+    tone: optionLabel("tone", asString(raw.tone), lang),
   };
 
   if (!s.productName || !s.productDesc) {
