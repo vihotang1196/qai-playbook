@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
 import { BookOpen, Check, Copy, LifeBuoy, Lock, Megaphone, MessageCircle } from "lucide-react";
 import { useLang } from "@/i18n/LanguageContext";
-import { resolveLocationId, resolveStaff, fetchLocation, type GhlLocation } from "@/lib/ghl";
+import { resolveLocationId, resolveStaff, fetchLocation, inIframe, type GhlLocation } from "@/lib/ghl";
 import { checkHelpAccess } from "@/lib/helpdesk";
 import HelpChat from "./HelpChat";
 import HelpBrowse from "./HelpBrowse";
@@ -91,6 +91,7 @@ export default function HelpWidget() {
 
   return (
     <div className="px-4 sm:px-6 pb-16 pt-24 md:pt-28">
+      <ViewportProbe />
       {/* Centered column (max-w-3xl ≈ 768px) — wide enough to feel roomy; shared
           by all three tabs (header + full-width tab bar + content). */}
       <div className="max-w-3xl mx-auto">
@@ -154,6 +155,74 @@ export default function HelpWidget() {
           <HelpUpdates lang={lang} />
         )}
       </div>
+    </div>
+  );
+}
+
+/**
+ * TEMPORARY — measure the real GHL iframe, then delete this component.
+ *
+ * A first attempt at the split layout (reverted in 36ca6f8) was verified only
+ * against a local dev server in a 1600×900 window, and broke in the GHL frame:
+ * the footer cut through the chat with content spilling past it. Two numbers
+ * were assumed rather than measured, and both are only knowable from inside the
+ * real frame:
+ *
+ *   · WIDTH — the split hangs entirely off Tailwind's `lg` (≥1024px). GHL's
+ *     desktop chrome eats a sidebar on the left and some slack on the right, so
+ *     a 1920 screen does NOT mean a 1024+ iframe. Under it, the split can never
+ *     appear for a real customer.
+ *   · HEIGHT — `100vh` measures the FRAME, which runs taller than the parent's
+ *     visible area (same trap as IFRAME_BAR_BOTTOM_OFFSET on the events page).
+ *     A fixed-height row shorter than its content spills, and the footer — a
+ *     normal-flow element right after it — ends up painted through the middle.
+ *
+ * Gated on ?hdDebug=1 so no customer ever sees it. Fixed-position and its own
+ * stacking context, so it stays readable however the layout beneath misbehaves.
+ */
+function ViewportProbe() {
+  const [on] = useState(() => {
+    try {
+      return new URLSearchParams(window.location.search).get("hdDebug") === "1";
+    } catch {
+      return false;
+    }
+  });
+  const [, force] = useState(0);
+
+  useEffect(() => {
+    if (!on) return;
+    const onResize = () => force((n) => n + 1);
+    window.addEventListener("resize", onResize);
+    return () => window.removeEventListener("resize", onResize);
+  }, [on]);
+
+  if (!on) return null;
+
+  const lgHit = window.matchMedia("(min-width: 1024px)").matches;
+  const de = document.documentElement;
+  const vv = window.visualViewport;
+  const rows: [string, string][] = [
+    ["innerW × innerH", `${window.innerWidth} × ${window.innerHeight}`],
+    ["clientW × clientH", `${de.clientWidth} × ${de.clientHeight}`],
+    ["visualViewport", vv ? `${Math.round(vv.width)} × ${Math.round(vv.height)}` : "—"],
+    ["screen", `${window.screen.width} × ${window.screen.height}`],
+    ["in iframe", inIframe() ? "YES" : "no"],
+    ["lg (>=1024)", lgHit ? "HIT — split possible" : "MISS — split impossible"],
+    ["doc scrollH", `${de.scrollHeight}`],
+  ];
+
+  return (
+    <div
+      className="fixed left-2 top-2 z-[9999] rounded-lg border-2 border-[#fed50a] bg-[#141414] px-3 py-2 font-mono text-[11px] leading-relaxed text-white shadow-xl"
+      style={{ pointerEvents: "none" }}
+    >
+      <div className="mb-1 font-bold text-[#fed50a]">HELPDESK VIEWPORT PROBE</div>
+      {rows.map(([k, v]) => (
+        <div key={k}>
+          <span className="text-white/55">{k}:</span> {v}
+        </div>
+      ))}
     </div>
   );
 }
