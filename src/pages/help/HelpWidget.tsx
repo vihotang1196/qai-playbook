@@ -1,10 +1,10 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { BookOpen, Check, Copy, LifeBuoy, Lock, Megaphone, MessageCircle } from "lucide-react";
 import { useLang } from "@/i18n/LanguageContext";
 import { resolveLocationId, resolveStaff, fetchLocation, inIframe, type GhlLocation } from "@/lib/ghl";
 import { checkHelpAccess } from "@/lib/helpdesk";
 import HelpChat from "./HelpChat";
-import HelpBrowse from "./HelpBrowse";
+import HelpBrowse, { ArticleReader } from "./HelpBrowse";
 import HelpUpdates from "./HelpUpdates";
 
 /**
@@ -29,6 +29,56 @@ import HelpUpdates from "./HelpUpdates";
  */
 
 type Tab = "chat" | "browse" | "updates";
+
+/** Reading column, single pane — what this page has always been. */
+const SINGLE_MAX_W = 768;
+/** Reading column while a guide is open beside the chat. At 3fr/2fr that is
+ *  ≈826px of guide + 550px of chat: the guide takes the larger share because it
+ *  is prose with screenshots, the chat only needs bubbles and a composer.
+ *  Measured in the real GHL frame at 2104px wide, so this fits with room over. */
+const SPLIT_MAX_W = 1400;
+
+/**
+ * ⚠️ HEIGHT OF THE SPLIT ROW WHEN FRAMED — tune THIS LINE from real observation.
+ *
+ * A fixed number, NOT derived from 100vh, and the reason is measured rather than
+ * assumed. The ?hdDebug=1 probe in the real GHL desktop frame reported
+ * innerH = 995 against screen = 982: the frame is handed almost the whole window
+ * height, while the actually visible strip is that minus the browser toolbar,
+ * GHL's own top bar and whatever banner is running — roughly 230px, and it
+ * varies per person and per day. `100vh` in here does not measure the visible
+ * area; using it reads like a calculation but is a guess. A conservative
+ * constant is at least an honest guess, and it is the same treatment as
+ * IFRAME_BAR_BOTTOM_OFFSET in pages/events/EventsPage.tsx.
+ *
+ * Erring low on purpose: dead space below the panes is something the owner can
+ * see and report, whereas a composer pushed under the fold is a control that
+ * cannot be used at all.
+ *
+ * Too much empty space under the panes → raise it. Composer clipped → lower it.
+ */
+const FRAMED_SPLIT_H_PX = 560;
+
+/** Everything above the split row: fixed navbar, page top padding, header block,
+ *  tab bar and their margins. Only used unframed, where 100vh is trustworthy. */
+const SPLIT_CHROME_PX = 300;
+/** Floor for the row. Below this the chat stops being usable at all. */
+const SPLIT_MIN_H_PX = 420;
+
+/**
+ * Height of the split row.
+ *
+ * Framed, `100vh` appears only as an UPPER clamp, never as the value: it cannot
+ * shrink the row below what is comfortable, but if the frame itself is genuinely
+ * short it stops us from reserving more height than the frame even has. The
+ * overestimate is harmless in that role — 995 yields 695, which the 560 cap
+ * swallows — while a genuinely short frame still gets a proportionate row down
+ * to the floor.
+ */
+const splitHeight = (framed: boolean) =>
+  framed
+    ? `clamp(${SPLIT_MIN_H_PX}px, calc(100vh - ${SPLIT_CHROME_PX}px), ${FRAMED_SPLIT_H_PX}px)`
+    : `max(${SPLIT_MIN_H_PX}px, calc(100vh - ${SPLIT_CHROME_PX}px))`;
 
 /** Resolve the location_id (URL first, else the one stashed this tab session by
  *  LocationIdKeeper — so arriving via the navbar, which drops the query string,
@@ -69,12 +119,39 @@ export default function HelpWidget() {
   const [staff] = useState(() => resolveStaff());
   const [tab, setTab] = useState<Tab>("chat");
   const [articleId, setArticleId] = useState<string | null>(null);
+  /** Which tab the reader was on when the current guide was opened — see
+   *  closeArticle. Only meaningful while articleId is set. */
+  const [originTab, setOriginTab] = useState<Tab>("chat");
+  const framed = useRef(inIframe()).current;
+  const articleScrollRef = useRef<HTMLDivElement>(null);
 
-  // Open a KB article inside the page (from an AI-answer source link).
+  /** A guide is open → on desktop it sits BESIDE the chat rather than replacing it. */
+  const split = articleId !== null;
+
+  // From an AI answer's source link this no longer navigates away from the
+  // conversation: the guide opens in the left pane and the chat stays on the right.
   function openArticle(id: string) {
+    // First open only — following a link from inside an open guide must not
+    // overwrite where the reader originally came from.
+    if (articleId === null) setOriginTab(tab);
     setArticleId(id);
-    setTab("browse");
   }
+
+  /** Closing returns to the tab the guide was opened FROM: arriving via a chat
+   *  source link and arriving via the guide list are different journeys, and
+   *  "back" means a different place in each. */
+  function closeArticle() {
+    setArticleId(null);
+    setTab(originTab);
+  }
+
+  // A second guide opened from inside the first must start at ITS top. Assigns
+  // scrollTop on the pane rather than calling scrollIntoView, which walks up to
+  // the document and would drag the whole page (see the CoursePlayer note in
+  // PROGRESS).
+  useEffect(() => {
+    if (articleScrollRef.current) articleScrollRef.current.scrollTop = 0;
+  }, [articleId]);
 
   // No location_id → the "open from QAI" gate (mirrors RB's no-location state).
   if (!locationId) return <OpenFromQai lang={lang} />;
@@ -82,6 +159,12 @@ export default function HelpWidget() {
   if (allowed === false) return <HelpNotEnabled lang={lang} />;
 
   const businessName = location?.business_name?.trim();
+
+  // The chat pane is on screen whenever a guide is open, whatever tab says.
+  const chatVisible = split || tab === "chat";
+  // While reading, 浏览教程 is the honest highlight: that is the task, and the
+  // chat alongside it is a companion pane rather than the current tab.
+  const activeTab: Tab = split ? "browse" : tab;
 
   const tabs: { key: Tab; label: string; icon: typeof MessageCircle }[] = [
     { key: "chat", label: lang === "cn" ? "AI 问答" : "AI Chat", icon: MessageCircle },
@@ -92,9 +175,13 @@ export default function HelpWidget() {
   return (
     <div className="px-4 sm:px-6 pb-16 pt-24 md:pt-28">
       <ViewportProbe />
-      {/* Centered column (max-w-3xl ≈ 768px) — wide enough to feel roomy; shared
-          by all three tabs (header + full-width tab bar + content). */}
-      <div className="max-w-3xl mx-auto">
+      {/* The column widens for the split and narrows back. Both this and the
+          track sizes below animate as plain lengths — the only shape CSS will
+          actually tween (see the grid comment). */}
+      <div
+        className="mx-auto transition-[max-width] duration-300 ease-out"
+        style={{ maxWidth: split ? SPLIT_MAX_W : SINGLE_MAX_W }}
+      >
         {/* Header */}
         <div className="flex items-center gap-3 mb-4">
           <div
@@ -116,12 +203,18 @@ export default function HelpWidget() {
         {/* Tabs — full-width segmented bar: 3 equal columns filling the container. */}
         <div className="grid grid-cols-3 gap-2 mb-4">
           {tabs.map((t) => {
-            const active = tab === t.key;
+            const active = activeTab === t.key;
             const Icon = t.icon;
             return (
               <button
                 key={t.key}
-                onClick={() => setTab(t.key)}
+                // Tabs stay live during the split and any of them leaves it. The
+                // bar always means "what this page is showing"; reading a guide
+                // is a state of that, not an escape from it.
+                onClick={() => {
+                  setArticleId(null);
+                  setTab(t.key);
+                }}
                 className={`flex items-center justify-center gap-1.5 px-3 py-2.5 rounded-xl text-sm font-medium transition-colors ${
                   active ? "bg-primary text-primary-foreground shadow-sm" : "glass-card text-muted-foreground hover:text-foreground"
                 }`}
@@ -133,27 +226,108 @@ export default function HelpWidget() {
           })}
         </div>
 
-        {/* Content */}
-        {tab === "chat" ? (
-          <div className="h-[68vh] min-h-[420px]">
-            <HelpChat
-              lang={lang}
-              locationId={locationId}
-              staffEmail={staff.email}
-              staffName={staff.name}
-              onOpenArticle={openArticle}
-            />
+        {/*
+          SPLIT LAYOUT — two tracks, always both present.
+
+          Animating between one and two columns is only possible because BOTH
+          states declare two tracks and differ only in their fr values, which
+          interpolate. `display` cannot be transitioned, a track cannot be added
+          mid-animation, and `width: auto` is not a length.
+
+          Keeping a 0fr track needs three things, all load-bearing:
+            · `min-w-0` — a track otherwise floors at its content's min-content
+              width, so "0fr" would really mean "as wide as the longest word".
+            · `overflow-hidden` — content must be clipped while the track shrinks.
+            · `visibility` — a zero-width pane is still focusable and still read
+              aloud; hiding it fixes both, which `aria-hidden` alone would not.
+              Delayed by the animation on the way out so the guide does not
+              vanish before its pane has closed. Chosen over `inert`, which
+              browsers support but React 18 neither types nor forwards.
+
+          🔴 THE FIXED HEIGHT IS APPLIED ONLY WHEN SPLIT. The first attempt
+          (reverted in 36ca6f8) put it on the grid unconditionally, and that is
+          exactly what broke: of the three things the right pane can hold, only
+          HelpChat is built for a fixed-height parent (h-full + min-h-0 + an
+          inner overflow-y-auto). HelpBrowse and HelpUpdates are plain flow —
+          written for a page that grows — so under a locked 575px box with no
+          overflow anywhere they simply painted straight out of it, through the
+          footer, which is a normal-flow element sitting right after. Collapsed
+          therefore keeps NO height constraint and behaves exactly as it always
+          has; only the split state, where both panes are things that do scroll,
+          gets one. The fix is this condition, not a scattering of overflow
+          rules — those would have hidden the symptom and kept the mistake.
+
+          Below lg nothing splits: display is block, the two children swap by
+          class, and a guide replaces the page as it always has.
+        */}
+        {/*
+          `lg:grid-rows-[minmax(0,1fr)]` is NOT decoration — a height on a grid
+          container does not constrain its ROWS. The implicit row is `auto`, so it
+          sizes to content, the panes' `h-full` resolves against THAT, and the
+          whole thing overflows the box it was supposed to fit inside. Measured
+          before this line existed: container 600px, content 7066px, both panes
+          6466px past the bottom. `minmax(0, 1fr)` pins the row to the container.
+          It pairs with `min-h-0` on each pane below: grid items default to
+          `min-height: auto`, which refuses to shrink below min-content and would
+          burst the row again on its own.
+        */}
+        <div
+          className={`lg:grid lg:gap-6 ${split ? "lg:h-[var(--split-h)] lg:grid-rows-[minmax(0,1fr)]" : ""}`}
+          style={{
+            gridTemplateColumns: split ? "3fr 2fr" : "0fr 2fr",
+            transition: "grid-template-columns 300ms ease-out",
+            ["--split-h" as string]: splitHeight(framed),
+          }}
+        >
+          {/* Guide pane */}
+          <div
+            className={`${split ? "block" : "hidden"} lg:block min-w-0 overflow-hidden ${split ? "lg:h-full lg:min-h-0" : ""}`}
+            style={{
+              visibility: split ? "visible" : "hidden",
+              transition: `visibility 0s linear ${split ? "0ms" : "300ms"}`,
+            }}
+          >
+            <div
+              ref={articleScrollRef}
+              className={split ? "lg:h-full lg:overflow-y-auto lg:pr-1" : ""}
+            >
+              {articleId && <ArticleReader lang={lang} id={articleId} onBack={closeArticle} />}
+            </div>
           </div>
-        ) : tab === "browse" ? (
-          <HelpBrowse
-            lang={lang}
-            articleId={articleId}
-            onOpenArticle={openArticle}
-            onBack={() => setArticleId(null)}
-          />
-        ) : (
-          <HelpUpdates lang={lang} />
-        )}
+
+          {/* Chat / browse / updates pane */}
+          <div className={`${split ? "hidden lg:block" : "block"} min-w-0 ${split ? "lg:h-full lg:min-h-0" : ""}`}>
+            {/* HelpChat is mounted for the page's whole life and only hidden.
+                Remounting it on every tab or split change would throw away
+                half-typed input and an in-flight request, and visibly re-fetch
+                the thread each time. */}
+            <div
+              className={`${chatVisible ? "block" : "hidden"} ${
+                split ? "lg:h-full" : "h-[68vh] min-h-[420px]"
+              }`}
+            >
+              <HelpChat
+                lang={lang}
+                locationId={locationId}
+                staffEmail={staff.email}
+                staffName={staff.name}
+                onOpenArticle={openArticle}
+                visible={chatVisible}
+              />
+            </div>
+            {/* Never rendered while split, so neither ever sits under a fixed
+                height — see the note above. */}
+            {!split && tab === "browse" && (
+              <HelpBrowse
+                lang={lang}
+                articleId={null}
+                onOpenArticle={openArticle}
+                onBack={closeArticle}
+              />
+            )}
+            {!split && tab === "updates" && <HelpUpdates lang={lang} />}
+          </div>
+        </div>
       </div>
     </div>
   );
