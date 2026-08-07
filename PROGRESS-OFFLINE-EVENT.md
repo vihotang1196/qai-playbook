@@ -2452,3 +2452,41 @@ shipped was not stranded with an orphaned conversation.
 DB is UTC, git commit times are +0800. The 43-minute gap only appears if you
 convert: 16:12:46 +0800 = 08:12:46 UTC. Comparing the raw strings makes a
 deployed fix look broken.
+
+---
+
+## 🔴 `npx tsc --noEmit` IN THIS REPO CHECKS NOTHING (found 2026-08-07)
+
+**Any past note in this file saying "tsc clean" or "tsc 0 errors" is worthless as
+evidence.** Do not read them as proof that a change type-checked.
+
+`tsconfig.json` is a solution-style config: `"files": []` plus `"references"` to
+`tsconfig.app.json` and `tsconfig.node.json`. Running `npx tsc --noEmit` against
+it type-checks **zero files** and exits 0 every time, on any codebase state.
+
+Caught by accident: a `ViewportProbe` that called `inIframe()` **without
+importing it** passed `npx tsc --noEmit`, and `npx tsc -p tsconfig.app.json
+--noEmit` immediately reported `TS2304: Cannot find name 'inIframe'`. Shipped, it
+would have been a blank page.
+
+**`npm run build` does not cover the gap.** Vite/rolldown transpiles and strips
+types without checking them; it only catches module-resolution failures (which is
+why the missing `./pages/UpgradeV2.tsx` did fail a build, and a type error would
+not have). So both gates were open at once.
+
+### Use this instead
+
+```
+npx tsc -b            # whole project, honours the references
+```
+
+or `npx tsc -p tsconfig.app.json --noEmit` for app code alone. `tsc -b` writes
+`tsconfig.*.tsbuildinfo` next to the configs — they are NOT in `.gitignore`, so
+delete them or avoid staging them.
+
+### Why it matters beyond the one bug
+
+An entire session's worth of changes was reported as "tsc ✅" on the strength of
+a command that never looked at a file. The verification was not weak, it was
+absent — and it read as thorough, which is worse. When a check has never once
+failed, that is not confidence, it is a signal to go and prove it can fail.
