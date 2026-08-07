@@ -90,12 +90,18 @@ export default function HelpChat({
   staffEmail,
   staffName,
   onOpenArticle,
+  visible = true,
 }: {
   lang: "cn" | "en";
   locationId: string;
   staffEmail?: string;
   staffName?: string;
   onOpenArticle: (id: string) => void;
+  /** False while the shell keeps this mounted but hidden (another tab is showing,
+   *  or a guide has taken the pane on a narrow screen). Needed only so the thread
+   *  can re-pin to the bottom on reappearing: a display:none element has zero
+   *  scrollHeight, so the scroll effect below is a no-op while hidden. */
+  visible?: boolean;
 }) {
   const [turns, setTurns] = useState<Turn[]>([]);
   const [input, setInput] = useState("");
@@ -133,8 +139,9 @@ export default function HelpChat({
   }
 
   useEffect(() => {
+    if (!visible) return;
     scrollRef.current?.scrollTo({ top: scrollRef.current.scrollHeight, behavior: "smooth" });
-  }, [turns, sending]);
+  }, [turns, sending, visible]);
 
   // Replay the visitor's last thread on open. Best-effort by construction —
   // fetchHistory resolves to an empty history rather than throwing, so a failed

@@ -226,7 +226,9 @@ function Empty({ text }: { text: string }) {
   return <div className="glass-card rounded-2xl p-10 text-center text-sm text-muted-foreground">{text}</div>;
 }
 
-function ArticleReader({ lang, id, onBack }: { lang: "cn" | "en"; id: string; onBack: () => void }) {
+/** Exported so the split layout can render a guide in its own pane, beside the
+ *  chat, instead of only in place of the browse list. */
+export function ArticleReader({ lang, id, onBack }: { lang: "cn" | "en"; id: string; onBack: () => void }) {
   const [article, setArticle] = useState<HelpArticle | null>(null);
   const [loading, setLoading] = useState(true);
   const [err, setErr] = useState<string | null>(null);
