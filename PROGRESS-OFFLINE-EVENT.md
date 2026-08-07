@@ -2376,3 +2376,79 @@ payloads from a file or the browser if the text itself matters.
 A test conversation is now in production data: visitor `web-verify-0807`,
 conversation `73c251f1-f468-477b-a31f-04eb1883e384`, asker `verify@test.local` /
 「验证测试」, 4 messages. Delete when convenient.
+
+---
+
+## ❌ Per-staff attribution is DEAD END in the GHL iframe — keep the code anyway (2026-08-07)
+
+**GHL's Custom Menu Link does not expose the logged-in user.** The field's own
+help text: "You may use Location values and Custom Values in here." There is no
+`{{user.email}}`, `{{user.name}}` or `{{user.id}}`.
+
+Unrecognised params are **dropped entirely** — not passed through as literal
+`{{user.email}}`. The address bar simply has no such key. (Checked for template
+literals leaking into the data anyway: **0 rows** contain `{{`.)
+
+So `hd_conversations.asker_email` / `asker_name` are **permanently NULL for
+anyone arriving through the GHL iframe**, which is every real customer. The
+admin's 提问人 column showing 「匿名访客」 is the EXPECTED steady state, not a
+bug, and not something to go debugging later.
+
+Measured before giving up: 24 conversations, exactly **1** with an identity —
+`shaofeng@grandvisionx.com` on 2026-07-28, from a hand-built URL, not the menu
+link.
+
+### 🔴 DO NOT delete the asker_* code as dead
+
+It looks unused and it is not. Two reasons it stays:
+
+1. **Direct-link entry still works.** Passing `?staff_email=…&staff_name=…`
+   by hand is recorded correctly — verified end to end. Any future entry point
+   that is not the GHL menu link can use it as is.
+2. **GHL may add user merge fields.** The whole chain already exists — URL →
+   `rememberStaff` → sessionStorage → `HelpChat` props → edge fn → column →
+   admin display and search. If the merge field appears, this turns on by
+   editing one URL, with no code change at all.
+
+Client-side display of 「谁问的」 was designed (top-of-chat vs per-message, and
+what to show when identity is absent) and then **dropped before implementation**
+— with 92% of conversations having no identity, the feature would render nothing
+for almost everyone.
+
+### The interaction that made this hard to diagnose
+
+`asker_*` is written ONLY in the conversation-INSERT branch. Once conversation
+ids persist (the fragmentation fix, same day), a visitor gets **exactly one**
+chance to have their identity captured — their first message ever. Before that
+fix, every refresh created a new conversation, so every visit was another
+chance.
+
+That is why the first test after changing the menu link was inconclusive: the
+messages joined a conversation created 43 minutes earlier, whose asker was
+already NULL and can never be updated. **If per-staff attribution is ever
+revived, add a backfill** — update `asker_*` when the row has none and the
+request carries one — otherwise identity is lost for every visitor whose thread
+predates it.
+
+## Fragmentation fix confirmed working in production (2026-08-07)
+
+Two conversations 43 seconds apart (`23d4a684` at 07:29:52 UTC, `59da8aa5` at
+07:30:35) looked like the fix had failed. It had not: **the fix was not deployed
+yet** — commit `8f06c7d` was pushed at 08:12:46 UTC, 42 minutes AFTER those two
+rows were created. Those are the last of the old behaviour, not the first of the
+new.
+
+After the deploy, `59da8aa5` accumulated **12 messages over 68 minutes** across
+several separate visits — one conversation, exactly as intended.
+
+Worth noting what that also proves: `59da8aa5` was created by the OLD frontend,
+so the new one had no `conversationId` in localStorage for it. It picked the
+thread up through the history endpoint and adopted the server's id — the
+self-healing path, working on real data. A visitor mid-thread when the fix
+shipped was not stranded with an orphaned conversation.
+
+### Reading these timestamps
+
+DB is UTC, git commit times are +0800. The 43-minute gap only appears if you
+convert: 16:12:46 +0800 = 08:12:46 UTC. Comparing the raw strings makes a
+deployed fix look broken.
