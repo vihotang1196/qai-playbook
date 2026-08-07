@@ -15,7 +15,8 @@ import {
 import { toast } from "sonner";
 import type { GenerateResult } from "@/lib/copywriter/types";
 import { generateVoice } from "@/lib/copywriter/api";
-import { T, type Language } from "@/lib/copywriter/i18n";
+import { useLang } from "@/i18n/LanguageContext";
+import { T, type Language, uiLanguage } from "@/lib/copywriter/i18n";
 
 export function Results({
   result,
@@ -29,7 +30,15 @@ export function Results({
   /** Sub-account identity, forwarded to the paid voice endpoint. */
   locationId: string;
 }) {
-  const lang: Language = result.language || "zh";
+  // Two different languages live on this screen and must not be conflated:
+  //   outputLang — the language of the DELIVERABLE (copy, voiceover, PDF). Fixed
+  //                at generation time; changing the navbar can't retranslate copy
+  //                Claude already wrote.
+  //   lang       — the INTERFACE (buttons, section titles, toasts), which follows
+  //                the navbar like the rest of the site.
+  const outputLang: Language = result.language || "zh";
+  const { lang: siteLang } = useLang();
+  const lang: Language = uiLanguage(siteLang);
   const t = T[lang];
   const ref = useRef<HTMLDivElement>(null);
 
@@ -42,7 +51,8 @@ export function Results({
     if (loadingVoice[idx] || voices[idx]) return;
     setLoadingVoice((s) => ({ ...s, [idx]: true }));
     try {
-      const dataUrl = await generateVoice(text, lang, locationId);
+      // Voice follows the copy being read aloud, never the navbar.
+      const dataUrl = await generateVoice(text, outputLang, locationId);
       setVoices((s) => ({ ...s, [idx]: dataUrl }));
       toast.success(t.voiceDone);
       // Autoplay once the <audio> for this segment has mounted.
@@ -66,11 +76,13 @@ export function Results({
     setExporting(true);
     try {
       const { buildPdfBlob } = await import("@/lib/copywriter/pdf");
-      const blob = await buildPdfBlob(result, lang);
+      // The PDF is a deliverable: its headings AND its font choice (the CJK face
+      // is only embedded for zh) must match the copy inside it, not the navbar.
+      const blob = await buildPdfBlob(result, outputLang);
       const url = URL.createObjectURL(blob);
       const a = document.createElement("a");
       a.href = url;
-      a.download = `qai-copy-${lang}.pdf`;
+      a.download = `qai-copy-${outputLang}.pdf`;
       document.body.appendChild(a);
       a.click();
       a.remove();

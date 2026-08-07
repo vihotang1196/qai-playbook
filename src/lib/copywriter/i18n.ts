@@ -2,17 +2,38 @@ export type Language = "zh" | "en" | "ms";
 
 export const LANG_KEY = "qai_lang";
 
+/**
+ * Site language (`cn`/`en`, from the navbar) → the code this tool's UI strings
+ * are keyed by (`zh`/`en`).
+ *
+ * Two vocabularies exist because this tool ships three OUTPUT languages while
+ * the site chrome only has two. They are different things:
+ *   • interface  — what the operator reads, follows the navbar
+ *   • output     — the language of the copy, voiceover and PDF, chosen in the
+ *                  questionnaire and stored as SurveyInput.language
+ *
+ * `ms` is deliberately unreachable here: the navbar has no Malay, so a Malay
+ * customer works in an English interface and still generates Malay copy. The
+ * `ms` entry in T is NOT dead — the PDF renders in the OUTPUT language.
+ *
+ * 🔴 This is the ONLY place the two vocabularies are converted. Do not inline a
+ * `=== "cn" ? "zh" : "en"` anywhere else, or they will drift.
+ */
+export function uiLanguage(siteLang: "cn" | "en"): Language {
+  return siteLang === "cn" ? "zh" : "en";
+}
+
 export const T = {
   zh: {
     appTitle: "QAI 广告 & Funnel 文案生成器",
     appSubtitle: "专为马来西亚市场打造 · 一键生成广告脚本 + 9 段 Funnel 文案",
-    steps: ["语言", "产品资料", "目标客户", "信任 & 行动"],
+    steps: ["输出语言", "产品资料", "目标客户", "信任 & 行动"],
     stepLabel: (i: number, total: number, name: string) => `第 ${i} 步 / ${total}：${name}`,
     prev: "上一步",
     next: "下一步",
     submit: "生成文案",
     chooseLanguage: "请选择生成语言",
-    chooseLanguageHint: "选定后，介面、广告脚本、Funnel 文案与配音都会使用该语言。",
+    chooseLanguageHint: "选定后，广告脚本、Funnel 文案与配音会使用该语言。界面语言请用右上角切换。",
     langZh: "华文",
     langEn: "English",
     langMs: "Malay",
@@ -85,13 +106,14 @@ export const T = {
   en: {
     appTitle: "QAI Ad & Funnel Copy Generator",
     appSubtitle: "Built for the Malaysian market · One-click ad script + 9-step funnel copy",
-    steps: ["Language", "Product", "Audience", "Trust & Action"],
+    steps: ["Output language", "Product", "Audience", "Trust & Action"],
     stepLabel: (i: number, total: number, name: string) => `Step ${i} of ${total} · ${name}`,
     prev: "Back",
     next: "Next",
     submit: "Generate",
     chooseLanguage: "Choose your output language",
-    chooseLanguageHint: "Your choice controls the UI, ad script, funnel copy and voice-over.",
+    chooseLanguageHint:
+      "Ad scripts, funnel copy and voiceover will use this language. Switch the interface language at the top right.",
     langZh: "华文",
     langEn: "English",
     langMs: "Malay",
@@ -164,13 +186,15 @@ export const T = {
   ms: {
     appTitle: "Penjana Iklan & Funnel QAI",
     appSubtitle: "Dibina untuk pasaran Malaysia · Skrip iklan + 9 seksyen funnel sekali klik",
-    steps: ["Bahasa", "Produk", "Audiens", "Kepercayaan & Tindakan"],
+    steps: ["Bahasa output", "Produk", "Audiens", "Kepercayaan & Tindakan"],
     stepLabel: (i: number, total: number, name: string) => `Langkah ${i} / ${total} · ${name}`,
     prev: "Kembali",
     next: "Seterusnya",
     submit: "Jana",
     chooseLanguage: "Pilih bahasa output",
-    chooseLanguageHint: "Pilihan anda mengawal UI, skrip iklan, funnel dan suara latar.",
+    // ⚠️ Owner-supplied Malay, pending a native check.
+    chooseLanguageHint:
+      "Skrip iklan, salinan funnel dan suara latar akan menggunakan bahasa ini. Tukar bahasa antara muka di penjuru kanan atas.",
     langZh: "华文",
     langEn: "English",
     langMs: "Malay",

@@ -7,7 +7,7 @@ import OpenFromQai from "@/components/OpenFromQai";
 import { generateCopy, recoverCopy } from "@/lib/copywriter/api";
 import { resolveLocationId } from "@/lib/ghl";
 import { useLang } from "@/i18n/LanguageContext";
-import { T, type Language } from "@/lib/copywriter/i18n";
+import { T, type Language, uiLanguage } from "@/lib/copywriter/i18n";
 import type { GenerateResult, SurveyInput } from "@/lib/copywriter/types";
 
 type Stage = "survey" | "loading" | "result";
@@ -213,7 +213,9 @@ const Copywriter = () => {
     }
   };
 
-  const lang: Language = (lastInput?.language as Language) || "zh";
+  // The waiting screen is interface text, so it follows the navbar — not the
+  // output language the customer picked for the copy.
+  const lang: Language = uiLanguage(uiLang);
 
   if (!locationId) {
     return (

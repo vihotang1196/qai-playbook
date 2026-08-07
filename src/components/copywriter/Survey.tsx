@@ -14,7 +14,8 @@ import {
 } from "@/components/ui/select";
 import { Sparkles, Languages } from "lucide-react";
 import type { SurveyInput } from "@/lib/copywriter/types";
-import { T, type Language, loadLang, saveLang } from "@/lib/copywriter/i18n";
+import { useLang } from "@/i18n/LanguageContext";
+import { T, type Language, loadLang, saveLang, uiLanguage } from "@/lib/copywriter/i18n";
 import {
   TONE_KEYS,
   GENDER_KEYS,
@@ -167,15 +168,24 @@ export function Survey({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  const lang: Language = data.language || "zh";
+  // INTERFACE language — follows the site navbar, not the questionnaire.
+  // `data.language` below is the OUTPUT language and no longer affects any of
+  // the labels on screen.
+  const { lang: siteLang } = useLang();
+  const lang: Language = uiLanguage(siteLang);
   const t = T[lang];
 
   const update = <K extends keyof SurveyInput>(k: K, v: SurveyInput[K]) =>
     setData((d) => ({ ...d, [k]: v }));
 
+  /** Sets the OUTPUT language only — the interface is the navbar's business. */
   const setLanguage = (l: Language) => {
     saveLang(l);
-    setData((d) => ({ ...d, language: l, tone: d.tone || TONE_KEYS[1] }));
+    // Nothing else is touched. This used to also seed `tone`, which made sense
+    // when options were localized labels (the old value stopped matching any
+    // button). They're stable keys now, so a change of output language has no
+    // bearing on a tone the customer already picked.
+    setData((d) => ({ ...d, language: l }));
   };
 
   const canSubmit =
