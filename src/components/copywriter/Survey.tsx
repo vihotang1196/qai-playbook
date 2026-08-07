@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import * as SliderPrimitive from "@radix-ui/react-slider";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -59,11 +59,40 @@ const COLUMNS_CLS = "grid grid-cols-1 items-start gap-8 md:grid-cols-2 2xl:grid-
 // Inside a column the fields just stack — no nested grid.
 const STACK_CLS = "space-y-4";
 
-// The audience block has five fields and would otherwise set the height of the
-// whole row. Once we're in three-column mode (and only then — in one/two-column
-// mode each column is already wide and there is no height problem to solve), its
-// short fields pair up, which is what brings the form onto a single screen.
-const PAIR_CLS = "grid grid-cols-1 gap-3 2xl:grid-cols-2";
+// The two long-answer fields get their own full-width row under the columns:
+// they are what the customer writes most in, and a ~200px column was too cramped
+// to be usable.
+const LONG_ROW_CLS = "grid grid-cols-1 gap-4 md:grid-cols-2";
+
+// Textareas start at two rows and grow with the content. `!min-h-0` overrides the
+// shared Textarea's min-h-[80px] (that component is used site-wide and must not
+// be touched); `resize-none` because the height is driven by the content now.
+const TEXTAREA_CLS = `${FIELD_CLS} !min-h-0 resize-none`;
+
+/** Rows the box may grow to before it starts scrolling internally. */
+const MAX_ROWS = 6;
+
+/**
+ * Size a textarea to its content, capped at MAX_ROWS.
+ *
+ * Called on every keystroke AND once after the draft is restored — without the
+ * latter, a recovered draft sits in a two-row box with its content hidden.
+ */
+function autoGrow(el: HTMLTextAreaElement | null) {
+  if (!el) return;
+  const cs = getComputedStyle(el);
+  const lineHeight = parseFloat(cs.lineHeight) || 22;
+  const padding = parseFloat(cs.paddingTop) + parseFloat(cs.paddingBottom);
+  const border = parseFloat(cs.borderTopWidth) + parseFloat(cs.borderBottomWidth);
+  const max = lineHeight * MAX_ROWS + padding + border;
+  // Reset first: scrollHeight only ever reports "at least the current height".
+  el.style.height = "auto";
+  // scrollHeight covers content + padding but not the border, which border-box
+  // sizing does include — add it back or the box creeps a couple of pixels short.
+  const next = Math.min(el.scrollHeight + border, max);
+  el.style.height = `${next}px`;
+  el.style.overflowY = el.scrollHeight + border > max ? "auto" : "hidden";
+}
 
 export function Survey({
   onSubmit,
@@ -90,6 +119,32 @@ export function Survey({
       localStorage.setItem(DRAFT_KEY, JSON.stringify(data));
     } catch {}
   }, [data, hydrated]);
+
+  // Every auto-growing textarea, so they can all be re-measured at once.
+  // Registration only — measuring here would run while the element is still being
+  // laid out, where scrollHeight reads far too large and pins the box to MAX_ROWS.
+  const textareas = useRef<Record<string, HTMLTextAreaElement | null>>({});
+  const registerTextarea = (key: string) => (el: HTMLTextAreaElement | null) => {
+    textareas.current[key] = el;
+  };
+  const growAll = () => Object.values(textareas.current).forEach(autoGrow);
+
+  // Re-measure whenever the text itself changes. This runs after the DOM is
+  // updated, so it is what sizes a RESTORED DRAFT correctly — keying it off
+  // `hydrated` alone was a frame too early and left recovered text in a two-row
+  // box. The onChange handler still sizes as you type so there's no lag.
+  useEffect(() => {
+    growAll();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [data.usp, data.painPoint, data.dream]);
+
+  // A width change (breakpoint, window resize) rewraps the text, which changes
+  // the height needed.
+  useEffect(() => {
+    window.addEventListener("resize", growAll);
+    return () => window.removeEventListener("resize", growAll);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   const lang: Language = data.language || "zh";
   const t = T[lang];
@@ -182,10 +237,14 @@ export function Survey({
               </Field>
               <Field label={t.usp} required>
                 <Textarea
-                  className={FIELD_CLS}
-                  rows={3}
+                  ref={registerTextarea("usp")}
+                  className={TEXTAREA_CLS}
+                  rows={2}
                   value={data.usp}
-                  onChange={(e) => update("usp", e.target.value)}
+                  onChange={(e) => {
+                    update("usp", e.target.value);
+                    autoGrow(e.currentTarget);
+                  }}
                   placeholder={t.uspPh}
                 />
               </Field>
@@ -289,27 +348,6 @@ export function Survey({
                   placeholder={t.occupationPh}
                 />
               </Field>
-              {/* Paired, and the same rows so the two boxes line up. */}
-              <div className={PAIR_CLS}>
-                <Field label={t.painPoint} required>
-                  <Textarea
-                    className={FIELD_CLS}
-                    rows={3}
-                    value={data.painPoint}
-                    onChange={(e) => update("painPoint", e.target.value)}
-                    placeholder={t.painPointPh}
-                  />
-                </Field>
-                <Field label={t.dream} required>
-                  <Textarea
-                    className={FIELD_CLS}
-                    rows={3}
-                    value={data.dream}
-                    onChange={(e) => update("dream", e.target.value)}
-                    placeholder={t.dreamPh}
-                  />
-                </Field>
-              </div>
             </div>
           </section>
 
@@ -353,6 +391,41 @@ export function Survey({
               </Field>
             </div>
           </section>
+        </div>
+
+        {/* The two long answers, full width. No heading of their own (that would
+            mean new copy in all three languages) — the rule keeps them from
+            reading as orphans under the columns. */}
+        <div className="space-y-3">
+          <div className="border-b" />
+          <div className={LONG_ROW_CLS}>
+            <Field label={t.painPoint} required>
+              <Textarea
+                ref={registerTextarea("painPoint")}
+                className={TEXTAREA_CLS}
+                rows={2}
+                value={data.painPoint}
+                onChange={(e) => {
+                  update("painPoint", e.target.value);
+                  autoGrow(e.currentTarget);
+                }}
+                placeholder={t.painPointPh}
+              />
+            </Field>
+            <Field label={t.dream} required>
+              <Textarea
+                ref={registerTextarea("dream")}
+                className={TEXTAREA_CLS}
+                rows={2}
+                value={data.dream}
+                onChange={(e) => {
+                  update("dream", e.target.value);
+                  autoGrow(e.currentTarget);
+                }}
+                placeholder={t.dreamPh}
+              />
+            </Field>
+          </div>
         </div>
 
         <div className="flex justify-end pt-2">
