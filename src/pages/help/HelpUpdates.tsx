@@ -4,7 +4,7 @@ import { listUpdates, type HelpUpdate } from "@/lib/helpdesk";
 import Markdown from "@/components/helpdesk/Markdown";
 
 /**
- * 产品更新 tab — the latest product-update posts (hd_updates), newest first.
+ * 更新 tab — the latest product-update posts (hd_updates), newest first.
  * Published from the Admin Portal (P8). Each shows title + date + markdown body
  * + optional image + optional "了解更多" link. Read via the public helpdesk fn.
  */
@@ -43,7 +43,7 @@ export default function HelpUpdates({ lang }: { lang: "cn" | "en" }) {
         >
           <Megaphone className="w-6 h-6" />
         </div>
-        <h3 className="font-display font-semibold mb-1">{lang === "cn" ? "产品更新" : "Product updates"}</h3>
+        <h3 className="font-display font-semibold mb-1">{lang === "cn" ? "更新" : "Updates"}</h3>
         <p className="text-sm text-muted-foreground max-w-sm mx-auto">
           {lang === "cn" ? "暂时还没有更新，敬请期待。" : "No updates yet. Stay tuned."}
         </p>

@@ -36,7 +36,7 @@ function releaseBodyPointerLock() {
  * Product Updates admin (`/admin/helpdesk/updates`). P8: manual publish — create
  * / edit / delete update posts (title + markdown content + optional image/link),
  * all through the requireAdmin-gated helpdesk-admin fn. Publishes immediately
- * (no draft): a saved post shows in the customer help center's 产品更新 tab, with
+ * (no draft): a saved post shows in the customer help center's 更新 tab, with
  * the create date. FAQ was intentionally not built (owner's call).
  */
 export default function HelpdeskUpdates() {
@@ -75,7 +75,7 @@ export default function HelpdeskUpdates() {
     <div className="space-y-4">
       <div className="flex items-center justify-between gap-2">
         <p className="text-sm text-muted-foreground">
-          发布产品动态；保存后立即显示在客户帮助中心的「产品更新」里。
+          发布产品动态；保存后立即显示在客户帮助中心的「更新」里。
         </p>
         <Button size="sm" className="gap-1.5 shrink-0" onClick={() => setEditing("new")}>
           <Plus className="w-4 h-4" /> 新建更新
@@ -91,7 +91,7 @@ export default function HelpdeskUpdates() {
       ) : updates.length === 0 ? (
         <div className="glass-card rounded-2xl p-10 text-center">
           <Megaphone className="w-8 h-8 text-muted-foreground/50 mx-auto mb-3" />
-          <p className="text-sm text-muted-foreground">还没有产品更新。点「新建更新」发布第一条。</p>
+          <p className="text-sm text-muted-foreground">还没有更新。点「新建更新」发布第一条。</p>
         </div>
       ) : (
         <div className="space-y-2">

@@ -68,7 +68,7 @@ export default function HelpdeskOverview() {
     { icon: FolderTree, label: "文件夹", value: c.folders, to: "/admin/helpdesk/knowledge" },
     { icon: MessagesSquare, label: "对话", value: c.conversations, to: "/admin/helpdesk/conversations" },
     { icon: HelpCircle, label: "FAQ", value: c.faq, to: "/admin/helpdesk/updates" },
-    { icon: Megaphone, label: "产品更新", value: c.updates, to: "/admin/helpdesk/updates" },
+    { icon: Megaphone, label: "更新", value: c.updates, to: "/admin/helpdesk/updates" },
   ];
 
   return (

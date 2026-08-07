@@ -9,7 +9,7 @@ import HelpUpdates from "./HelpUpdates";
 
 /**
  * Public customer HELP CENTER (`/help`) — QAI's shared, agency-wide help center:
- * AI 问答 + 浏览教程 + 产品更新, three tabs.
+ * AI 问答 + 浏览教程 + 更新, three tabs.
  *
  * Rendered INSIDE the shared <Layout> (like the Review Boost customer app), so
  * it wears the Playbook navbar + footer and feels like part of Playbook rather
@@ -86,7 +86,7 @@ export default function HelpWidget() {
   const tabs: { key: Tab; label: string; icon: typeof MessageCircle }[] = [
     { key: "chat", label: lang === "cn" ? "AI 问答" : "AI Chat", icon: MessageCircle },
     { key: "browse", label: lang === "cn" ? "浏览教程" : "Guides", icon: BookOpen },
-    { key: "updates", label: lang === "cn" ? "产品更新" : "Updates", icon: Megaphone },
+    { key: "updates", label: lang === "cn" ? "更新" : "Updates", icon: Megaphone },
   ];
 
   return (
@@ -107,7 +107,7 @@ export default function HelpWidget() {
               {lang === "cn" ? "帮助中心" : "Help Center"}
             </h1>
             <p className="text-sm text-muted-foreground truncate">
-              {businessName || (lang === "cn" ? "AI 问答 · 浏览教程 · 产品更新" : "AI Chat · Guides · Updates")}
+              {businessName || (lang === "cn" ? "AI 问答 · 浏览教程 · 更新" : "AI Chat · Guides · Updates")}
             </p>
           </div>
         </div>

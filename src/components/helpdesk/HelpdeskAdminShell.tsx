@@ -7,7 +7,7 @@ const TABS = [
   { to: "/admin/helpdesk/chat", label: "AI 测试", icon: Bot },
   { to: "/admin/helpdesk/conversations", label: "对话", icon: MessagesSquare },
   { to: "/admin/helpdesk/analytics", label: "分析", icon: BarChart3 },
-  { to: "/admin/helpdesk/updates", label: "产品更新", icon: Megaphone },
+  { to: "/admin/helpdesk/updates", label: "更新", icon: Megaphone },
   { to: "/admin/helpdesk/settings", label: "设置", icon: Settings },
 ];
 
