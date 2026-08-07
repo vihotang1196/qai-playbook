@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import { Send, Loader2, RotateCcw, Bot, User, FileText, Sparkles, ThumbsUp, ThumbsDown, MessageCircle } from "lucide-react";
-import { sendChat, sendFeedback, type ChatSource } from "@/lib/helpdeskChat";
+import { sendChat, sendFeedback, fetchHistory, type ChatSource } from "@/lib/helpdeskChat";
 import Markdown from "@/components/helpdesk/Markdown";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -49,6 +49,41 @@ function getVisitorId(): string {
   }
 }
 
+/**
+ * The active conversation id, remembered across reloads and keyed PER
+ * SUB-ACCOUNT.
+ *
+ * It used to live only in React state, so every refresh started a fresh
+ * conversation row. The visible symptom was a blank chat, but the damage was in
+ * the data: one person asking three questions with a reload between them became
+ * three separate conversations in the admin list, and the assistant lost the
+ * thread each time.
+ *
+ * Keyed by location_id because one browser may be used across several
+ * sub-accounts — a single key would hand whichever thread was last active to
+ * whichever sub-account opened next.
+ */
+const CONV_KEY_PREFIX = "hd_conversation_id:";
+const convKey = (locationId: string) => `${CONV_KEY_PREFIX}${locationId}`;
+
+function loadConversationId(locationId: string): string | null {
+  if (!locationId) return null;
+  try {
+    return localStorage.getItem(convKey(locationId));
+  } catch {
+    return null;
+  }
+}
+function saveConversationId(locationId: string, id: string | null) {
+  if (!locationId) return;
+  try {
+    if (id) localStorage.setItem(convKey(locationId), id);
+    else localStorage.removeItem(convKey(locationId));
+  } catch {
+    /* private mode — the thread still works for this visit, just not the next */
+  }
+}
+
 export default function HelpChat({
   lang,
   locationId,
@@ -65,7 +100,7 @@ export default function HelpChat({
   const [turns, setTurns] = useState<Turn[]>([]);
   const [input, setInput] = useState("");
   const [sending, setSending] = useState(false);
-  const [conversationId, setConversationId] = useState<string | null>(null);
+  const [conversationId, setConversationId] = useState<string | null>(() => loadConversationId(locationId));
   const [feedback, setFeedback] = useState<Record<number, "up" | "down">>({});
   // Remembered for the tab session so the customer picks once, not every visit.
   const [answerLang, setAnswerLang] = useState<AnswerLang>(loadAnswerLang);
@@ -101,6 +136,29 @@ export default function HelpChat({
     scrollRef.current?.scrollTo({ top: scrollRef.current.scrollHeight, behavior: "smooth" });
   }, [turns, sending]);
 
+  // Replay the visitor's last thread on open. Best-effort by construction —
+  // fetchHistory resolves to an empty history rather than throwing, so a failed
+  // replay leaves a blank chat that works normally instead of an error state.
+  // Guarded by `cancelled` because the answer can land after a fast unmount.
+  useEffect(() => {
+    if (!locationId) return;
+    let cancelled = false;
+    fetchHistory({ visitorId: visitorId.current, locationId }).then((h) => {
+      if (cancelled || h.messages.length === 0) return;
+      setTurns(h.messages.map((m) => ({ role: m.role, content: m.content, sources: m.sources })));
+      // Adopt the server's id even though one was probably loaded from storage:
+      // it is the row the messages actually came from, so this self-heals a
+      // stale local id (deleted conversation, cleared table) without a reset.
+      if (h.conversationId) {
+        setConversationId(h.conversationId);
+        saveConversationId(locationId, h.conversationId);
+      }
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, [locationId]);
+
   async function send() {
     const message = input.trim();
     if (!message || sending) return;
@@ -120,6 +178,7 @@ export default function HelpChat({
         answerLang: answerLang === "auto" ? null : answerLang,
       });
       setConversationId(reply.conversationId);
+      saveConversationId(locationId, reply.conversationId);
       setTurns((t) => [...t, { role: "assistant", content: reply.answer, sources: reply.sources }]);
     } catch (e) {
       setTurns((t) => [
@@ -136,10 +195,14 @@ export default function HelpChat({
     }
   }
 
+  // The stored id MUST be cleared too. Without it "新对话" would only blank the
+  // screen, and the next reload would replay the thread the visitor just asked
+  // to leave — a button that appears to have done nothing.
   function reset() {
     setTurns([]);
     setConversationId(null);
     setFeedback({});
+    saveConversationId(locationId, null);
   }
 
   return (

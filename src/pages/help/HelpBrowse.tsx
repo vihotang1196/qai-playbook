@@ -230,11 +230,15 @@ function ArticleReader({ lang, id, onBack }: { lang: "cn" | "en"; id: string; on
   const [article, setArticle] = useState<HelpArticle | null>(null);
   const [loading, setLoading] = useState(true);
   const [err, setErr] = useState<string | null>(null);
+  /** The article is gone, as opposed to unreachable — a different message and no
+   *  retry. The edge fn answers a missing id with the literal "not_found". */
+  const [gone, setGone] = useState(false);
 
   useEffect(() => {
     let cancelled = false;
     setLoading(true);
     setErr(null);
+    setGone(false);
     getArticle(id)
       .then((a) => {
         if (cancelled) return;
@@ -243,7 +247,9 @@ function ArticleReader({ lang, id, onBack }: { lang: "cn" | "en"; id: string; on
       })
       .catch((e) => {
         if (cancelled) return;
-        setErr(e instanceof Error ? e.message : lang === "cn" ? "加载失败" : "Failed to load");
+        const raw = e instanceof Error ? e.message : "";
+        if (raw === "not_found") setGone(true);
+        else setErr(raw || (lang === "cn" ? "加载失败" : "Failed to load"));
         setLoading(false);
       });
     return () => {
@@ -260,6 +266,21 @@ function ArticleReader({ lang, id, onBack }: { lang: "cn" | "en"; id: string; on
       {loading ? (
         <div className="glass-card rounded-2xl p-10 flex items-center justify-center text-muted-foreground">
           <Loader2 className="w-5 h-5 animate-spin" />
+        </div>
+      ) : gone ? (
+        // A deleted guide is not a failure the reader can retry, and showing the
+        // raw "not_found" from the edge fn told them nothing. Reachable from an
+        // AI answer's source button, which now also comes back with replayed
+        // history — so links months old can point at articles since removed.
+        <div className="glass-card rounded-2xl p-6 text-sm space-y-3">
+          <p>
+            {lang === "cn"
+              ? "这篇指南已不存在，可能已被移除或合并。"
+              : "This guide no longer exists — it may have been removed or merged."}
+          </p>
+          <Button variant="outline" size="sm" onClick={onBack}>
+            {lang === "cn" ? "浏览其他教程" : "Browse other guides"}
+          </Button>
         </div>
       ) : err || !article ? (
         <div className="glass-card rounded-2xl p-6 text-sm">

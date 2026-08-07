@@ -72,6 +72,13 @@ const NOT_FOUND_MSG =
 // never pair the not-found message with source links.
 const GUIDES_ONLY_RECORD = "（找到相关指南，请查看下方链接。）";
 
+/**
+ * How many past messages a conversation carries — BOTH into the model's context
+ * and back into the widget on reload. These are deliberately one number: see the
+ * note at the history query for why they must not diverge.
+ */
+const HISTORY_LIMIT = 20;
+
 const SYSTEM_PROMPT = `You are "Angel AI", QAI's friendly help-center assistant. You help users by finding the right guide in the knowledge base and pointing them to it.
 
 Use the tools:
@@ -399,6 +406,57 @@ serve(async (req) => {
       return json({ ok: true });
     }
 
+    // ── Public history replay (widget) ────────────────────────────────────
+    // Hands back the visitor's most recent conversation so a reload resumes the
+    // thread instead of silently starting a new one. No Claude call.
+    //
+    // Scoped by BOTH visitor_id AND location_id, and that pairing is doing two
+    // jobs. The obvious one is isolation: the same browser may have visited
+    // several sub-accounts, and one sub-account's thread must not surface under
+    // another. The second is defence in depth — visitor_id arrives from the
+    // client, so it is effectively a bearer token, and requiring the matching
+    // location_id means holding one of them alone is not enough.
+    //
+    // Not keyed on staff_email, deliberately. That value comes from a URL merge
+    // field with no verification (see the helpdesk_asker migration: "never
+    // auth"); keying private conversation content on it would let anyone read a
+    // colleague's history by editing a query string. Threads stay device-bound.
+    if (body?.action === "history") {
+      const visitorId = String(body?.visitorId || "").trim();
+      const locationId = String(body?.locationId || "").trim();
+      if (!visitorId || !locationId) return json({ conversationId: null, messages: [] });
+
+      const sbh = serviceClient();
+      const { data: conv } = await sbh
+        .from("hd_conversations")
+        .select("id")
+        .eq("visitor_id", visitorId)
+        .eq("location_id", locationId)
+        .order("updated_at", { ascending: false })
+        .limit(1)
+        .maybeSingle();
+      if (!conv) return json({ conversationId: null, messages: [] });
+
+      // Newest-first then reversed, same as the model's slice above, so the two
+      // stay in step: what the widget shows is what the model was given.
+      const { data: msgs } = await sbh
+        .from("hd_messages")
+        .select("role, content, sources")
+        .eq("conversation_id", conv.id)
+        .order("created_at", { ascending: false })
+        .limit(HISTORY_LIMIT);
+      const messages = (msgs || [])
+        .slice()
+        .reverse()
+        .filter((m: any) => m.role === "user" || m.role === "assistant")
+        .map((m: any) => ({
+          role: m.role,
+          content: m.content,
+          sources: Array.isArray(m.sources) ? m.sources : [],
+        }));
+      return json({ conversationId: conv.id, messages });
+    }
+
     const apiKey = Deno.env.get("ANTHROPIC_API_KEY");
     if (!apiKey) return json({ error: "ANTHROPIC_API_KEY not configured" }, 500);
 
@@ -474,13 +532,29 @@ serve(async (req) => {
     }
 
     // Recent history (text turns only — tool rounds aren't replayed).
+    //
+    // DESCENDING + reverse, not ascending. `.order("created_at").limit(20)` takes
+    // the OLDEST twenty, so on a long thread the model was fed the beginning of
+    // the conversation and never the part the user just said. It went unnoticed
+    // because conversations could not survive a refresh: they rarely reached
+    // twenty messages, so "oldest 20" happened to be "all of them". Persisting
+    // the conversation id is exactly what makes threads long enough for this to
+    // bite, and the symptom would have been baffling — an assistant that recalls
+    // the start of the chat but not the previous sentence.
+    //
+    // HISTORY_LIMIT is shared with the widget's own replay on purpose. If the UI
+    // showed more turns than the model receives, a user could point at something
+    // visible on their screen that the model cannot see, and the model would have
+    // no way to know it was missing. Keep these two numbers equal.
     const { data: hist } = await sb
       .from("hd_messages")
       .select("role, content")
       .eq("conversation_id", conversationId)
-      .order("created_at")
-      .limit(20);
+      .order("created_at", { ascending: false })
+      .limit(HISTORY_LIMIT);
     const history = (hist || [])
+      .slice()
+      .reverse()
       .filter((m: any) => m.role === "user" || m.role === "assistant")
       .map((m: any) => ({ role: m.role, content: m.content }));
 
@@ -513,7 +587,15 @@ serve(async (req) => {
     // Always persist non-empty content for the conversation record / history.
     const recordedAnswer = finalAnswer || GUIDES_ONLY_RECORD;
 
-    await sb.from("hd_messages").insert({ conversation_id: conversationId, role: "assistant", content: recordedAnswer });
+    // `sources` is stored alongside the text so a replayed thread keeps its
+    // guide buttons. Null when empty rather than [] — an older row and a genuine
+    // no-sources answer then look identical to the widget, which is correct.
+    await sb.from("hd_messages").insert({
+      conversation_id: conversationId,
+      role: "assistant",
+      content: recordedAnswer,
+      sources: hasSources ? sources : null,
+    });
     await sb.from("hd_conversations").update({ updated_at: new Date().toISOString() }).eq("id", conversationId);
     // Analytics: skip the internal AI-test channel so the admin dashboard shows
     // only real (web / widget) usage. Conversations are still recorded (and

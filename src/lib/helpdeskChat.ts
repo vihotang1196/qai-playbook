@@ -51,6 +51,44 @@ export async function sendChat(params: {
   return { conversationId: d.conversationId, answer: d.answer, sources: d.sources || [] };
 }
 
+export type ChatHistoryTurn = { role: "user" | "assistant"; content: string; sources: ChatSource[] };
+export type ChatHistory = { conversationId: string | null; messages: ChatHistoryTurn[] };
+
+/**
+ * The visitor's most recent thread for this sub-account, so a reload resumes it.
+ * Scoped server-side by visitor_id AND location_id — see the note on the history
+ * action in the edge fn.
+ *
+ * Resolves to an empty history instead of throwing. A help center that refuses
+ * to open because an optional replay failed is worse than one that opens blank,
+ * and the caller has nothing useful to do with the error either way.
+ */
+export async function fetchHistory(params: {
+  visitorId: string;
+  locationId: string | null;
+}): Promise<ChatHistory> {
+  const empty: ChatHistory = { conversationId: null, messages: [] };
+  if (!params.visitorId || !params.locationId) return empty;
+  try {
+    const { data, error } = await getSupabase().functions.invoke("helpdesk-chat", {
+      body: { action: "history", visitorId: params.visitorId, locationId: params.locationId },
+    });
+    if (error) return empty;
+    const d = data as Partial<ChatHistory> | null;
+    if (!d || !Array.isArray(d.messages)) return empty;
+    return {
+      conversationId: d.conversationId ?? null,
+      messages: d.messages.map((m) => ({
+        role: m.role === "assistant" ? "assistant" : "user",
+        content: String(m.content ?? ""),
+        sources: Array.isArray(m.sources) ? m.sources : [],
+      })),
+    };
+  } catch {
+    return empty;
+  }
+}
+
 /** Record a 👍/👎 on one AI answer. Idempotent per (conversation, messageIndex):
  *  re-rating updates the same row. Best-effort — the caller ignores failures. */
 export async function sendFeedback(params: {
