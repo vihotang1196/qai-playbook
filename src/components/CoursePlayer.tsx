@@ -77,6 +77,12 @@ const CoursePlayer = ({ courses, initialCourseId }: CoursePlayerProps) => {
    *  auto-advance. Never on a course switch — see the note at the top. */
   const [playToken, setPlayToken] = useState(0);
   const listItemRefs = useRef<Record<number, HTMLButtonElement | null>>({});
+  /** The scrolling frame around the curriculum list. Needed because keeping the
+   *  active row visible is done by setting THIS element's scrollTop — see the
+   *  effect below for why scrollIntoView cannot be used here. */
+  const listRef = useRef<HTMLDivElement>(null);
+  /** Previous activeIndex, or null on the very first run. See the effect below. */
+  const prevIndexRef = useRef<number | null>(null);
 
   const active = lessons[activeIndex] ?? lessons[0];
 
@@ -99,9 +105,53 @@ const CoursePlayer = ({ courses, initialCourseId }: CoursePlayerProps) => {
   const [openPart, setOpenPart] = useState<string | undefined>(undefined);
   useEffect(() => setOpenPart(activePart), [activePart]);
 
-  // Keep the active row visible in the sidebar.
+  /**
+   * Keep the active row visible in the sidebar — WITHOUT ever scrolling the page.
+   *
+   * This used to be `scrollIntoView({ block: "nearest" })`, which moved the whole
+   * document. Two separate bugs came out of that, and both are fixed here:
+   *
+   * 1. `nearest` does NOT mean "only scroll inside the container". It means
+   *    "scroll the minimum distance needed to make this visible" — and when the
+   *    target is outside the VIEWPORT, that walks every scrollable ancestor up
+   *    to the document. Opening the homepage dragged the reader down to y≈2391,
+   *    because this effect also runs on mount and the list is far below the
+   *    fold. Setting the frame's own scrollTop is the only way to stay inside it.
+   *
+   * 2. It ran on mount at all. Nothing has been *chosen* on the first pass, so
+   *    there is nothing to reveal; `prevIndexRef === null` skips it. Without
+   *    this, a course whose lesson 1 sits below the frame's fold would still
+   *    yank the list on arrival.
+   *
+   * Both matter. Fixing only (2) would leave clicking lesson 15 quietly scrolling
+   * the page — the same bug, but arriving as "the page jumped when I picked a
+   * lesson", which is much harder to trace back here.
+   *
+   * On phones the frame has no height constraint (see useIsDesktop), so
+   * scrollHeight === clientHeight, both branches are false and this is a no-op —
+   * which is correct: there the list flows in the page and must not be moved.
+   */
   useEffect(() => {
-    listItemRefs.current[activeIndex]?.scrollIntoView({ block: "nearest", behavior: "smooth" });
+    const prev = prevIndexRef.current;
+    prevIndexRef.current = activeIndex;
+    if (prev === null) return; // first run — see 2 above
+
+    const frame = listRef.current;
+    const item = listItemRefs.current[activeIndex];
+    if (!frame || !item) return;
+
+    // Offsets via getBoundingClientRect rather than offsetTop: offsetTop is
+    // measured from the offsetParent, which on lg is the absolutely-positioned
+    // outer frame, not this scrolling div.
+    const itemRect = item.getBoundingClientRect();
+    const frameRect = frame.getBoundingClientRect();
+    const itemTop = itemRect.top - frameRect.top + frame.scrollTop;
+    const itemBottom = itemTop + itemRect.height;
+    const viewTop = frame.scrollTop;
+    const viewBottom = viewTop + frame.clientHeight;
+
+    if (itemTop < viewTop) frame.scrollTop = itemTop;
+    else if (itemBottom > viewBottom) frame.scrollTop = itemBottom - frame.clientHeight;
   }, [activeIndex]);
 
   /** A viewer picked this lesson, so play it. */
@@ -190,7 +240,7 @@ const CoursePlayer = ({ courses, initialCourseId }: CoursePlayerProps) => {
             </p>
           </div>
 
-          <div className="overflow-y-auto flex-1 py-2 min-h-0">
+          <div ref={listRef} className="overflow-y-auto flex-1 py-2 min-h-0">
             {course.curriculum.map((part) => {
               const expanded = isDesktop || openPart === part.part;
               return (
