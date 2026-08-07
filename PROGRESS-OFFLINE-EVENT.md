@@ -2092,3 +2092,96 @@ While this was in flight another session was mid-merge on the upgrade pages, wit
 its deletions already staged. Committed with `git commit -- <paths>` so only
 these two files went in and their staged work stayed untouched — worth reusing
 whenever `git status` shows staged changes that are not yours.
+
+---
+
+## A global CSS rule silently disarmed `scrollTo(0,0)` for years (2026-08-07)
+
+**Symptom.** Returning to the homepage from another page landed mid-page, around
+Course Hub.
+
+**The shape of this bug is the reason it is written down.** The code was
+correct — `window.scrollTo(0, 0)` in a route-change effect is exactly what you
+would write. It was defeated by one unrelated line in `index.css`:
+
+```
+html { scroll-behavior: smooth; }
+```
+
+`scrollTo`'s default behavior is `auto`, and `auto` means *defer to CSS*. So the
+instant jump was really a several-hundred-millisecond **animation**, starting
+from wherever the previous page was scrolled to and racing the new route's
+render. The document height changes underneath it, the animation dies partway,
+and the reader is left in the middle of the new page.
+
+**Grepping the code finds nothing wrong here.** The call site reads correctly;
+its meaning was changed from another file. Worth remembering as a category:
+*code that is right but whose environment redefined it*. Same failure family as
+the dead `hover:text-accent-foreground` further up this file — a token
+redefinition that made correct-looking markup do nothing.
+
+**And it failed PROBABILISTICALLY**, which is why nobody reported it in the
+years it was live: the animation completes if the destination renders fast
+enough. Short pages looked fine. The homepage — long, and heavy with the course
+player and its images — did not. A bug that works most of the time gets
+attributed to the user's own scrolling.
+
+`behavior: "instant"` is the only value that overrules the CSS. Not deleting the
+global rule: that would change how every in-page anchor on the site feels.
+`styles/upgrade.css:15` hit this same trap earlier and took the same escape
+("smooth scroll handled in JS instead") — the note was there, nobody connected
+it.
+
+### Two scoping facts that were wrong on first pass
+
+**1. It was NOT "every page transition".** The first read assumed
+`/help → /events` had the same problem. It does not. **The navbar's route links
+are plain `<a href="/help">`, not `<Link>`, and `handleNavClick` returns early
+for `isRoute` without calling preventDefault — so they are FULL PAGE LOADS.**
+Verified: `performance.getEntriesByType('navigation')[0].type === "navigate"`
+after clicking Help Center. A full load starts at the top on its own and never
+reaches this effect.
+
+The effect only governs genuine client-side navigation, which in this app is:
+**首页 in the navbar** (the reported bug — it is the one navbar item that
+preventDefaults and calls `navigate()`), plus `<Link>`/`<NavLink>`/`navigate()`
+inside the Admin Portal, Review Boost, Helpdesk, Offline Event and Tools.
+
+**2. Back/forward was actively broken, not merely unhandled.** The effect fired
+on POP too, so the position the browser had *just restored* was overwritten with
+a scroll to the top. POP now returns early.
+
+### 🟠 The POP branch is a hypothesis, not a fix — needs real-world testing
+
+Returning early hands back/forward to the browser's own
+`history.scrollRestoration` (currently `"auto"`, never set by us). The intent is
+right and it is strictly better than discarding the restore. **Whether the
+browser lands on the correct spot is unverified.** Under client-side routing the
+restore fires on popstate, *before* React has rendered the destination, so the
+document is still short and a 3000px restore can be clamped to whatever
+currently fits. Known SPA problem.
+
+**If testing shows it landing short, the fix is to record scroll positions per
+history key and restore after paint — NOT to delete the branch and scroll to top
+on POP.** That would just reinstate the old behaviour.
+
+### The hash branch is defensive only
+
+Nothing navigates across pages with a hash today. Every hash link on the site
+(`/dfy` ×3, `/qai-style` ×3, the two logo `href="#"`) is a **same-page** anchor,
+and a same-page anchor never changes `pathname`, so the effect never ran for
+them. The branch exists so that adding a cross-page hash link later cannot
+silently become "anchor ignored, dumped at top".
+
+Related, and deliberately NOT fixed here: those `/dfy` anchors have no
+`scroll-margin-top`, so the fixed ~66px navbar likely covers the target heading.
+`/upgrade` already solved this (`.upg #plans { scroll-margin-top: 80px }`).
+Pre-existing cosmetic issue, unrelated to scroll restoration.
+
+### Verification honesty
+
+The browser panel has no real scroll viewport (see the GuidedTour section
+above), so **none of the three scroll behaviours could be verified there.** What
+was verified: 首页 is client-side (JS context survives), the effect fires exactly
+once, and its argument is `{top: 0, behavior: "instant"}`. Landing position,
+anchor behaviour and back/forward restore all need a real browser.
