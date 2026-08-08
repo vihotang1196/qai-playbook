@@ -59,6 +59,42 @@ const COPY_LIMITS = [
   { windowMs: DAY_MS, max: 40, label: "day" },
 ];
 
+// Browsing history is not generating copy, so it gets its OWN caps on its OWN
+// event_type. Sharing COPY_LIMITS would mean that paging through what you have
+// already bought eats the quota for making something new — worst of all at the
+// exact moment someone is out of generations and goes looking for an old one.
+//
+// These are set to be invisible in normal use and awkward for a scraper. A real
+// person opens the list, pages a few times, opens a handful of entries: tens of
+// calls a day, not hundreds, so 20/hour is not something anyone will feel.
+//
+// The number that matters is the PRODUCT of the cap and the page size, because
+// that is what a scraper actually gets. The first draft (60/hour x 50 rows)
+// conceded ~3,000 rows an hour, which against a real account is barely a limit
+// at all. 20/hour x 30 rows is ~600 — three times the friction, and still zero
+// effect on ordinary use.
+//
+// It remains friction and an audit trail, NOT a wall. The wall would be real
+// identity verification, which this platform has consciously deferred (identity
+// is still the client-supplied location_id). What this buys is that walking an
+// entire account takes hours and leaves one tool_usage row per page with the
+// location stamped on it.
+const HISTORY_LIST_LIMITS = [
+  { windowMs: HOUR_MS, max: 20, label: "hour" },
+  { windowMs: DAY_MS, max: 100, label: "day" },
+];
+
+/** Page size: what the client asks for, clamped to something a list endpoint can
+ *  serve without turning into a bulk export. The max is half the page size a
+ *  scraper would want, for the reason spelled out above. */
+const HISTORY_LIMIT_DEFAULT = 20;
+const HISTORY_LIMIT_MAX = 30;
+
+/** Postgres rejects a malformed uuid with an error rather than an empty result,
+ *  so ids are shape-checked here and refused as a 400 — a bad id is the caller's
+ *  mistake, not a database fault to be surfaced. */
+const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
   "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
@@ -347,6 +383,211 @@ async function saveToHistory(
   } catch (e) {
     console.error("saveToHistory threw (non-fatal):", e);
   }
+}
+
+/**
+ * The three history endpoints: list / get / delete.
+ *
+ * ── SCOPING, the rule the whole feature rests on ──────────────────────────
+ * EVERY query here filters on `location_id`, and that filter is taken from the
+ * request the caller already had to pass hasPlaybookAccess with — never from a
+ * field they can aim somewhere else. `history.get` and `history.delete` filter
+ * on (location_id AND id), never on id alone: an id is a uuid and unguessable,
+ * but "unguessable" is not an access control, and one leaked id must not be able
+ * to read or destroy another account's row.
+ *
+ * No caller-supplied ordering, no caller-supplied filter columns, no "omit the
+ * location to get everything" path. The only knobs are `limit` and `cursor`, and
+ * both are validated before they reach the database.
+ *
+ * ⚠️ Scoping here means SUB-ACCOUNT, not person. A location is one team and this
+ * history is shared inside it by design (a colleague sees "our copy"). The UI
+ * must say so plainly — do not let anyone read the list as private-to-me.
+ */
+async function handleHistory(
+  sb: SupabaseClient,
+  raw: Record<string, unknown>,
+  locationId: string,
+  lang: Language,
+): Promise<Response> {
+  const action = String(raw.action || "");
+  const en = lang === "en";
+
+  /** Shared id validation — both get and delete need exactly this. */
+  const readId = (): { id: string } | { err: Response } => {
+    const id = String(raw.id || "").trim();
+    if (!id) {
+      return { err: json({ error: en ? "id is required" : "缺少 id", code: "id_required" }, 400) };
+    }
+    if (!UUID_RE.test(id)) {
+      return {
+        err: json({ error: en ? "id must be a uuid" : "id 格式不正确", code: "bad_id" }, 400),
+      };
+    }
+    return { id };
+  };
+
+  /** A database failure is logged in full server-side and reported to the client
+   *  as a flat, structureless message — the customer can act on "try again", and
+   *  a stranger learns nothing about what tables or columns exist. */
+  const dbFailed = (where: string, message: string): Response => {
+    console.error(`${where} failed:`, message);
+    return json(
+      { error: en ? "Could not load your history — please try again." : "读取历史记录失败，请稍后再试。", code: "history_unavailable" },
+      500,
+    );
+  };
+
+  // ── list ────────────────────────────────────────────────────────────────
+  if (action === "history.list") {
+    let limit = HISTORY_LIMIT_DEFAULT;
+    if (raw.limit !== undefined && raw.limit !== null && raw.limit !== "") {
+      const n = Number(raw.limit);
+      if (!Number.isFinite(n) || n < 1) {
+        return json(
+          { error: en ? "limit must be a positive number" : "limit 必须是正整数", code: "bad_limit" },
+          400,
+        );
+      }
+      // Over-max is CLAMPED rather than refused: asking for 200 is an
+      // overreach, not a mistake worth failing someone's page load over.
+      limit = Math.min(Math.floor(n), HISTORY_LIMIT_MAX);
+    }
+
+    // Keyset pagination on created_at. A cursor is the created_at of the last
+    // row the caller already has, so pages stay stable while new rows land on
+    // top — which OFFSET could not promise. created_at alone is enough of a key
+    // here: a generation takes ~2 minutes, so two rows in one account sharing a
+    // timestamp to the microsecond is not a case that occurs.
+    let cursor: string | null = null;
+    if (raw.cursor !== undefined && raw.cursor !== null && raw.cursor !== "") {
+      const c = String(raw.cursor);
+      if (Number.isNaN(Date.parse(c))) {
+        return json(
+          { error: en ? "cursor must be an ISO timestamp" : "cursor 格式不正确", code: "bad_cursor" },
+          400,
+        );
+      }
+      cursor = new Date(c).toISOString();
+    }
+
+    // Its own limiter on its own event_type — never COPY_LIMITS. See the note
+    // by HISTORY_LIST_LIMITS for why browsing must not spend generation quota.
+    const rl = await checkRateLimit(sb, {
+      toolKey: TOOL_KEY,
+      clientKey: locKey(locationId),
+      windows: HISTORY_LIST_LIMITS,
+      eventType: "history_list",
+    });
+    if (!rl.allowed) {
+      return json(
+        {
+          error: rateLimitMessage(lang === "zh" ? "cn" : "en", rl.limited?.label === "hour" ? "hour" : "day"),
+          code: "quota_exceeded",
+        },
+        429,
+      );
+    }
+
+    // Deliberately NOT selecting input/result: at 6-8KB a row, 20 of them would
+    // make a ~150KB response for a screen that shows nothing but titles and
+    // dates. The full copy is one history.get away.
+    let q = sb
+      .from("copy_generations")
+      .select("id, product_name, language, created_at")
+      .eq("location_id", locationId)
+      .is("deleted_at", null)
+      .order("created_at", { ascending: false })
+      .limit(limit + 1); // one extra row = "is there a next page?", no COUNT
+    if (cursor) q = q.lt("created_at", cursor);
+
+    const { data, error } = await q;
+    if (error) return dbFailed("history.list", error.message);
+
+    const rows = data ?? [];
+    const hasMore = rows.length > limit;
+    const items = hasMore ? rows.slice(0, limit) : rows;
+    const nextCursor = hasMore ? (items[items.length - 1]?.created_at ?? null) : null;
+
+    // Metered AFTER the read succeeds, so a failed query never eats a slot.
+    // Carries client_key because that is the dimension checkRateLimit counts on;
+    // the event_type keeps it clear of generation quota AND of the admin
+    // overview, which counts only 'generation' / 'posted'.
+    await logToolUsage(sb, {
+      tool_key: TOOL_KEY,
+      event_type: "history_list",
+      location_id: locationId,
+      client_key: locKey(locationId),
+      meta: { returned: items.length },
+    });
+
+    return json({ items, nextCursor });
+  }
+
+  // ── get ─────────────────────────────────────────────────────────────────
+  // NOT rate-limited, on purpose. Reaching it requires a uuid, and the only
+  // place a uuid comes from is history.list, which IS limited — so the gate is
+  // already upstream. Metering every "open an entry" click would throttle
+  // ordinary reading (open five, go back, open five more) to buy nothing.
+  if (action === "history.get") {
+    const r = readId();
+    if ("err" in r) return r.err;
+
+    const { data, error } = await sb
+      .from("copy_generations")
+      .select("id, product_name, language, input, result, created_at")
+      .eq("location_id", locationId) // ← scoping, never id alone
+      .eq("id", r.id)
+      .is("deleted_at", null)
+      .maybeSingle();
+    if (error) return dbFailed("history.get", error.message);
+
+    // A miss is `null`, not a 404: "no such row" and "that row belongs to
+    // someone else" must be indistinguishable from outside, or the endpoint
+    // becomes a probe for which ids exist.
+    return json({ item: data ?? null });
+  }
+
+  // ── delete (soft) ───────────────────────────────────────────────────────
+  if (action === "history.delete") {
+    const r = readId();
+    if ("err" in r) return r.err;
+
+    // UPDATE, never DELETE. The row stays; only deleted_at is stamped, so an
+    // "I deleted it by accident" is recoverable by hand. `is deleted_at null`
+    // makes a repeat call a no-op instead of quietly re-stamping the time.
+    const { data, error } = await sb
+      .from("copy_generations")
+      .update({ deleted_at: new Date().toISOString() })
+      .eq("location_id", locationId) // ← scoping, never id alone
+      .eq("id", r.id)
+      .is("deleted_at", null)
+      .select("id");
+    if (error) return dbFailed("history.delete", error.message);
+
+    // Empty = nothing matched: wrong account, unknown id, or already deleted.
+    // All three answer the same way, for the same reason as history.get.
+    const ok = (data ?? []).length > 0;
+
+    // Audited but NOT rate-limited: deletions are rare and reversible, and
+    // anyone able to call this could already call history.list. What a row here
+    // buys is the ability to answer "who removed it, and when".
+    if (ok) {
+      await logToolUsage(sb, {
+        tool_key: TOOL_KEY,
+        event_type: "history_delete",
+        location_id: locationId,
+        meta: { id: r.id },
+      });
+    }
+
+    return json({ ok });
+  }
+
+  return json(
+    { error: en ? `Unknown action: ${action}` : `未知操作：${action}`, code: "unknown_action" },
+    400,
+  );
 }
 
 /** Escape what JSON forbids inside a string but a model may still emit.
@@ -790,6 +1031,22 @@ Deno.serve(async (req: Request) => {
       .maybeSingle();
     const result = (data?.meta as { result?: unknown } | null)?.result ?? null;
     return json({ result, createdAt: data?.created_at ?? null });
+  }
+
+  // ── History: list / read / soft-delete past generations ──────────────────
+  // Placed in the same slot as `recover` — after the access gate, before the
+  // GENERATION limiter — for the same second reason: browsing what you already
+  // paid for must not spend the quota for making something new, and running out
+  // of generations is exactly when someone goes looking through old copy.
+  //
+  // The resemblance ends there, and the difference is why this is not simply
+  // copied. `recover` needs an unguessable requestId and returns a single row,
+  // so there is nothing to walk. `history.list` is a paged read over an entire
+  // account — the one shape that CAN be walked — so it carries its own limiter
+  // on its own event_type instead of inheriting recover's free pass. See
+  // handleHistory and HISTORY_LIST_LIMITS.
+  if (typeof raw.action === "string" && raw.action.startsWith("history.")) {
+    return await handleHistory(sb, raw, locationId, lang);
   }
 
   const rl = await checkRateLimit(sb, {
