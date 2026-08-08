@@ -11,6 +11,7 @@ import {
   ImageIcon,
   Copy,
   Check,
+  PenLine,
 } from "lucide-react";
 import { toast } from "sonner";
 import type { GenerateResult } from "@/lib/copywriter/types";
@@ -23,12 +24,29 @@ export function Results({
   onRegenerate,
   onRestart,
   locationId,
+  restartLabel,
+  onUseAsTemplate,
+  templateDisabled = false,
+  templateHint,
 }: {
   result: GenerateResult;
-  onRegenerate: () => void;
+  /** Omit to hide the Regenerate button. The history detail view does exactly
+   *  that: "regenerate" there would spend money on a fresh Claude call with no
+   *  questionnaire on screen for the customer to check first. */
+  onRegenerate?: () => void;
   onRestart: () => void;
   /** Sub-account identity, forwarded to the paid voice endpoint. */
   locationId: string;
+  /** Overrides the Restart button's label — history reuses this control as
+   *  "back to list". */
+  restartLabel?: string;
+  /** Shown only in the history view: refill the questionnaire from this entry.
+   *  Never generates anything by itself. */
+  onUseAsTemplate?: () => void;
+  /** True when the entry has no stored questionnaire to put back. */
+  templateDisabled?: boolean;
+  /** Why the template button is greyed out, surfaced as a tooltip. */
+  templateHint?: string;
 }) {
   // Two different languages live on this screen and must not be conflated:
   //   outputLang — the language of the DELIVERABLE (copy, voiceover, PDF). Fixed
@@ -106,12 +124,25 @@ export function Results({
         <div className="flex flex-wrap gap-2">
           <Button variant="outline" onClick={onRestart}>
             <RotateCcw className="mr-1.5 h-4 w-4" />
-            {t.restart}
+            {restartLabel ?? t.restart}
           </Button>
-          <Button variant="outline" onClick={onRegenerate}>
-            <RefreshCw className="mr-1.5 h-4 w-4" />
-            {t.regenerate}
-          </Button>
+          {onRegenerate && (
+            <Button variant="outline" onClick={onRegenerate}>
+              <RefreshCw className="mr-1.5 h-4 w-4" />
+              {t.regenerate}
+            </Button>
+          )}
+          {onUseAsTemplate && (
+            <Button
+              variant="outline"
+              onClick={onUseAsTemplate}
+              disabled={templateDisabled}
+              title={templateDisabled ? templateHint : undefined}
+            >
+              <PenLine className="mr-1.5 h-4 w-4" />
+              {t.useAsTemplate}
+            </Button>
+          )}
           <Button onClick={exportPdf} disabled={exporting}>
             {exporting ? (
               <Loader2 className="mr-1.5 h-4 w-4 animate-spin" />

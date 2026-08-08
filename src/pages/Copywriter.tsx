@@ -1,16 +1,27 @@
 import { useEffect, useState } from "react";
 import { Loader2, Sparkles, PenLine } from "lucide-react";
 import { toast } from "sonner";
-import { Survey } from "@/components/copywriter/Survey";
+import { Survey, hasDraftContent, writeDraft } from "@/components/copywriter/Survey";
 import { Results } from "@/components/copywriter/Results";
+import { History } from "@/components/copywriter/History";
 import OpenFromQai from "@/components/OpenFromQai";
-import { generateCopy, recoverCopy } from "@/lib/copywriter/api";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
+import { generateCopy, getHistoryItem, recoverCopy } from "@/lib/copywriter/api";
 import { resolveLocationId } from "@/lib/ghl";
 import { useLang } from "@/i18n/LanguageContext";
-import { T, type Language, uiLanguage } from "@/lib/copywriter/i18n";
-import type { GenerateResult, SurveyInput } from "@/lib/copywriter/types";
+import { T, type Language, saveLang, uiLanguage } from "@/lib/copywriter/i18n";
+import type { GenerateResult, HistoryDetail, SurveyInput } from "@/lib/copywriter/types";
 
-type Stage = "survey" | "loading" | "result";
+type Stage = "survey" | "loading" | "result" | "history" | "historyDetail";
 
 /**
  * In-flight marker for a generation this browser started.
@@ -86,6 +97,61 @@ const Copywriter = () => {
   // A generation this browser started and never saw finish, if there is one.
   const [inflight, setInflight] = useState<Inflight | null>(() => readInflight());
   const [checking, setChecking] = useState(false);
+
+  // ── History ──────────────────────────────────────────────────────────────
+  const [detail, setDetail] = useState<HistoryDetail | null>(null);
+  const [detailLoading, setDetailLoading] = useState(false);
+  /** A template waiting on "this will overwrite your draft" confirmation.
+   *  Non-null ONLY when the draft actually holds typed content. */
+  const [pendingTemplate, setPendingTemplate] = useState<SurveyInput | null>(null);
+
+  /** Open one entry. Switches view first so the tap gets an immediate response,
+   *  then fills it in — a list that sits still for a second reads as broken. */
+  const openDetail = async (id: string) => {
+    setDetail(null);
+    setDetailLoading(true);
+    setStage("historyDetail");
+    try {
+      const item = await getHistoryItem(locationId, id);
+      if (!item) {
+        toast.message(uiLang === "cn" ? "这条记录已不存在" : "That entry is no longer available");
+        setStage("history");
+        return;
+      }
+      setDetail(item);
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : "Could not open this entry");
+      setStage("history");
+    } finally {
+      setDetailLoading(false);
+    }
+  };
+
+  /** Put a past questionnaire back in the form. Writes the DRAFT and switches to
+   *  the survey — it never starts a generation, because that would be spending
+   *  the customer's money on a click that only said "let me edit this". */
+  const applyTemplate = (input: SurveyInput) => {
+    writeDraft(input);
+    // Keep the standalone output-language memo in step with the draft, or the
+    // form would restore the template's answers under the previous language.
+    if (input.language) saveLang(input.language);
+    setDetail(null);
+    setStage("survey");
+    toast.success(
+      uiLang === "cn" ? "已载入表单，请检查后再点生成" : "Loaded into the form — review it before generating",
+    );
+  };
+
+  /** "Use as template" — asks first, but only when there is something to lose. */
+  const requestTemplate = () => {
+    const input = detail?.input;
+    if (!input) return; // button is disabled in this case; belt and braces
+    if (hasDraftContent()) {
+      setPendingTemplate(input);
+      return;
+    }
+    applyTemplate(input);
+  };
 
   // Expire the marker on its own so the disabled Generate button can never
   // become permanent — the customer gets the questionnaire back at the TTL
@@ -244,7 +310,13 @@ const Copywriter = () => {
           onCheck={checkInflight}
         />
       )}
-      {stage === "survey" && <Survey onSubmit={run} disabled={!!inflight} />}
+      {stage === "survey" && (
+        <Survey
+          onSubmit={run}
+          disabled={!!inflight}
+          onOpenHistory={() => setStage("history")}
+        />
+      )}
       {stage === "loading" && <LoadingView lang={lang} />}
       {stage === "result" && result && (
         <Results
@@ -257,6 +329,57 @@ const Copywriter = () => {
           }}
         />
       )}
+
+      {stage === "history" && (
+        <History
+          locationId={locationId}
+          onOpen={openDetail}
+          onBack={() => setStage("survey")}
+        />
+      )}
+
+      {stage === "historyDetail" && detailLoading && <DetailLoading lang={lang} />}
+      {stage === "historyDetail" && !detailLoading && detail && (
+        // The SAME Results component the live flow uses, so copy buttons, the
+        // voice-over and the PDF export all work here for free. Two differences,
+        // both about money: Regenerate is hidden (it would bill a fresh Claude
+        // call with no questionnaire on screen to check first), and the template
+        // button only refills the form.
+        <Results
+          result={detail.result}
+          locationId={locationId}
+          onRestart={() => setStage("history")}
+          restartLabel={T[lang].historyBackToList}
+          onUseAsTemplate={requestTemplate}
+          templateDisabled={!detail.input}
+          templateHint={T[lang].templateUnavailable}
+        />
+      )}
+
+      {/* Only ever opens when the draft holds text the customer typed — see
+          requestTemplate. Loading a template over an empty form asks nothing. */}
+      <AlertDialog
+        open={!!pendingTemplate}
+        onOpenChange={(o) => !o && setPendingTemplate(null)}
+      >
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>{T[lang].templateOverwriteTitle}</AlertDialogTitle>
+            <AlertDialogDescription>{T[lang].templateOverwriteDesc}</AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>{T[lang].historyCancel}</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={() => {
+                if (pendingTemplate) applyTemplate(pendingTemplate);
+                setPendingTemplate(null);
+              }}
+            >
+              {T[lang].templateOverwriteConfirm}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </main>
   );
 };
@@ -306,6 +429,17 @@ function InflightNotice({
           </button>
         </div>
       </div>
+    </div>
+  );
+}
+
+/** Opening one history entry — a short fetch, so this is a quiet placeholder
+ *  rather than the full-screen ceremony a real generation gets. */
+function DetailLoading({ lang }: { lang: Language }) {
+  return (
+    <div className="flex min-h-[50vh] flex-col items-center justify-center gap-3 text-muted-foreground">
+      <Loader2 className="h-6 w-6 animate-spin" />
+      <p className="text-sm">{T[lang].historyLoading}</p>
     </div>
   );
 }

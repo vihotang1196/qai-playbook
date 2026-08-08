@@ -19,6 +19,28 @@ export interface SurveyInput {
   tone: string;
 }
 
+/**
+ * One row as the history LIST returns it. Deliberately without `input` and
+ * `result`: the list endpoint omits them because a full row is 6-8KB and a page
+ * of twenty would be a ~150KB payload for a screen showing only titles.
+ */
+export interface HistoryItem {
+  id: string;
+  /** May be null on rows stored before the questionnaire was captured — the UI
+   *  must fall back to the date rather than render an empty title. */
+  product_name: string | null;
+  language: Language;
+  created_at: string;
+}
+
+/** A full row, as history.get returns it. */
+export interface HistoryDetail extends HistoryItem {
+  /** Null when this row predates questionnaire capture. That is exactly what
+   *  greys out "use as template" — there is nothing to put back in the form. */
+  input: SurveyInput | null;
+  result: GenerateResult;
+}
+
 /** The AI generation result. Mirrors the JSON the Edge Function returns
  *  (Phase 1). Kept in sync with the `generate-copy` function's schema. */
 export type GenerateResult = {

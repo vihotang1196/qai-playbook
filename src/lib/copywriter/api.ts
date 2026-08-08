@@ -1,6 +1,6 @@
 import { FunctionsHttpError } from "@supabase/supabase-js";
 import { getSupabase } from "@/lib/supabase";
-import type { GenerateResult, SurveyInput } from "./types";
+import type { GenerateResult, HistoryDetail, HistoryItem, SurveyInput } from "./types";
 
 // Fatal errors that a retry can't fix (bad config / key / input). Everything
 // else — incomplete output, truncation, model overload, upstream 429, network —
@@ -123,6 +123,71 @@ export async function recoverCopy(
   // request the customer never made.
   if (error) return null;
   return data?.result ?? null;
+}
+
+// ── History ────────────────────────────────────────────────────────────────
+// All three hit the same `generate-copy` function, which scopes every query by
+// the location_id passed here. None of them costs money: no Claude call, no TTS.
+
+/** Pull the function's `{ error }` body out of a non-2xx response. */
+async function functionError(error: unknown, fallback: string): Promise<Error> {
+  if (error instanceof FunctionsHttpError) {
+    try {
+      const body = await error.context.json();
+      if (body?.error) return new Error(body.error);
+    } catch {
+      /* body wasn't JSON — fall through to the generic message */
+    }
+  }
+  return new Error((error as { message?: string })?.message || fallback);
+}
+
+/**
+ * One page of this SUB-ACCOUNT's history, newest first.
+ *
+ * `cursor` is the created_at of the last row already held; omit it for page one.
+ * The server clamps `limit` to 30, so asking for more is quietly capped rather
+ * than refused.
+ */
+export async function listHistory(
+  locationId: string,
+  cursor?: string | null,
+): Promise<{ items: HistoryItem[]; nextCursor: string | null }> {
+  const supabase = getSupabase();
+  const { data, error } = await supabase.functions.invoke<{
+    items: HistoryItem[];
+    nextCursor: string | null;
+  }>("generate-copy", {
+    body: { action: "history.list", locationId, ...(cursor ? { cursor } : {}) },
+  });
+  if (error) throw await functionError(error, "Could not load history");
+  return { items: data?.items ?? [], nextCursor: data?.nextCursor ?? null };
+}
+
+/** One full entry, or null when it doesn't exist / isn't this account's. Those
+ *  two cases are deliberately indistinguishable — see the server's note. */
+export async function getHistoryItem(
+  locationId: string,
+  id: string,
+): Promise<HistoryDetail | null> {
+  const supabase = getSupabase();
+  const { data, error } = await supabase.functions.invoke<{ item: HistoryDetail | null }>(
+    "generate-copy",
+    { body: { action: "history.get", locationId, id } },
+  );
+  if (error) throw await functionError(error, "Could not open this entry");
+  return data?.item ?? null;
+}
+
+/** Soft-delete one entry. `false` means nothing matched (already gone, or not
+ *  this account's) — the caller should refresh rather than treat it as an error. */
+export async function deleteHistoryItem(locationId: string, id: string): Promise<boolean> {
+  const supabase = getSupabase();
+  const { data, error } = await supabase.functions.invoke<{ ok: boolean }>("generate-copy", {
+    body: { action: "history.delete", locationId, id },
+  });
+  if (error) throw await functionError(error, "Could not delete this entry");
+  return !!data?.ok;
 }
 
 /**

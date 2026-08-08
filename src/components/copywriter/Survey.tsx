@@ -12,7 +12,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { Sparkles, Languages } from "lucide-react";
+import { Sparkles, Languages, Clock } from "lucide-react";
 import type { SurveyInput } from "@/lib/copywriter/types";
 import { useLang } from "@/i18n/LanguageContext";
 import { T, type Language, loadLang, saveLang, uiLanguage } from "@/lib/copywriter/i18n";
@@ -25,7 +25,7 @@ import {
   normalizeOptionValue,
 } from "@/lib/copywriter/options";
 
-const DRAFT_KEY = "qai_survey_draft";
+export const DRAFT_KEY = "qai_survey_draft";
 
 const DEFAULT: SurveyInput = {
   language: "zh",
@@ -63,6 +63,52 @@ function loadDraft(): SurveyInput {
     };
   } catch {
     return DEFAULT;
+  }
+}
+
+/**
+ * Is there anything in the saved draft the customer would mind losing?
+ *
+ * Only fields they TYPED count. A language pick or a tone button is one click to
+ * redo, so counting those would fire the "this will overwrite your work"
+ * confirmation on a form nobody has actually filled in — the surest way to teach
+ * someone to click through warnings without reading them.
+ */
+export function hasDraftContent(): boolean {
+  if (typeof window === "undefined") return false;
+  try {
+    const raw = localStorage.getItem(DRAFT_KEY);
+    if (!raw) return false;
+    const d = JSON.parse(raw) as Partial<SurveyInput>;
+    return [
+      d.productName,
+      d.productDesc,
+      d.price,
+      d.usp,
+      d.occupation,
+      d.painPoint,
+      d.dream,
+      d.testimonials,
+    ].some((v) => !!(v || "").trim());
+  } catch {
+    return false;
+  }
+}
+
+/**
+ * Replace the draft with a past questionnaire ("use as template").
+ *
+ * Writing the DRAFT rather than passing a prop is deliberate: Survey is
+ * conditionally rendered, so leaving the history view remounts it and it reloads
+ * the draft on its own. A prop would also have to be un-set afterwards, or
+ * bouncing to the list and back would silently overwrite edits the customer made
+ * after the template landed.
+ */
+export function writeDraft(input: SurveyInput): void {
+  try {
+    localStorage.setItem(DRAFT_KEY, JSON.stringify(input));
+  } catch {
+    /* private mode — the template just won't persist; nothing else breaks */
   }
 }
 
@@ -121,9 +167,12 @@ export function Survey({
   /** Held down while a generation this browser started is still unaccounted for.
    *  Submitting again would start a second billable run for the same copy. */
   disabled = false,
+  onOpenHistory,
 }: {
   onSubmit: (data: SurveyInput) => void;
   disabled?: boolean;
+  /** Opens this account's past generations. Omitted → no button. */
+  onOpenHistory?: () => void;
 }) {
   const [data, setData] = useState<SurveyInput>(DEFAULT);
   const [hydrated, setHydrated] = useState(false);
@@ -204,9 +253,24 @@ export function Survey({
 
   return (
     <div className="mx-auto max-w-[1600px] px-6 py-6">
-      <div className="mb-6 text-center">
+      {/* `relative` so the history button can sit in the corner on a real screen
+          WITHOUT taking a row of its own — the questionnaire fitting on one
+          1080p screen is a property worth protecting, and a new header row is
+          exactly what would break it. */}
+      <div className="relative mb-6 text-center">
         <h1 className="text-3xl font-bold tracking-tight">{t.appTitle}</h1>
         <p className="mt-2 text-sm text-muted-foreground">{t.appSubtitle}</p>
+        {onOpenHistory && (
+          // Phone: a normal centred row under the subtitle (that screen scrolls
+          // anyway, and a corner button would collide with the wrapped title).
+          // sm and up: pinned top-right, contributing zero height.
+          <div className="mt-4 flex justify-center sm:absolute sm:right-0 sm:top-0 sm:mt-0">
+            <Button variant="outline" size="sm" onClick={onOpenHistory}>
+              <Clock className="mr-1.5 h-4 w-4" />
+              {t.historyButton}
+            </Button>
+          </div>
+        )}
       </div>
 
       <Card className="glass-panel space-y-5 p-5">
