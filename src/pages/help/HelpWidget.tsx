@@ -35,10 +35,11 @@ type Tab = "chat" | "browse" | "updates";
 const SINGLE_MAX_W = 768;
 /**
  * Reading column while the split is open. The real GHL frame measures 2083px
- * wide (?hdDebug=1), so 1400 was leaving ~340px empty down each side while the
- * chat sat at a cramped 550. At 1700 the margins are ~165 a side and both panes
- * grow — the chat was widened by using the empty space, not by taking any from
- * the guide.
+ * wide — taken from inside it with a temporary on-screen probe, since none of
+ * this is observable from a dev server — so 1400 was leaving ~340px empty down
+ * each side while the chat sat at a cramped 550. At 1700 the margins are ~165 a
+ * side and both panes grow — the chat was widened by using the empty space, not
+ * by taking any from the guide.
  *
  * SPLIT_COLS must stay pure `fr` on BOTH sides. Something like
  * `minmax(0,880px) 1fr` would cap the guide more directly, but a track list can
@@ -57,8 +58,9 @@ const SPLIT_COLS = "1.1fr 1fr";
  * ⚠️ HEIGHT OF THE SPLIT ROW WHEN FRAMED — tune THIS LINE from real observation.
  *
  * A fixed number, NOT derived from 100vh, and the reason is measured rather than
- * assumed. The ?hdDebug=1 probe in the real GHL desktop frame reported
- * innerH = 995 against screen = 982: the frame is handed almost the whole window
+ * assumed. Read from inside the real GHL desktop frame with a temporary
+ * on-screen probe (since removed): innerH = 995 against screen = 982. The frame
+ * is handed almost the whole window
  * height, while the actually visible strip is that minus the browser toolbar,
  * GHL's own top bar and whatever banner is running — roughly 230px, and it
  * varies per person and per day. `100vh` in here does not measure the visible
@@ -226,7 +228,6 @@ export default function HelpWidget() {
 
   return (
     <div className="px-4 sm:px-6 pb-16 pt-24 md:pt-28">
-      <ViewportProbe />
       {/* The column widens for the split and narrows back. Both this and the
           track sizes below animate as plain lengths — the only shape CSS will
           actually tween (see the grid comment). */}
@@ -418,74 +419,6 @@ export default function HelpWidget() {
           </div>
         </div>
       </div>
-    </div>
-  );
-}
-
-/**
- * TEMPORARY — measure the real GHL iframe, then delete this component.
- *
- * A first attempt at the split layout (reverted in 36ca6f8) was verified only
- * against a local dev server in a 1600×900 window, and broke in the GHL frame:
- * the footer cut through the chat with content spilling past it. Two numbers
- * were assumed rather than measured, and both are only knowable from inside the
- * real frame:
- *
- *   · WIDTH — the split hangs entirely off Tailwind's `lg` (≥1024px). GHL's
- *     desktop chrome eats a sidebar on the left and some slack on the right, so
- *     a 1920 screen does NOT mean a 1024+ iframe. Under it, the split can never
- *     appear for a real customer.
- *   · HEIGHT — `100vh` measures the FRAME, which runs taller than the parent's
- *     visible area (same trap as IFRAME_BAR_BOTTOM_OFFSET on the events page).
- *     A fixed-height row shorter than its content spills, and the footer — a
- *     normal-flow element right after it — ends up painted through the middle.
- *
- * Gated on ?hdDebug=1 so no customer ever sees it. Fixed-position and its own
- * stacking context, so it stays readable however the layout beneath misbehaves.
- */
-function ViewportProbe() {
-  const [on] = useState(() => {
-    try {
-      return new URLSearchParams(window.location.search).get("hdDebug") === "1";
-    } catch {
-      return false;
-    }
-  });
-  const [, force] = useState(0);
-
-  useEffect(() => {
-    if (!on) return;
-    const onResize = () => force((n) => n + 1);
-    window.addEventListener("resize", onResize);
-    return () => window.removeEventListener("resize", onResize);
-  }, [on]);
-
-  if (!on) return null;
-
-  const lgHit = window.matchMedia("(min-width: 1024px)").matches;
-  const de = document.documentElement;
-  const vv = window.visualViewport;
-  const rows: [string, string][] = [
-    ["innerW × innerH", `${window.innerWidth} × ${window.innerHeight}`],
-    ["clientW × clientH", `${de.clientWidth} × ${de.clientHeight}`],
-    ["visualViewport", vv ? `${Math.round(vv.width)} × ${Math.round(vv.height)}` : "—"],
-    ["screen", `${window.screen.width} × ${window.screen.height}`],
-    ["in iframe", inIframe() ? "YES" : "no"],
-    ["lg (>=1024)", lgHit ? "HIT — split possible" : "MISS — split impossible"],
-    ["doc scrollH", `${de.scrollHeight}`],
-  ];
-
-  return (
-    <div
-      className="fixed left-2 top-2 z-[9999] rounded-lg border-2 border-[#fed50a] bg-[#141414] px-3 py-2 font-mono text-[11px] leading-relaxed text-white shadow-xl"
-      style={{ pointerEvents: "none" }}
-    >
-      <div className="mb-1 font-bold text-[#fed50a]">HELPDESK VIEWPORT PROBE</div>
-      {rows.map(([k, v]) => (
-        <div key={k}>
-          <span className="text-white/55">{k}:</span> {v}
-        </div>
-      ))}
     </div>
   );
 }
