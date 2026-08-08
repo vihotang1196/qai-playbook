@@ -68,31 +68,38 @@ const SPLIT_COLS = "1.1fr 1fr";
  *
  * Erring low on purpose: dead space below the panes is something the owner can
  * see and report, whereas a composer pushed under the fold is a control that
- * cannot be used at all.
+ * cannot be used at all. That is how this got to 700 — 560 was the first
+ * deliberately-cautious guess, verified in the real frame as too short to work
+ * in, and raised on that evidence. 700 still leaves 295px of the measured 995
+ * unclaimed for the browser toolbar, GHL's top bar and any banner.
  *
  * Too much empty space under the panes → raise it. Composer clipped → lower it.
  */
-const FRAMED_SPLIT_H_PX = 560;
+const FRAMED_SPLIT_H_PX = 700;
 
 /** Everything above the split row: fixed navbar, page top padding, header block,
  *  tab bar and their margins. Only used unframed, where 100vh is trustworthy. */
 const SPLIT_CHROME_PX = 300;
 /** Floor for the row. Below this the chat stops being usable at all. */
 const SPLIT_MIN_H_PX = 420;
-
 /**
- * Height of the split row.
+ * Framed only: the least we promise to leave above the row, as a guard against a
+ * genuinely short frame.
  *
- * Framed, `100vh` appears only as an UPPER clamp, never as the value: it cannot
- * shrink the row below what is comfortable, but if the frame itself is genuinely
- * short it stops us from reserving more height than the frame even has. The
- * overestimate is harmless in that role — 995 yields 695, which the 560 cap
- * swallows — while a genuinely short frame still gets a proportionate row down
- * to the floor.
+ * Smaller than SPLIT_CHROME_PX on purpose. This arm is a SAFETY NET, not the
+ * intended value, and it has to stay clear of FRAMED_SPLIT_H_PX or it silently
+ * takes over: at the measured innerH of 995, `100vh - 300` is 695, which would
+ * beat a 700 cap and make raising that constant do nothing at all. With 200 the
+ * same frame yields 795, the cap governs as intended, and the guard only bites
+ * when the frame really is too short to hold the row.
  */
+const FRAMED_GUARD_CHROME_PX = 200;
+
+/** Height of the split row. Framed, the constant governs and `100vh` is only a
+ *  ceiling; unframed, `100vh` is trustworthy and is the value. */
 const splitHeight = (framed: boolean) =>
   framed
-    ? `clamp(${SPLIT_MIN_H_PX}px, calc(100vh - ${SPLIT_CHROME_PX}px), ${FRAMED_SPLIT_H_PX}px)`
+    ? `clamp(${SPLIT_MIN_H_PX}px, calc(100vh - ${FRAMED_GUARD_CHROME_PX}px), ${FRAMED_SPLIT_H_PX}px)`
     : `max(${SPLIT_MIN_H_PX}px, calc(100vh - ${SPLIT_CHROME_PX}px))`;
 
 /** Resolve the location_id (URL first, else the one stashed this tab session by
@@ -338,9 +345,16 @@ export default function HelpWidget() {
                 inside a fixed-height pane it is the same shape of mistake that
                 broke the first attempt — it just happens to be caught here
                 because this wrapper clips it. */}
+            {/* `lg:[--reader-sticky-top:0px]` must be a CLASS, not an inline
+                style: at lg THIS element scrolls, so the reader's pinned control
+                sticks to its top, but below lg the element does not scroll at
+                all — the page does, under a fixed 66px navbar — and the control
+                needs the default offset to clear it. An inline style cannot hold
+                a breakpoint, so setting it that way pinned the mobile control at
+                0 and slid it under the navbar. */}
             <div
               ref={articleScrollRef}
-              className={split ? "lg:h-full lg:overflow-y-auto lg:pr-1" : ""}
+              className={split ? "lg:h-full lg:overflow-y-auto lg:pr-1 lg:[--reader-sticky-top:0px]" : ""}
             >
               {articleId ? (
                 <ArticleReader lang={lang} id={articleId} onBack={backFromArticle} />
@@ -349,11 +363,15 @@ export default function HelpWidget() {
                   <div className="space-y-3">
                     {/* Labelled "close", not "back": HelpBrowse has its own 返回分类
                         for moving up a level, and two identical-looking controls
-                        doing different things is worse than one extra word. */}
-                    <Button variant="ghost" size="sm" className="gap-1.5 -ml-2" onClick={closeSplit}>
-                      <X className="w-4 h-4" />
-                      {lang === "cn" ? "关闭指南" : "Close guides"}
-                    </Button>
+                        doing different things is worse than one extra word.
+                        Pinned for the same reason as the article's — a folder of
+                        200+ guides scrolls a long way. */}
+                    <div className="sticky top-0 z-10 -mx-1 -mt-1 px-1 pt-1 pb-1 bg-background/95 backdrop-blur-sm">
+                      <Button variant="ghost" size="sm" className="gap-1.5 -ml-2" onClick={closeSplit}>
+                        <X className="w-4 h-4" />
+                        {lang === "cn" ? "关闭指南" : "Close guides"}
+                      </Button>
+                    </div>
                     <HelpBrowse
                       lang={lang}
                       articleId={null}

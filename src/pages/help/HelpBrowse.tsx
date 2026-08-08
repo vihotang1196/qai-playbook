@@ -261,9 +261,25 @@ export function ArticleReader({ lang, id, onBack }: { lang: "cn" | "en"; id: str
 
   return (
     <div className="space-y-4">
-      <Button variant="ghost" size="sm" className="gap-1.5 -ml-2" onClick={onBack}>
-        <ArrowLeft className="w-4 h-4" /> {lang === "cn" ? "返回" : "Back"}
-      </Button>
+      {/*
+        Pinned, not scrolled away with the article. A guide runs several screens;
+        having to scroll back to the top just to leave it is the kind of friction
+        that makes people use the browser's back button and lose the page.
+
+        The offset is a variable because the scrolling ancestor differs by
+        context. In the split pane the pane itself scrolls, so the split sets it
+        to 0. Everywhere else the PAGE scrolls under a `fixed` 66px navbar, and
+        the default clears it — sticking at 0 there would slide the control
+        underneath the navbar exactly when it is needed.
+
+        Opaque background + a negative/positive inset pair so the article text
+        passes cleanly underneath instead of showing through the control.
+      */}
+      <div className="sticky top-[var(--reader-sticky-top,74px)] z-10 -mx-1 -mt-1 px-1 pt-1 pb-1 bg-background/95 backdrop-blur-sm">
+        <Button variant="ghost" size="sm" className="gap-1.5 -ml-2" onClick={onBack}>
+          <ArrowLeft className="w-4 h-4" /> {lang === "cn" ? "返回" : "Back"}
+        </Button>
+      </div>
 
       {loading ? (
         <div className="glass-card rounded-2xl p-10 flex items-center justify-center text-muted-foreground">
