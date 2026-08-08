@@ -1,11 +1,12 @@
 import { useEffect, useRef, useState } from "react";
-import { BookOpen, Check, Copy, LifeBuoy, Lock, Megaphone, MessageCircle } from "lucide-react";
+import { BookOpen, Check, Copy, LifeBuoy, Lock, Megaphone, MessageCircle, X } from "lucide-react";
 import { useLang } from "@/i18n/LanguageContext";
 import { resolveLocationId, resolveStaff, fetchLocation, inIframe, type GhlLocation } from "@/lib/ghl";
 import { checkHelpAccess } from "@/lib/helpdesk";
 import HelpChat from "./HelpChat";
 import HelpBrowse, { ArticleReader } from "./HelpBrowse";
 import HelpUpdates from "./HelpUpdates";
+import { Button } from "@/components/ui/button";
 
 /**
  * Public customer HELP CENTER (`/help`) — QAI's shared, agency-wide help center:
@@ -32,11 +33,25 @@ type Tab = "chat" | "browse" | "updates";
 
 /** Reading column, single pane — what this page has always been. */
 const SINGLE_MAX_W = 768;
-/** Reading column while a guide is open beside the chat. At 3fr/2fr that is
- *  ≈826px of guide + 550px of chat: the guide takes the larger share because it
- *  is prose with screenshots, the chat only needs bubbles and a composer.
- *  Measured in the real GHL frame at 2104px wide, so this fits with room over. */
-const SPLIT_MAX_W = 1400;
+/**
+ * Reading column while the split is open. The real GHL frame measures 2083px
+ * wide (?hdDebug=1), so 1400 was leaving ~340px empty down each side while the
+ * chat sat at a cramped 550. At 1700 the margins are ~165 a side and both panes
+ * grow — the chat was widened by using the empty space, not by taking any from
+ * the guide.
+ *
+ * SPLIT_COLS must stay pure `fr` on BOTH sides. Something like
+ * `minmax(0,880px) 1fr` would cap the guide more directly, but a track list can
+ * only be tweened against another of the same types, and the collapsed state is
+ * `0fr 1fr` — mixing a length in kills the animation outright.
+ *
+ * 1.1fr/1fr over 1676 (1700 less the gap) gives ≈878 guide / ≈798 chat. The
+ * guide deliberately stops just under 900: past that the measure gets too long
+ * to read comfortably, which is why the extra width went to the chat and why
+ * this ratio should not be pushed further in the guide's favour.
+ */
+const SPLIT_MAX_W = 1700;
+const SPLIT_COLS = "1.1fr 1fr";
 
 /**
  * ⚠️ HEIGHT OF THE SPLIT ROW WHEN FRAMED — tune THIS LINE from real observation.
@@ -119,28 +134,58 @@ export default function HelpWidget() {
   const [staff] = useState(() => resolveStaff());
   const [tab, setTab] = useState<Tab>("chat");
   const [articleId, setArticleId] = useState<string | null>(null);
-  /** Which tab the reader was on when the current guide was opened — see
-   *  closeArticle. Only meaningful while articleId is set. */
+  /**
+   * The left pane is open. Tracked separately from articleId because the pane
+   * has TWO contents: a guide, and — after backing out of one — the guide list,
+   * so the reader can pick the next one without leaving the split and coming
+   * back in.
+   */
+  const [splitOpen, setSplitOpen] = useState(false);
+  /** Which tab the split was entered FROM. Decides where "back" leads. */
   const [originTab, setOriginTab] = useState<Tab>("chat");
   const framed = useRef(inIframe()).current;
   const articleScrollRef = useRef<HTMLDivElement>(null);
 
-  /** A guide is open → on desktop it sits BESIDE the chat rather than replacing it. */
-  const split = articleId !== null;
+  /** The left pane is showing something → on desktop it sits BESIDE the chat. */
+  const split = splitOpen;
 
   // From an AI answer's source link this no longer navigates away from the
   // conversation: the guide opens in the left pane and the chat stays on the right.
   function openArticle(id: string) {
     // First open only — following a link from inside an open guide must not
     // overwrite where the reader originally came from.
-    if (articleId === null) setOriginTab(tab);
+    if (!splitOpen) setOriginTab(tab);
+    setSplitOpen(true);
     setArticleId(id);
   }
 
-  /** Closing returns to the tab the guide was opened FROM: arriving via a chat
-   *  source link and arriving via the guide list are different journeys, and
-   *  "back" means a different place in each. */
-  function closeArticle() {
+  /**
+   * Back out of a guide.
+   *
+   * ONE rule, two outcomes: back undoes the last step of the path the reader
+   * actually took.
+   *
+   * Came from the guide list → the step before this guide was the list, so the
+   * pane returns to it and the split stays up. Reading several guides in a row
+   * is the normal way to use this, and it should not require leaving and
+   * re-entering.
+   *
+   * Came from a citation in an answer → the step before was the conversation.
+   * That reader never chose to browse; dropping them on a list they never asked
+   * for is a non-sequitur, and their actual task is the question they were in
+   * the middle of. So the split closes and returns them to it.
+   */
+  function backFromArticle() {
+    if (originTab !== "browse") {
+      closeSplit();
+      return;
+    }
+    setArticleId(null);
+  }
+
+  /** Leave the split entirely, back to the tab it was entered from. */
+  function closeSplit() {
+    setSplitOpen(false);
     setArticleId(null);
     setTab(originTab);
   }
@@ -212,6 +257,7 @@ export default function HelpWidget() {
                 // bar always means "what this page is showing"; reading a guide
                 // is a state of that, not an escape from it.
                 onClick={() => {
+                  setSplitOpen(false);
                   setArticleId(null);
                   setTab(t.key);
                 }}
@@ -274,7 +320,7 @@ export default function HelpWidget() {
         <div
           className={`lg:grid lg:gap-6 ${split ? "lg:h-[var(--split-h)] lg:grid-rows-[minmax(0,1fr)]" : ""}`}
           style={{
-            gridTemplateColumns: split ? "3fr 2fr" : "0fr 2fr",
+            gridTemplateColumns: split ? SPLIT_COLS : "0fr 1fr",
             transition: "grid-template-columns 300ms ease-out",
             ["--split-h" as string]: splitHeight(framed),
           }}
@@ -287,11 +333,36 @@ export default function HelpWidget() {
               transition: `visibility 0s linear ${split ? "0ms" : "300ms"}`,
             }}
           >
+            {/* The pane's own scroll container. It has to exist for BOTH
+                contents: HelpBrowse is plain flow with no internal scrolling, so
+                inside a fixed-height pane it is the same shape of mistake that
+                broke the first attempt — it just happens to be caught here
+                because this wrapper clips it. */}
             <div
               ref={articleScrollRef}
               className={split ? "lg:h-full lg:overflow-y-auto lg:pr-1" : ""}
             >
-              {articleId && <ArticleReader lang={lang} id={articleId} onBack={closeArticle} />}
+              {articleId ? (
+                <ArticleReader lang={lang} id={articleId} onBack={backFromArticle} />
+              ) : (
+                split && (
+                  <div className="space-y-3">
+                    {/* Labelled "close", not "back": HelpBrowse has its own 返回分类
+                        for moving up a level, and two identical-looking controls
+                        doing different things is worse than one extra word. */}
+                    <Button variant="ghost" size="sm" className="gap-1.5 -ml-2" onClick={closeSplit}>
+                      <X className="w-4 h-4" />
+                      {lang === "cn" ? "关闭指南" : "Close guides"}
+                    </Button>
+                    <HelpBrowse
+                      lang={lang}
+                      articleId={null}
+                      onOpenArticle={openArticle}
+                      onBack={closeSplit}
+                    />
+                  </div>
+                )
+              )}
             </div>
           </div>
 
@@ -322,7 +393,7 @@ export default function HelpWidget() {
                 lang={lang}
                 articleId={null}
                 onOpenArticle={openArticle}
-                onBack={closeArticle}
+                onBack={closeSplit}
               />
             )}
             {!split && tab === "updates" && <HelpUpdates lang={lang} />}
