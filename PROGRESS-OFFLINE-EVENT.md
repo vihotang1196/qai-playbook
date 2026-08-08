@@ -2490,3 +2490,105 @@ An entire session's worth of changes was reported as "tsc ✅" on the strength o
 a command that never looked at a file. The verification was not weak, it was
 absent — and it read as thorough, which is worse. When a check has never once
 failed, that is not confidence, it is a signal to go and prove it can fail.
+
+---
+
+## Four CSS/layout traps from the helpdesk split, and the check that caught two of them (2026-08-07)
+
+Building the side-by-side guide+chat layout took a revert and two rebuilds. The
+mistakes were not typos — each one looked correct, produced no error, and in
+three of the four cases silently did nothing at all. Worth carrying forward.
+
+*(The fifth finding from that session — `npx tsc --noEmit` type-checking zero
+files — has its own entry above.)*
+
+### 1. `clamp()`'s middle arm can permanently beat its own upper bound
+
+```
+clamp(420px, calc(100vh - 300px), 700px)
+```
+
+At the measured frame height of 995 the middle arm is 695, so the 700 cap NEVER
+applies. Raising that constant to 800, 900, anything — no effect, no warning.
+The knob looks adjustable and is welded shut.
+
+That arm was meant as a safety net for a genuinely short frame, not as the
+value. It now reserves 200 instead of the full page chrome, so the same frame
+yields 795, the cap governs as intended, and the guard still bites when the
+frame really is too short.
+
+**Whenever a `clamp()` or `min()` mixes a tunable constant with a viewport
+expression, evaluate all the arms at the real viewport size before believing the
+constant is in charge.** Directly: set the expression on a throwaway element and
+read `getComputedStyle().height`. That is how the 695-vs-700 was proven.
+
+### 2. A `height` on a grid container does NOT constrain its rows
+
+The implicit row is `auto`, so it sizes to CONTENT. Panes with `h-full` then
+resolve against that oversized row and the whole thing overflows the box it was
+supposed to fit inside. Measured: container 600px, content 7066px, both panes
+6466px past the bottom.
+
+Needs BOTH:
+- `grid-rows-[minmax(0,1fr)]` on the container — pins the row to the height.
+- `min-h-0` on each item — grid items default to `min-height: auto` and refuse
+  to shrink below min-content, bursting the row again on their own.
+
+### 3. An inline style cannot carry a breakpoint
+
+Setting a CSS custom property through React's `style` prop applies it at EVERY
+width. Used for the sticky offset of the reader's back control, it pinned the
+control at 0 on mobile too — sliding it under the fixed 66px navbar exactly when
+a reader scrolling a long guide needs it.
+
+**When a value must differ by breakpoint, it has to be a class.** Tailwind's
+arbitrary-property syntax does this: `lg:[--reader-sticky-top:0px]`.
+
+Found only because mobile was actually opened. Inheritance "obviously" working
+is not evidence.
+
+### 4. A fixed height is only safe over content that scrolls
+
+The bug that shipped and was reverted. The split's height was applied to the
+grid unconditionally, but of the three things the pane could hold, only HelpChat
+was built for a fixed-height parent (`h-full` + `min-h-0` + an inner
+`overflow-y-auto`). HelpBrowse and HelpUpdates are plain flow — written for a
+page that grows — so under a locked box with no overflow they painted straight
+out of it, through the footer, which is a normal-flow element immediately after.
+
+The fix was the CONDITION (height only while split, where both panes do scroll),
+not a scattering of `overflow-hidden`. Adding overflow everywhere would have
+clipped the symptom and kept the mistake — and would have hidden trap #2, which
+was sitting behind it.
+
+### 🟢 The check that found #2 and #4: three geometry invariants × every state
+
+Cheap, runs in a headless panel with no scrolling, and does not require knowing
+what to look for:
+
+- **A** — every pane's `rect.bottom` ≤ the container's `rect.bottom`
+- **B** — the footer's `rect.top` ≥ the container's `rect.bottom`
+  *(this one IS the reported symptom, stated as an assertion)*
+- **C** — anything with `scrollHeight > clientHeight` must not be
+  `overflowY: visible`
+
+**C is the workhorse.** It catches "content overflows and nobody clips it"
+without needing to guess which element. Both bugs lit it up instantly.
+
+**Run them over ALL state combinations, not the one being built.** The reverted
+attempt was checked only in the split state; it broke in the COLLAPSED browse
+tab, which was never opened. The rebuild ran 11 states — three tabs collapsed,
+split from each entry point, both levels of back from each, a short window, and
+mobile in both — and that is what turned a second silent overflow into a caught
+one.
+
+Reusable snippet lives in this file's history; it is ~20 lines of
+`getBoundingClientRect` and a `querySelectorAll('*')` sweep.
+
+### ⚠️ The browser panel does not advance CSS transitions
+
+`playState` reports `running` while `currentTime` stays pinned at 0, so measuring
+a transitioning property returns its START value — which reads exactly like "the
+style never applied". Set `element.style.transition = 'none'` before measuring an
+animated end state. (Same root as Radix exit animations never completing there;
+noted in the GuidedTour section too.)
