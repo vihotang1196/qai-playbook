@@ -12,6 +12,7 @@
 // Secret required (set by the project owner, never in the frontend):
 //   supabase secrets set ANTHROPIC_API_KEY=sk-ant-...
 
+import type { SupabaseClient } from "https://esm.sh/@supabase/supabase-js@2.49.4";
 import { serviceClient } from "../_shared/ghl.ts";
 import { hasPlaybookAccess } from "../_shared/access.ts";
 import { logToolUsage } from "../_shared/usage.ts";
@@ -303,6 +304,49 @@ function json(body: unknown, status = 200): Response {
 
 function asString(v: unknown): string {
   return typeof v === "string" ? v : "";
+}
+
+/**
+ * Park a finished generation in `copy_generations` — the customer-facing history
+ * (browse it later, read it in full, reuse it as a template).
+ *
+ * BEST-EFFORT, and that is the whole point: the customer has already paid for
+ * this copy and is about to receive it. A history row that fails to save is OUR
+ * problem; an exception thrown from here would make it THEIRS. Nothing in this
+ * function may reach the response.
+ *
+ * TWO guards, because they catch different failures:
+ *   1. the `error` RETURN value — supabase-js reports query failures by
+ *      RETURNING them, not by throwing, so a try/catch alone would sail past a
+ *      failed insert and log nothing. This exact trap has already cost this
+ *      codebase once; see _shared/access.ts, where a dropped `error` made a
+ *      failed read look identical to "flag is off" for a whole cache TTL.
+ *   2. the try/catch — for what genuinely throws (network, client construction).
+ *
+ * ⚠️ NOTE WHAT IS ABSENT: there is no `if (requestId)` precondition here, and
+ * none may be added. The row is written on EVERY successful generation; a
+ * missing request_id is stored as NULL. Gating the existing tool_usage write on
+ * that browser-side id is exactly how 5 paid-for generations were thrown away
+ * (18 charged, 8 stored) — see the warning block in
+ * 20260809120000_copywriter_history.sql. The customer paid; the output is kept.
+ */
+async function saveToHistory(
+  sb: SupabaseClient,
+  row: {
+    location_id: string;
+    request_id: string | null;
+    product_name: string | null;
+    language: string;
+    input: unknown;
+    result: unknown;
+  },
+): Promise<void> {
+  try {
+    const { error } = await sb.from("copy_generations").insert(row);
+    if (error) console.error("saveToHistory failed (non-fatal):", error.message);
+  } catch (e) {
+    console.error("saveToHistory threw (non-fatal):", e);
+  }
 }
 
 /** Escape what JSON forbids inside a string but a model may still emit.
@@ -785,6 +829,28 @@ Deno.serve(async (req: Request) => {
     testimonials: asString(raw.testimonials),
     cta: optionLabel("cta", asString(raw.cta), lang),
     tone: optionLabel("tone", asString(raw.tone), lang),
+  };
+
+  // The SAME questionnaire, but with the four option fields left as the STABLE
+  // KEYS the browser sent ("professional"), not the rendered labels above
+  // ("专业"). This is the copy that goes into the history table, because the
+  // only thing history does with it is feed it back into the questionnaire, and
+  // the <select> options there are keyed on "professional". Storing `s` would
+  // produce a template whose four dropdowns all come back blank.
+  //
+  // Everything else is identical to `s`, so it is spread rather than retyped —
+  // the two must not be able to drift apart field by field.
+  //
+  // (A tab old enough to post the localized label still lands here verbatim,
+  // exactly as `optionLabel` passes it through for generation. That row's
+  // dropdowns won't repopulate, which is the pre-existing compatibility path,
+  // not a regression introduced by storing it.)
+  const surveyForHistory: SurveyInput = {
+    ...s,
+    ageRange: asString(raw.ageRange),
+    gender: asString(raw.gender),
+    cta: asString(raw.cta),
+    tone: asString(raw.tone),
   };
 
   if (!s.productName || !s.productDesc) {
@@ -1289,6 +1355,26 @@ Deno.serve(async (req: Request) => {
       },
     });
   }
+
+  // The customer-facing history. Note the contrast with the block directly
+  // above: that one is the RECOVERY row and is legitimately keyed on requestId
+  // (without one it could never be matched back to a browser, so it would be
+  // dead weight). This one is the customer's record of what they bought, so it
+  // is written unconditionally — see saveToHistory's warning.
+  //
+  // Reached only on a genuinely complete result: every path where the model
+  // returned an unusable shape and the repair could not fix it has already
+  // returned 502 further up, so no half-finished copy can land here. Rows that
+  // WERE rescued or repaired arrive with their structure already corrected, and
+  // are stored as the finished copy they now are.
+  await saveToHistory(sb, {
+    location_id: locationId,
+    request_id: requestId || null,
+    product_name: s.productName || null,
+    language: lang,
+    input: surveyForHistory,
+    result,
+  });
 
   return json(result);
 });
